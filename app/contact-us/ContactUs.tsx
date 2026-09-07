@@ -43,7 +43,7 @@ const offices = [
   {
     badge: "Regional Office",
     name: "Glasgow Office",
-    img: "/images/Contact form/Container.png",
+    img: "/images/Contact form/office.png",
     address: ["Suite 2G, 2nd Floor 48 West", "George Street, Glasgow G2 1BP"],
     phone: "+44 141 530 1560",
     email: "glasgow@zoikomobile.co.uk",
@@ -52,7 +52,7 @@ const offices = [
   {
     badge: "Regional Office",
     name: "Cardiff Office",
-    img: "/images/Contact form/office-cardiff.jpg",
+    img: "/images/Contact form/cardiff.png",
     address: ["Portland House, 113-116 Blue", "Street, Cardiff CF10 5EQ"],
     phone: "+44 292 000 1374",
     email: "cardiff@zoikomobile.co.uk",

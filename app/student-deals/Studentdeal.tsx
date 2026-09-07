@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ const TERMS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Studentdeal() {
+  const router = useRouter();
   return (
     <div className="bg-white dark:bg-gray-900">
 
@@ -168,7 +170,7 @@ function Studentdeal() {
               while focusing on your studies and social life. Stay connected, stay smart, and stay within your
               budget with Zoiko Mobile.
             </p>
-            <button className="rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
+            <button onClick={()=>router.push("/plans")} className="cursor-pointer rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
               Browse Plans Now
             </button>
           </div>
@@ -242,12 +244,12 @@ function Studentdeal() {
           </div>
 
           <div className="mt-8 flex justify-center gap-4">
-            <Link href="/student-discount-application">
-            <button className="rounded-md bg-[#e6007e] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a]">
+            {/* <Link href="/student-discount-application"> */}
+            <button onClick={()=>router.push("/student-discount-application")} className="cursor-pointer rounded-md bg-[#e6007e] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a]">
               Join Now
             </button>
-            </Link>
-            <button className="rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
+            {/* </Link> */}
+            <button onClick={()=>router.push("/switch-and-save")} className="cursor-pointer rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
               Switch &amp; Save
             </button>
           </div>

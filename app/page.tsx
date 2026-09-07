@@ -22,21 +22,69 @@ const joinFeatures = [
 ];
 
 const whyChoose = [
-  { icon: "/images/homepage/📡.png", title: "Free 5G Access", desc: "Lightning-fast speeds at no extra cost" },
-  { icon: "/images/homepage/🚚.png", title: "Free UK Delivery", desc: "Quick delivery to your doorstep" },
-  { icon: "/images/homepage/🌍.png", title: "Free 5G EU Roaming", desc: "Stay connected across Europe" },
-  { icon: "/images/homepage/💬.png", title: "Free Customer Service Call", desc: "Always here to help you" },
-  { icon: "/images/homepage/⏰.png", title: "Free 24×7 Customer Support", desc: "Round-the-clock assistance" },
-  { icon: "/images/homepage/🔄.png", title: "Free Switching to Zoiko Mobile", desc: "Seamless transition process" },
+  {
+    icon: "/images/homepage/📡.png",
+    title: "Free 5G Access",
+    desc: "Lightning-fast speeds at no extra cost",
+  },
+  {
+    icon: "/images/homepage/🚚.png",
+    title: "Free UK Delivery",
+    desc: "Quick delivery to your doorstep",
+  },
+  {
+    icon: "/images/homepage/🌍.png",
+    title: "Free 5G EU Roaming",
+    desc: "Stay connected across Europe",
+  },
+  {
+    icon: "/images/homepage/💬.png",
+    title: "Free Customer Service Call",
+    desc: "Always here to help you",
+  },
+  {
+    icon: "/images/homepage/⏰.png",
+    title: "Free 24×7 Customer Support",
+    desc: "Round-the-clock assistance",
+  },
+  {
+    icon: "/images/homepage/🔄.png",
+    title: "Free Switching to Zoiko Mobile",
+    desc: "Seamless transition process",
+  },
 ];
 
 const careOptions = [
-  { icon: "/images/homepage/✉️.png", title: "Email Support", desc: "Contact us at any time of the day via email" },
-  { icon: "/images/homepage/💬 (1).png", title: "Live Chat", desc: "Chat with our team 24/7 for instant responses" },
-  { icon: "/images/homepage/⏰ (1).png", title: "Extended Support", desc: "Our customer service is open for extended hours" },
-  { icon: "/images/homepage/📱 (1).png", title: "Self-Service Portal", desc: "Get quick answers in our online help center" },
-  { icon: "/images/homepage/💻.png", title: "Ask Me Temporarily", desc: "Quick help for common questions" },
-  { icon: "/images/homepage/🎧.png", title: "Contact Sales", desc: "Speak to our sales team Monday to Sunday" },
+  {
+    icon: "/images/homepage/✉️.png",
+    title: "Email Support",
+    desc: "Contact us at any time of the day via email",
+  },
+  {
+    icon: "/images/homepage/💬 (1).png",
+    title: "Live Chat",
+    desc: "Chat with our team 24/7 for instant responses",
+  },
+  {
+    icon: "/images/homepage/⏰ (1).png",
+    title: "Extended Support",
+    desc: "Our customer service is open for extended hours",
+  },
+  {
+    icon: "/images/homepage/📱 (1).png",
+    title: "Self-Service Portal",
+    desc: "Get quick answers in our online help center",
+  },
+  {
+    icon: "/images/homepage/💻.png",
+    title: "Ask Me Temporarily",
+    desc: "Quick help for common questions",
+  },
+  {
+    icon: "/images/homepage/🎧.png",
+    title: "Contact Sales",
+    desc: "Speak to our sales team Monday to Sunday",
+  },
 ];
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -86,16 +134,21 @@ interface Plan {
 
 function priceFor(plan: Plan, duration: Duration): string {
   const raw =
-    duration === "24 Month Plan" ? plan.price_24 :
-      duration === "12 Month Plan" ? plan.price_12 :
-        plan.price_30;
+    duration === "24 Month Plan"
+      ? plan.price_24
+      : duration === "12 Month Plan"
+        ? plan.price_12
+        : plan.price_30;
   return Number(raw ?? plan.price).toFixed(2);
 }
 
 function bullets(plan: Plan): string[] {
   if (plan.features.length > 0) return plan.features.map((f) => f.title);
   if (!plan.short_description) return [];
-  return plan.short_description.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  return plan.short_description
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 // ─── DEVICES DATA FETCHING (ported from the Devices listing page) ─────────────
@@ -121,9 +174,18 @@ interface Product {
 
 // Map colour names to swatch hex (extend as needed)
 const COLOUR_HEX: Record<string, string> = {
-  gold: "#d4af37", green: "#1f6b4f", grey: "#9ca3af", gray: "#9ca3af",
-  silver: "#e5e7eb", black: "#1f2937", white: "#ffffff", blue: "#3b82f6",
-  red: "#ef4444", pink: "#ec4899", purple: "#8b5cf6", yellow: "#eab308",
+  gold: "#d4af37",
+  green: "#1f6b4f",
+  grey: "#9ca3af",
+  gray: "#9ca3af",
+  silver: "#e5e7eb",
+  black: "#1f2937",
+  white: "#ffffff",
+  blue: "#3b82f6",
+  red: "#ef4444",
+  pink: "#ec4899",
+  purple: "#8b5cf6",
+  yellow: "#eab308",
 };
 const hexFor = (name: string) => COLOUR_HEX[name.toLowerCase()] ?? "#9ca3af";
 
@@ -140,7 +202,14 @@ const GREEN = "#00a859";
 
 function CheckIcon() {
   return (
-    <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#e6007e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+    <svg
+      className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#e6007e]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      aria-hidden="true"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   );
@@ -148,7 +217,12 @@ function CheckIcon() {
 
 function StarIcon() {
   return (
-    <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+    <svg
+      className="h-5 w-5 text-amber-400"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9 4.8 17.6l1-5.8L1.5 7.7l5.9-.9z" />
     </svg>
   );
@@ -163,29 +237,48 @@ function DeviceCard({ d }: { d: Product }) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-md dark:border-gray-700 dark:bg-gray-800">
       <div className="mb-5 flex h-44 items-center justify-center">
-        {d.primary_image
-          ? <img src={d.primary_image} alt={d.name} className="h-full w-auto object-contain" />
-          : <div className="h-full w-32 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700" />}
+        {d.primary_image ? (
+          <img
+            src={d.primary_image}
+            alt={d.name}
+            className="h-full w-auto object-contain"
+          />
+        ) : (
+          <div className="h-full w-32 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700" />
+        )}
       </div>
 
-      <h3 className="mb-2 text-lg font-bold text-gray-800 dark:text-white">{d.name}</h3>
+      <h3 className="mb-2 text-lg font-bold text-gray-800 dark:text-white">
+        {d.name}
+      </h3>
 
       <p className="text-xs text-gray-400">Starting from:</p>
-      <p className="mb-4 text-2xl font-extrabold text-[#e6007e]">£{from.toFixed(2)}</p>
+      <p className="mb-4 text-2xl font-extrabold text-[#e6007e]">
+        £{from.toFixed(2)}
+      </p>
 
       {conditions.length > 0 && (
         <div className="mb-4 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900">
           <p className="text-xs text-gray-400">Device condition:</p>
-          <p className="text-sm font-semibold text-green-600">{conditions.join(", ")}</p>
+          <p className="text-sm font-semibold text-green-600">
+            {conditions.join(", ")}
+          </p>
         </div>
       )}
 
       {colours.length > 0 && (
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm text-gray-500 dark:text-gray-400">Available colours:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Available colours:
+          </span>
           <div className="flex gap-1.5">
             {colours.map((c) => (
-              <span key={c} title={c} className="h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: hexFor(c) }} />
+              <span
+                key={c}
+                title={c}
+                className="h-4 w-4 rounded-full border border-gray-200"
+                style={{ backgroundColor: hexFor(c) }}
+              />
             ))}
           </div>
         </div>
@@ -193,8 +286,12 @@ function DeviceCard({ d }: { d: Product }) {
 
       {storages.length > 0 && (
         <div className="mb-5 flex items-center justify-between gap-3">
-          <span className="text-sm text-gray-500 dark:text-gray-400">Internal storage:</span>
-          <span className="text-right text-sm font-medium text-gray-700 dark:text-gray-200">{storages.join(" | ")}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Internal storage:
+          </span>
+          <span className="text-right text-sm font-medium text-gray-700 dark:text-gray-200">
+            {storages.join(" | ")}
+          </span>
         </div>
       )}
 
@@ -225,17 +322,32 @@ function Hero() {
           </p>
 
           <div className="mt-6 flex items-end gap-2">
-            <span className="font-extrabold text-[#e6007e] text-[clamp(2.25rem,6vw,3.5rem)] leading-none">£0.00</span>
-            <span className="mb-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">/Month For Up To 3 Months*</span>
+            <span className="font-extrabold text-[#e6007e] text-[clamp(2.25rem,6vw,3.5rem)] leading-none">
+              £0.00
+            </span>
+            <span className="mb-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+              /Month For Up To 3 Months*
+            </span>
           </div>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-          <a href="/switch-and-save">  <button type="button" className="rounded-full bg-[#e6007e] px-8 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#c4007a]">
-              Switch &amp; Save
-            </button></a>
-            <a href="/plans"><button type="button" className="rounded-full border border-[#e6007e] px-8 py-3 text-sm font-semibold text-[#e6007e] transition-colors hover:bg-[#fff0f8] dark:hover:bg-[#e6007e]/10">
-              View Plans
-            </button></a>
+            <a href="/switch-and-save">
+              {" "}
+              <button
+                type="button"
+                className="rounded-full bg-[#e6007e] px-8 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#c4007a]"
+              >
+                Switch &amp; Save
+              </button>
+            </a>
+            <a href="/plans">
+              <button
+                type="button"
+                className="rounded-full border border-[#e6007e] px-8 py-3 text-sm font-semibold text-[#e6007e] transition-colors hover:bg-[#fff0f8] dark:hover:bg-[#e6007e]/10"
+              >
+                View Plans
+              </button>
+            </a>
           </div>
         </div>
 
@@ -268,11 +380,22 @@ function JoinZoiko() {
 
         <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {joinFeatures.map((f) => (
-            <div key={f.label} className="flex flex-col items-center gap-3 rounded-xl bg-gray-50 px-3 py-6 text-center dark:bg-gray-800">
+            <div
+              key={f.label}
+              className="flex flex-col items-center gap-3 rounded-xl bg-gray-50 px-3 py-6 text-center dark:bg-gray-800"
+            >
               <div className="relative h-10 w-10 flex-shrink-0">
-                <Image src={f.icon} alt={f.label} fill sizes="40px" className="object-contain" />
+                <Image
+                  src={f.icon}
+                  alt={f.label}
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                />
               </div>
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-200 sm:text-sm">{f.label}</span>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-200 sm:text-sm">
+                {f.label}
+              </span>
             </div>
           ))}
         </div>
@@ -292,12 +415,25 @@ function WhyChoose() {
 
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {whyChoose.map((item) => (
-            <div key={item.title} className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-800">
+            <div
+              key={item.title}
+              className="rounded-2xl bg-white p-6 shadow-sm dark:bg-gray-800"
+            >
               <div className="relative mb-4 h-10 w-10">
-                <Image src={item.icon} alt={item.title} fill sizes="40px" className="object-contain" />
+                <Image
+                  src={item.icon}
+                  alt={item.title}
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                />
               </div>
-              <h3 className="text-base font-bold text-gray-800 dark:text-white">{item.title}</h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.desc}</p>
+              <h3 className="text-base font-bold text-gray-800 dark:text-white">
+                {item.title}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {item.desc}
+              </p>
             </div>
           ))}
         </div>
@@ -335,7 +471,7 @@ function Plans() {
   // SIM-only plans only, and just the first 3 for the homepage teaser.
   const simPlans = useMemo(
     () => allPlans.filter((p) => p.category?.slug === SIM_SLUG).slice(0, 3),
-    [allPlans]
+    [allPlans],
   );
 
   // Open the eSIM / pSIM chooser (needed so the checkout can route SIM lines).
@@ -386,7 +522,10 @@ function Plans() {
         {/* Loading */}
         {loading && (
           <div className="mt-10 flex justify-center py-10">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#e6007e] border-t-transparent" role="status">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-4 border-[#e6007e] border-t-transparent"
+              role="status"
+            >
               <span className="sr-only">Loading plans…</span>
             </div>
           </div>
@@ -438,12 +577,17 @@ function Plans() {
                   <span className="font-extrabold text-[#e6007e] text-[clamp(1.75rem,4vw,2.25rem)]">
                     £{priceFor(plan, duration)}
                   </span>
-                  <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">per month</span>
+                  <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">
+                    per month
+                  </span>
                 </div>
 
                 <ul className="mt-6 flex flex-1 flex-col gap-3">
                   {bullets(plan).map((feat, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300"
+                    >
                       <CheckIcon />
                       <span>{feat}</span>
                     </li>
@@ -466,6 +610,79 @@ function Plans() {
   );
 }
 
+import React from "react";
+import { PhoneCall, Search, Coins, RefreshCw } from "lucide-react";
+
+interface TrustReason {
+  imageSrc: string;
+  imageAlt: string;
+  title: string;
+  description: string;
+}
+
+const trustReasons: TrustReason[] = [
+  {
+    imageSrc: "/images/homepage/💻.png",
+    imageAlt: "Free International Calls Icon",
+    title: "Free International Calls",
+    description:
+      "Ring your loved ones abroad & stay in touch without the hefty bill",
+  },
+  {
+    imageSrc: "/images/homepage/🔄.png",
+    imageAlt: "No Credit Check Icon",
+    title: "No Credit Check Required",
+    description: "We've made it easier than ever for you to switch",
+  },
+  {
+    imageSrc: "/images/homepage/💻.png",
+    imageAlt: "Pocket-friendly Pricing Icon",
+    title: "Pocket-friendly Pricing",
+    description: "Enjoy a whole lot of data without breaking your bank",
+  },
+  {
+    imageSrc: "/images/homepage/🔄.png",
+    imageAlt: "Easy to Switch Icon",
+    title: "Easy to Switch",
+    description: "Switching to Zoiko Mobile has never been easier",
+  },
+];
+
+function ReasonsToTrustSection() {
+  return (
+    <section className="w-full bg-[#F6F8FA] py-16 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto text-center">
+        <h2 className="text-2xl sm:text-3xl font-bold text-[#101828] mb-10 tracking-tight">
+          Reasons to Trust Zoiko Mobile
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {trustReasons.map((item, index) => (
+            <div
+              key={index}
+              className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col items-center text-center transition-all duration-200 hover:shadow-md"
+            >
+              <div className="mb-6 flex items-center justify-center">
+                <Image
+                  src={item.imageSrc}
+                  alt={item.imageAlt}
+                  width={48}
+                  height={48}
+                  className="object-contain"
+                />
+              </div>
+              <h3 className="text-[18px] font-bold text-[#101828] mb-3 leading-snug">
+                {item.title}
+              </h3>
+              <p className="text-xs sm:text-sm text-[#667085] leading-relaxed font-normal">
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 /** 5. DEVICES — refurbished smartphones teaser, fetched live, capped at 4 */
 function Devices() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -479,7 +696,7 @@ function Devices() {
         if (!res.ok) throw new Error("Failed to load products");
         const data = await res.json();
         // supports array OR paginated { results: [...] }
-        setProducts(Array.isArray(data) ? data : data.results ?? []);
+        setProducts(Array.isArray(data) ? data : (data.results ?? []));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load products");
       } finally {
@@ -499,16 +716,21 @@ function Devices() {
     <section className="bg-gray-50 px-4 py-14 sm:px-6 md:px-8 lg:py-20 dark:bg-gray-900">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-center font-extrabold text-gray-800 dark:text-white text-[clamp(1.5rem,4vw,2.25rem)]">
-          <span className="text-[#e6007e]">Pick</span> Up A Fantastic Deal On Our Refurbished Smartphones!
+          <span className="text-[#e6007e]">Pick</span> Up A Fantastic Deal On
+          Our Refurbished Smartphones!
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-gray-500 dark:text-gray-400">
-          From Apple iPhones to Samsung Galaxy devices, we&rsquo;ve thoroughly inspected and restored each smartphone for you.
+          From Apple iPhones to Samsung Galaxy devices, we&rsquo;ve thoroughly
+          inspected and restored each smartphone for you.
         </p>
 
         {/* Loading */}
         {loading && (
           <div className="mt-10 flex justify-center py-10">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-green-500 border-t-transparent" role="status">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-4 border-green-500 border-t-transparent"
+              role="status"
+            >
               <span className="sr-only">Loading devices…</span>
             </div>
           </div>
@@ -562,17 +784,32 @@ function CustomerCare() {
           Zoiko Customer Care
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-gray-500 dark:text-gray-400">
-          We understand the importance of having a mobile. When you may not be on best person in the US, we offer a variety of accessible customer support options.
+          We understand the importance of having a mobile. When you may not be
+          on best person in the US, we offer a variety of accessible customer
+          support options.
         </p>
 
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {careOptions.map((opt) => (
-            <div key={opt.title} className="flex flex-col items-center rounded-2xl bg-white p-6 text-center shadow-sm dark:bg-gray-800">
+            <div
+              key={opt.title}
+              className="flex flex-col items-center rounded-2xl bg-white p-6 text-center shadow-sm dark:bg-gray-800"
+            >
               <div className="relative mb-4 h-10 w-10">
-                <Image src={opt.icon} alt={opt.title} fill sizes="40px" className="object-contain" />
+                <Image
+                  src={opt.icon}
+                  alt={opt.title}
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                />
               </div>
-              <h3 className="text-base font-bold text-gray-800 dark:text-white">{opt.title}</h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{opt.desc}</p>
+              <h3 className="text-base font-bold text-gray-800 dark:text-white">
+                {opt.title}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {opt.desc}
+              </p>
             </div>
           ))}
         </div>
@@ -586,9 +823,13 @@ function Review() {
   return (
     <section className="bg-white px-4 py-14 sm:px-6 md:px-8 dark:bg-gray-800">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-extrabold text-gray-800 dark:text-white text-[clamp(1.25rem,3vw,1.75rem)]">Great</h2>
+        <h2 className="font-extrabold text-gray-800 dark:text-white text-[clamp(1.25rem,3vw,1.75rem)]">
+          Great
+        </h2>
         <p className="mt-4 text-sm italic leading-relaxed text-gray-500 dark:text-gray-400 sm:text-base">
-          Zoiko Mobile has extremely changed the way I use my phone. With their affordable prices and excellent customer support, I couldn&rsquo;t be happier with my switch!
+          Zoiko Mobile has extremely changed the way I use my phone. With their
+          affordable prices and excellent customer support, I couldn&rsquo;t be
+          happier with my switch!
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -597,8 +838,12 @@ function Review() {
               <StarIcon key={i} />
             ))}
           </div>
-          <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Great</span>
-          <span className="text-sm text-gray-400 dark:text-gray-500">Based on over 3,000 reviews</span>
+          <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+            Great
+          </span>
+          <span className="text-sm text-gray-400 dark:text-gray-500">
+            Based on over 3,000 reviews
+          </span>
         </div>
       </div>
     </section>
@@ -614,6 +859,7 @@ export default function ZoikoMobileHome() {
       <JoinZoiko />
       <WhyChoose />
       <Plans />
+      <ReasonsToTrustSection />
       <Devices />
       <CustomerCare />
       <Review />

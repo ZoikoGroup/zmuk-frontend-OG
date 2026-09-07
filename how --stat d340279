@@ -1,0 +1,30 @@
+[33m5c72fae[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmukul[m[33m, [m[1;31morigin/mukul[m[33m)[m Updated section
+[33m489ffdc[m Updated dashboard
+[33m3b12f23[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Merge pull request #38 from ZoikoGroup/debasish
+[33m87aa8eb[m[33m ([m[1;31morigin/debasish[m[33m)[m Merge pull request #37 from ZoikoGroup/main
+[33m7636f27[m unsubcribe blog page front end
+[33m9d33f1c[m Merge pull request #36 from ZoikoGroup/debasish
+[33me51af80[m fix blog front end
+[33mb3ecb76[m Merge pull request #35 from ZoikoGroup/debasish
+[33m477e2f6[m blogs page front end
+[33meac61ed[m privacy policy page
+[33mdb35dd7[m Ensure pm2 save command is executed
+[33m362f29a[m Fix: correct import path for processOrderStripe (stripeWebPaymentApi -> beQuickStripeWebPaymentApi)
+[33m4fb7e92[m CI/CD Pipeline
+[33m56e450b[m Merge pull request #29 from ZoikoGroup/sumon
+[33md340279[m Merge pull request #34 from ZoikoGroup/mukul
+[33m5482a03[m Added some links
+[33m7a05e26[m Fixed Some bugs
+[33m14fdbb7[m backend fix
+[33m865e4ce[m Merge pull request #33 from ZoikoGroup/mukul
+[33m23c4d05[m Updated Dashboard Ui
+[33m3431532[m Updated activate-your-sim page
+[33m8b064d1[m Merge pull request #32 from ZoikoGroup/Debasish
+[33m3832527[m fixed bugs
+[33m8d38396[m Merge pull request #31 from ZoikoGroup/Debasish
+[33mdf20c6e[m build errors
+[33m87045c6[m[33m ([m[1;31morigin/sumon[m[33m)[m activate sim
+[33m347c5c0[m 1st attamped integrate from claude
+[33m554a844[m Merge pull request #28 from ZoikoGroup/sumon
+[33m670a2cb[m modify the checkout
+[33md0fc960[m Merge pull request #27 from ZoikoGroup/sumon

@@ -82,8 +82,8 @@ const linkColumns: { title: string; links: FooterLink[] }[] = [
 
 // App store buttons — add the real store URLs in `href`.
 const storeButtons = [
-  { label: "Google Play", img: "/image/google-play.png", href: "" },
-  { label: "App Store", img: "/image/app-store.png", href: "" },
+  { label: "Google Play", img: "/images/apple.png", href: "" },
+  { label: "App Store", img: "/images/play.png", href: "" },
 ];
 
 // Social links — fill each `href`.

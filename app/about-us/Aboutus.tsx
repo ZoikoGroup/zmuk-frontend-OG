@@ -6,18 +6,18 @@ import Image from "next/image";
 // at these paths in /public, or rename to match your files.
 
 const reasons = [
-  { img: "/images/aboutus/Background+Shadow.png", title: "Free International Calls", desc: "Stay connected worldwide with complimentary international calling" },
-  { img: "/images/aboutus/Background+Shadow (1).png", title: "No Credit Check", desc: "Simple activation process without credit verification requirements" },
-  { img: "/images/aboutus/Background+Shadow (2).png", title: "Pocket Friendly", desc: "Affordable plans designed to fit every budget without compromise" },
-  { img: "/images/aboutus/Background+Shadow (3).png", title: "Switch to Zoiko Mobile and keep your current number", desc: "Seamless transition while retaining your existing phone number" },
-  { img: "/images/aboutus/Background+Shadow (4).png", title: "No.1 Network in the UK", desc: "Premium coverage and reliability across the United Kingdom" },
-  { img: "/images/aboutus/Background+Shadow (5).png", title: "Free 5G Roam", desc: "Experience high-speed 5G connectivity wherever you travel" },
+  { img: "/images/aboutus/1.png", title: "Free International Calls", desc: "Stay connected worldwide with complimentary international calling" },
+  { img: "/images/aboutus/2.png", title: "No Credit Check", desc: "Simple activation process without credit verification requirements" },
+  { img: "/images/aboutus/3.png", title: "Pocket Friendly", desc: "Affordable plans designed to fit every budget without compromise" },
+  { img: "/images/aboutus/4.png", title: "Switch to Zoiko Mobile and keep your current number", desc: "Seamless transition while retaining your existing phone number" },
+  { img: "/images/aboutus/5.png", title: "No.1 Network in the UK", desc: "Premium coverage and reliability across the United Kingdom" },
+  { img: "/images/aboutus/6.png", title: "Free 5G Roam", desc: "Experience high-speed 5G connectivity wherever you travel" },
 ];
 
 const coreValues = [
-  { img: "/images/aboutus/Background+Shadow (6).png", title: "Affordable and Reliable Mobile Solutions", desc: "Zoiko Mobile offers budget-friendly SIM Plans and Refurbished Phone Plans, ensuring affordability without compromising on reliability." },
-  { img: "/images/aboutus/Background+Shadow (7).png", title: "Environmental Commitment", desc: "Embrace sustainability with Zoiko Mobile's eco-conscious initiatives, providing environmentally friendly SIM plans and refurbished devices to contribute to a greener future." },
-  { img: "/images/aboutus/Background+Shadow (8).png", title: "Our Story and Customer Focus", desc: "Explore Zoiko Mobile's journey, values, and dedication to transparency. Our customer-centric approach ensures a top-notch mobile experience through SIM Plans and Refurbished Phone Deals designed to meet and exceed your expectations." },
+  { img: "/images/aboutus/7.png", title: "Affordable and Reliable Mobile Solutions", desc: "Zoiko Mobile offers budget-friendly SIM Plans and Refurbished Phone Plans, ensuring affordability without compromising on reliability." },
+  { img: "/images/aboutus/8.png", title: "Environmental Commitment", desc: "Embrace sustainability with Zoiko Mobile's eco-conscious initiatives, providing environmentally friendly SIM plans and refurbished devices to contribute to a greener future." },
+  { img: "/images/aboutus/9.png", title: "Our Story and Customer Focus", desc: "Explore Zoiko Mobile's journey, values, and dedication to transparency. Our customer-centric approach ensures a top-notch mobile experience through SIM Plans and Refurbished Phone Deals designed to meet and exceed your expectations." },
 ];
 
 const regretCards = [
