@@ -1,0 +1,497 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ZOIKO RECHARGE — matches zoikomobile.co.uk/recharge/
+   Light + Dark mode via CSS custom properties
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens — always light for recharge components ───────────────────── */
+:root {
+  --rc-pink: #e91e63;
+  --rc-teal: #00bfa5;
+  --rc-red: #e53935;
+  --rc-red-hover: #c62828;
+  --rc-navy: #1a237e;
+  --rc-navy-hover: #0d1642;
+}
+
+/* ── Page ─────────────────────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: #ffffff;
+  color: #1a1a2e;
+}
+
+/* ── Hero — full-width banner image ───────────────────────────────────── */
+.hero {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.heroBanner {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .heroBanner {
+    min-height: 180px;
+    object-position: left center;
+  }
+}
+
+/* ── Form area — centered below hero ──────────────────────────────────── */
+.formWrap {
+  max-width: 640px;
+  margin: 2rem auto 3rem;
+  padding: 0 1rem;
+}
+
+/* ── Phone form — always white card regardless of site dark mode ──── */
+.phoneForm, .simCard {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  color: #1a1a2e;
+}
+
+.label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 0.5rem;
+}
+
+.req { color: var(--rc-pink); }
+
+.phoneInput {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--rc-teal);
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+  color: #1a1a2e;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.phoneInput:focus {
+  border-color: #00acc1;
+  box-shadow: 0 0 0 3px rgba(0, 191, 165, 0.15);
+}
+
+.phoneInput:disabled { opacity: 0.6; }
+
+.validating {
+  color: var(--rc-teal);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.error {
+  color: var(--rc-red);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.validateBtn {
+  margin-top: 1rem;
+  padding: 0.7rem 2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--rc-teal);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.validateBtn:hover:not(:disabled) { opacity: 0.85; }
+.validateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── SIM details ─────────────────────────────────────────────────────── */
+.validated {
+  color: #2e7d32;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+.simTable {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.simTableHead {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--rc-teal);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f9f9f9;
+}
+
+.simRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.simRow:last-child { border-bottom: none; }
+
+.simLabel { font-weight: 600; color: #333333; }
+.simVal { color: #555555; }
+
+.rechargeBtn {
+  display: block;
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--rc-red);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.rechargeBtn:hover { background: var(--rc-red-hover); }
+
+.notRechargeable {
+  color: #e65100;
+  font-size: 0.9rem;
+  padding: 0.75rem;
+  background: #fff3e0;
+  border-radius: 4px;
+}
+
+.resetRow { text-align: center; margin-top: 1rem; }
+.resetBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: #555555;
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.resetBtn:hover { background: #f9f9f9; }
+
+/* ── Modal ───────────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: #ffffff;
+  color: #1a1a2e;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+.mHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.mTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+  color: #1a1a2e;
+}
+
+.mClose {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--rc-red);
+  border: none; border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ── SIM strip ───────────────────────────────────────────────────────── */
+.simStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  margin: 0.85rem 1.25rem 0;
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stripInfo {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  color: #333333;
+}
+
+.stripLbl { color: var(--rc-teal); }
+
+.stripChange {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--rc-red);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ── Plan grid — 2 columns matching WordPress ────────────────────────── */
+.planGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.planCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.15rem 0.6rem 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: center;
+  gap: 0.3rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.planCard:hover {
+  border-color: var(--rc-teal);
+  box-shadow: 0 3px 14px rgba(0, 191, 165, 0.18);
+}
+
+.planBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 2.5px solid var(--rc-teal);
+  width: 75%;
+}
+
+.planGb {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--rc-teal);
+  line-height: 1;
+}
+
+.planUnit {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--rc-teal);
+  letter-spacing: 0.12em;
+  margin-top: 1px;
+}
+
+.planName {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #555555;
+}
+
+.planPrice {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--rc-red);
+}
+
+/* ── Payment ─────────────────────────────────────────────────────────── */
+.payWrap { padding: 1rem 1.25rem 1.25rem; }
+
+.selPlan {
+  text-align: center;
+  padding: 1rem;
+  margin-bottom: 0.85rem;
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+}
+
+.selTag {
+  color: var(--rc-red);
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin: 0 0 0.2rem;
+}
+
+.selName {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1a1a2e;
+  margin: 0 0 0.1rem;
+}
+
+.selPrice {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--rc-red);
+  margin: 0;
+}
+
+.backBtn {
+  display: block;
+  margin: 0 auto 1rem;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #fff;
+  background: var(--rc-navy);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.backBtn:hover { background: var(--rc-navy-hover); }
+
+.payOpts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 1.1rem;
+}
+
+.payOpt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+.payOpt:hover { border-color: var(--rc-teal); }
+
+.payTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1a1a2e;
+}
+
+.paySub {
+  font-size: 0.78rem;
+  color: #777777;
+}
+
+.payIcons {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.gpay { flex-shrink: 0; }
+
+.cb {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  padding: 0.12rem 0.35rem;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.payNow {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--rc-red);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.payNow:hover { background: var(--rc-red-hover); }
+
+/* ── Centered states ─────────────────────────────────────────────────── */
+.mid {
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+  color: #1a1a2e;
+}
+.mid h3 { margin: 0.85rem 0 0.4rem; font-size: 1.15rem; color: #1a1a2e; }
+.mid p { color: #555555; margin: 0.2rem 0; }
+
+.spin, .spinLg {
+  margin: 0 auto 0.6rem;
+  border: 3px solid #e0e0e0;
+  border-top-color: var(--rc-teal);
+  border-radius: 50%;
+  animation: sp 0.7s linear infinite;
+}
+.spin { width: 26px; height: 26px; }
+.spinLg { width: 44px; height: 44px; border-width: 4px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+.okIcon, .failIcon {
+  width: 60px; height: 60px;
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; font-weight: 700; color: #fff;
+  border-radius: 50%;
+}
+.okIcon { background: #4caf50; }
+.failIcon { background: var(--rc-red); }
+
+.doneBtn, .retryBtn {
+  margin-top: 1.1rem;
+  padding: 0.6rem 1.8rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.doneBtn { background: var(--rc-navy); }
+.doneBtn:hover { background: var(--rc-navy-hover); }
+.retryBtn { background: var(--rc-red); }
+.retryBtn:hover { background: var(--rc-red-hover); }
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .heroH1 { font-size: 1.75rem; }
+  .planGrid { gap: 0.55rem; padding: 0.85rem; }
+  .planCard { padding: 0.85rem 0.4rem; }
+  .planGb { font-size: 1.35rem; }
+}
