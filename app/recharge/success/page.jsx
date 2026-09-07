@@ -157,7 +157,7 @@ function RechargeSuccessContent() {
                 </p>
               </>
                         )}
-            
+              <a
               href="/recharge"
               className={styles.closeModalBtn}
               style={{ display: "inline-block", textDecoration: "none", marginTop: "1.25rem" }}
