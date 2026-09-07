@@ -156,7 +156,7 @@ function RechargeSuccessContent() {
                   Your payment was not completed. No charge has been made.
                 </p>
               </>
-            )}
+                        )}
             
               href="/recharge"
               className={styles.closeModalBtn}
