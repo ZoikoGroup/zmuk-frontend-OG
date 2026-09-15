@@ -38,7 +38,10 @@ type Errors = {
     [key: string]: string;
 };
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "http://127.0.0.1:8000";
 
 // ── Validation helpers (pure, module-scope) ──────────────────────────────────
 
@@ -313,7 +316,7 @@ export default function StudentDiscountApplication() {
         setLoading(true);
 
         try {
-            const form = new FormData();
+            const form = new window.FormData();
 
             form.append("full_name", formData.fullName.trim());
             form.append("dob", formData.dob);
@@ -378,7 +381,7 @@ export default function StudentDiscountApplication() {
                     console.error("Backend rejected the application:", data);
                     alert("The server rejected the form. Please review the highlighted fields.");
                 } else {
-                    console.error(`HTTP ${response.status}`, rawBody);
+                    console.error("HTTP %d", response.status, rawBody);
                     alert(
                         `Submission failed (HTTP ${response.status}). ` +
                         "The endpoint may be wrong or the server errored — check the server logs."
@@ -395,7 +398,7 @@ export default function StudentDiscountApplication() {
             console.error("Request failed before a response:", error);
             alert(
                 "Could not reach the server. Check that the backend is running and that " +
-                "CORS allows http://localhost:3001."
+                "CORS allows this origin."
             );
         } finally {
             setLoading(false);
