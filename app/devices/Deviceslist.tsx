@@ -115,9 +115,9 @@ function DevicesList() {
         let url: string | null = LIST_URL;
 
         while (url) {
-          const res = await fetch(url);
+          const res: Response = await fetch(url);
           if (!res.ok) throw new Error("Failed to load products");
-          const data = await res.json();
+          const data: { results?: Product[]; next?: string | null } = await res.json();
 
           if (Array.isArray(data)) {
             all = data;
