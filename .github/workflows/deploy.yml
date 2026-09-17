@@ -18,7 +18,8 @@ jobs:
             set -e
             cd /var/www/zoiko-mobile-uk-frontend/app
             git pull origin main
-            npm install
+            npm ci
+            npm audit --audit-level=high
             npm run build
             pm2 restart zoiko-mobile-uk
             pm2 save

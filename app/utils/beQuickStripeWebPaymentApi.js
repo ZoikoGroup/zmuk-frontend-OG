@@ -45,10 +45,10 @@ console.error("BeQuick API request failed", {
   error: err,
 });
 
-console.error("BeQuick Request Error -> '" + url + "' :", err);
+console.error("BeQuick Request Error -> '%s':", url, err);
     return json;
   } catch (err) {
-    console.error("BeQuick Request Error -> '" + url + "' :", err);
+    console.error("BeQuick Request Error -> '%s':", url, err);
     return { errors: [{ message: err.message }] };
   }
 }
