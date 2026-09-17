@@ -38,7 +38,7 @@ type Errors = {
     [key: string]: string;
 };
 
-const API_URL = "http://127.0.0.1:8000";
+
 
 // ── Validation helpers (pure, module-scope) ──────────────────────────────────
 
@@ -378,7 +378,10 @@ export default function StudentDiscountApplication() {
                     console.error("Backend rejected the application:", data);
                     alert("The server rejected the form. Please review the highlighted fields.");
                 } else {
-                    console.error(`HTTP ${response.status}`, rawBody);
+                    console.error("Student discount request failed", {
+    status: response.status,
+    body: rawBody,
+});
                     alert(
                         `Submission failed (HTTP ${response.status}). ` +
                         "The endpoint may be wrong or the server errored — check the server logs."
