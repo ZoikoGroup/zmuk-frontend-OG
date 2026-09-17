@@ -652,20 +652,15 @@ function ReasonsToTrustSection() {
   return (
     <section className="w-full bg-[#F6F8FA] py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto text-center">
-        {/* Section Heading */}
         <h2 className="text-2xl sm:text-3xl font-bold text-[#101828] mb-10 tracking-tight">
           Reasons to Trust Zoiko Mobile
         </h2>
-
-        {/* Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {trustReasons.map((item, index) => (
             <div
               key={index}
               className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col items-center text-center transition-all duration-200 hover:shadow-md"
             >
-              {/* Lucide Icon Container */}
-              {/* Image Icon Container */}
               <div className="mb-6 flex items-center justify-center">
                 <Image
                   src={item.imageSrc}
@@ -675,13 +670,9 @@ function ReasonsToTrustSection() {
                   className="object-contain"
                 />
               </div>
-
-              {/* Title */}
               <h3 className="text-[18px] font-bold text-[#101828] mb-3 leading-snug">
                 {item.title}
               </h3>
-
-              {/* Description */}
               <p className="text-xs sm:text-sm text-[#667085] leading-relaxed font-normal">
                 {item.description}
               </p>
@@ -692,7 +683,6 @@ function ReasonsToTrustSection() {
     </section>
   );
 }
-
 /** 5. DEVICES — refurbished smartphones teaser, fetched live, capped at 4 */
 function Devices() {
   const [products, setProducts] = useState<Product[]>([]);
