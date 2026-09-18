@@ -38,9 +38,14 @@ type Errors = {
     [key: string]: string;
 };
 
-const API_URL = "http://127.0.0.1:8000";
+
 
 // ── Validation helpers (pure, module-scope) ──────────────────────────────────
+
+const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "http://127.0.0.1:8000";
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UK_MOBILE_RX = /^(\+44|0)7\d{9}$/;
@@ -375,10 +380,13 @@ export default function StudentDiscountApplication() {
                     }
                     setErrors((prev) => ({ ...prev, ...backendErrors }));
                     focusFirstError(backendErrors);
-                    console.error("Backend rejected the application:", data);
+                    console.error("Backend rejected the application", { data });
                     alert("The server rejected the form. Please review the highlighted fields.");
                 } else {
-                    console.error(`HTTP ${response.status}`, rawBody);
+                    console.error("Student discount request failed", {
+    status: response.status,
+    body: rawBody,
+});
                     alert(
                         `Submission failed (HTTP ${response.status}). ` +
                         "The endpoint may be wrong or the server errored — check the server logs."
@@ -392,7 +400,7 @@ export default function StudentDiscountApplication() {
             setErrors({});
         } catch (error) {
             // Never reached the server (server down, DNS, or CORS blocking localhost:3001).
-            console.error("Request failed before a response:", error);
+            console.error("Request failed before a response", { error });
             alert(
                 "Could not reach the server. Check that the backend is running and that " +
                 "CORS allows http://localhost:3001."

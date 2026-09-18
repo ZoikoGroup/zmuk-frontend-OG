@@ -33,10 +33,9 @@ async function beQuickRequest(url, method = "GET", data = {}, headers = {}, time
     clearTimeout(id);
     const json = await response.json().catch(() => ({}));
 
-    console.log("BeQuick API -> '" + url + "' :", { url, method, request: data, response: json });
     return json;
   } catch (err) {
-    console.error("BeQuick Request Error -> '" + url + "' :", err);
+    console.error("BeQuick Request Error -> '%s':", url, err);
     return { errors: [{ message: err.message }] };
   }
 }
