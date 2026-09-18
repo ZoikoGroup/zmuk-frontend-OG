@@ -1,5 +1,5 @@
 const API_BASE = "https://zoiko-atom-api.bequickapps.com";
-const BEQUICK_TOKEN = "";
+const BEQUICK_TOKEN = "* ";
 
 /* -------------------- Core Request Wrapper -------------------- */
 async function beQuickRequest(url, method = "GET", data = {}, headers = {}, timeout = 30) {
