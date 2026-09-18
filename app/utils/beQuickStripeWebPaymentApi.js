@@ -1,5 +1,5 @@
 const API_BASE = "https://zoiko-atom-api.bequickapps.com";
-const BEQUICK_TOKEN = "09ff2d85-a451-47e6-86bc-aba98e1e4629";
+const BEQUICK_TOKEN = "* ";
 
 /* -------------------- Core Request Wrapper -------------------- */
 async function beQuickRequest(url, method = "GET", data = {}, headers = {}, timeout = 30) {
@@ -33,12 +33,11 @@ async function beQuickRequest(url, method = "GET", data = {}, headers = {}, time
     clearTimeout(id);
     const json = await response.json().catch(() => ({}));
 
-    console.log("BeQuick API -> '" + url + "' :", { url, method, request: data, response: json });
     return json;
   } catch (err) {
-    console.error("BeQuick Request Error -> '" + url + "' :", err);
-    return { errors: [{ message: err.message }] };
-  }
+  console.error("BeQuick Request Error ->", url, ":", err);
+  return { errors: [{ message: err.message }] };
+}
 }
 
 /* -------------------- MAIN ORDER PROCESSOR -------------------- */

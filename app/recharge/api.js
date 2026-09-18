@@ -1,9 +1,4 @@
-/**
- * Recharge API client — calls the Django backend.
- *
- * Uses your existing NEXT_PUBLIC_API_URL from .env.local
- * Falls back to http://localhost:8000 for local dev
- */
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -25,7 +20,9 @@ async function request(method, path, body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(url, opts);
-  const data = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
 
   if (!res.ok) {
     const msg =
@@ -38,7 +35,7 @@ async function request(method, path, body = null) {
   return data;
 }
 
-// ── Step 1: Validate phone number ────────────────────────────────────────
+// ── Step 1: Validate phone number (calls Transatel LIVE) ─────────────────
 
 export async function validatePhone(phoneNumber) {
   return request("POST", "/validate-phone/", { phone_number: phoneNumber });
@@ -50,7 +47,29 @@ export async function getProducts(module = "recharge") {
   return request("GET", `/products/?module=${module}`);
 }
 
-// ── Step 3: Create order + get Stripe checkout URL ───────────────────────
+// ── Step 3a: Create PaymentIntent (inline flow — no redirect) ────────────
+
+export async function createPaymentIntent({
+  msisdn,
+  productId,
+  simSerial,
+  simIccid,
+  customerName,
+  customerEmail,
+  module = "recharge",
+}) {
+  return request("POST", "/create-intent/", {
+    msisdn,
+    product_id: productId,
+    sim_serial: simSerial || "",
+    sim_iccid: simIccid || "",
+    customer_name: customerName || "",
+    customer_email: customerEmail || "",
+    module,
+  });
+}
+
+// ── Step 3b: Create Checkout Session (redirect flow — fallback) ──────────
 
 export async function createRechargeOrder({
   msisdn,
@@ -70,8 +89,17 @@ export async function createRechargeOrder({
     customer_name: customerName || "",
     customer_email: customerEmail || "",
     module,
-    success_url: `${origin}/recharge/success`,
-    cancel_url: `${origin}/recharge`,
+   success_url: `${origin}/recharge/success?ref={ORDER_REF}`,
+cancel_url: `${origin}/recharge`,
+  });
+}
+
+// ── Step 4: Confirm payment → triggers reactivation ──────────────────────
+
+export async function confirmPayment({ orderRef, paymentIntentId }) {
+  return request("POST", "/confirm/", {
+    order_ref: orderRef,
+    payment_intent_id: paymentIntentId,
   });
 }
 
