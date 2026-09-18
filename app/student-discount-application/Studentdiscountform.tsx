@@ -383,15 +383,12 @@ export default function StudentDiscountApplication() {
                     console.error("Backend rejected the application", { data });
                     alert("The server rejected the form. Please review the highlighted fields.");
                 } else {
-                    console.error("Student discount request failed", {
-    status: response.status,
-    body: rawBody,
-});
-                    alert(
-                        `Submission failed (HTTP ${response.status}). ` +
-                        "The endpoint may be wrong or the server errored — check the server logs."
-                    );
-                }
+    console.error("HTTP", response.status, rawBody);
+    alert(
+        `Submission failed (HTTP ${response.status}). ` +
+        "The endpoint may be wrong or the server errored — check the server logs."
+    );
+}
                 return;
             }
 

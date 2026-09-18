@@ -48,7 +48,7 @@ export async function GET(
     return NextResponse.json({ success: upstream.ok, iccid, detail }, { status: upstream.status });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Could not reach Transatel.";
-    console.error("❌ sim-serial lookup failed for %s:", iccid, e);
+   console.error("❌ sim-serial lookup failed for", iccid, ":", e);
     return NextResponse.json({ success: false, iccid, message }, { status: 502 });
   }
 }
