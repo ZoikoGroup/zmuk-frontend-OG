@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState } from "react";
+import Image from "next/image";
 import {
   validatePhone,
   getProducts,
@@ -8,292 +9,325 @@ import {
   RechargeAPIError,
 } from "./api";
 import styles from "./recharge.module.css";
+import heroImg from "./images/recharge-hero.png";
 
-// ─── Phone Input ─────────────────────────────────────────────────────────
+// Steps within the modal
+const STEP_PLANS = "plans";
+const STEP_PAYMENT = "payment";
 
-function PhoneStep({ onValidated }) {
+export default function RechargePage() {
+  // ── Phone + SIM state ───────────────────────────────────────────────
   const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validateError, setValidateError] = useState("");
+  const [sim, setSim] = useState(null); // { phone_number, sim_card_id_masked, rechargeable, ... }
 
-  const handleValidate = async (e) => {
+  // ── Modal state ──────────────────────────────────────────────────────
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalStep, setModalStep] = useState(STEP_PLANS);
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansError, setPlansError] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
+  // ── Payment state ────────────────────────────────────────────────────
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
+
+  // ── Handlers: phone validation ───────────────────────────────────────
+  async function handleValidate(e) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    if (!phone.trim()) return;
+
+    setValidating(true);
+    setValidateError("");
+    setSim(null);
+
     try {
-      const data = await validatePhone(phone);
+      const data = await validatePhone(phone.trim());
       if (data.success) {
-        onValidated({
-          phone: data.sim.phone_number,
-          simCardIdMasked: data.sim.sim_card_id_masked,
-          simIccidMasked: data.sim.sim_iccid_masked,
-          simStatus: data.sim.sim_status,
-          rechargeable: data.sim.rechargeable,
-          simSerial: data.sim_serial,
-          simIccid: data.sim_iccid,
-        });
+        setSim(data.sim);
       } else {
-        setError(data.message || "Validation failed.");
+        setValidateError(data.message || "Could not validate this number.");
       }
     } catch (err) {
-      setError(err instanceof RechargeAPIError ? err.message : "Network error. Please try again.");
+      setValidateError(
+        err instanceof RechargeAPIError
+          ? err.message
+          : "Failed to validate phone number. Please try again."
+      );
     } finally {
-      setLoading(false);
+      setValidating(false);
     }
-  };
+  }
 
-  return (
-    <form onSubmit={handleValidate} className={styles.phoneForm}>
-      <label className={styles.label}>
-        Phone Number (MSISDN) <span className={styles.req}>*</span>
-      </label>
-      <input
-        type="tel"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder="+447421118918"
-        className={styles.phoneInput}
-        required
-        disabled={loading}
-      />
-      {loading && <p className={styles.validating}>Validating...</p>}
-      {error && <p className={styles.error}>{error}</p>}
-      <button type="submit" className={styles.validateBtn} disabled={loading || phone.length < 7}>
-        {loading ? "Checking..." : "Validate"}
-      </button>
-    </form>
-  );
-}
+  function handleChangeNumber() {
+    setSim(null);
+    setValidateError("");
+  }
 
-// ─── SIM Details ─────────────────────────────────────────────────────────
+  // ── Handlers: open modal + load plans ───────────────────────────────
+  async function openPlanModal() {
+    setModalOpen(true);
+    setModalStep(STEP_PLANS);
+    setSelectedPlan(null);
+    setPayError("");
 
-function SimDetails({ sim, onRecharge }) {
-  return (
-    <div className={styles.simCard}>
-      <p className={styles.validated}>✓ Phone number validated successfully!</p>
-      <div className={styles.simTable}>
-        <div className={styles.simTableHead}>SIM Details</div>
-        <div className={styles.simRow}>
-          <span className={styles.simLabel}>Phone Number:</span>
-          <span className={styles.simVal}>{sim.phone}</span>
-        </div>
-        <div className={styles.simRow}>
-          <span className={styles.simLabel}>SIM Card ID:</span>
-          <span className={styles.simVal}>{sim.simCardIdMasked}</span>
-        </div>
-      </div>
-      {sim.rechargeable ? (
-        <button onClick={onRecharge} className={styles.rechargeBtn}>Recharge Now</button>
-      ) : (
-        <p className={styles.notRechargeable}>
-          This SIM is <strong>{sim.simStatus}</strong> — recharge is only available for suspended SIMs.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Plan Modal ──────────────────────────────────────────────────────────
-
-function PlanModal({ sim, onClose }) {
-  const [step, setStep] = useState("loading");
-  const [products, setProducts] = useState([]);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [error, setError] = useState("");
-  const [orderRef, setOrderRef] = useState("");
-
-  useEffect(() => {
-    let c = false;
-    (async () => {
-      try {
-        const d = await getProducts("recharge");
-        if (!c) { setProducts(d.products || []); setStep("plans"); }
-      } catch (e) {
-        if (!c) { setError(e.message || "Failed to load."); setStep("error"); }
+    setPlansLoading(true);
+    setPlansError("");
+    try {
+      const data = await getProducts("recharge");
+      if (data.success) {
+        setPlans(data.products || []);
+      } else {
+        setPlansError("Could not load recharge plans.");
       }
-    })();
-    return () => { c = true; };
-  }, []);
+    } catch (err) {
+      setPlansError(
+        err instanceof RechargeAPIError
+          ? err.message
+          : "Could not load recharge plans. Please try again."
+      );
+    } finally {
+      setPlansLoading(false);
+    }
+  }
 
-  const handlePay = async () => {
-    if (!selectedPlan) return;
-    setStep("processing");
-    setError("");
+  function closeModal() {
+    setModalOpen(false);
+  }
+
+  function handleSelectPlan(plan) {
+    setSelectedPlan(plan);
+    setModalStep(STEP_PAYMENT);
+  }
+
+  // ── Handlers: pay ────────────────────────────────────────────────────
+  async function handlePayNow() {
+    if (!selectedPlan || !sim) return;
+
+    setPaying(true);
+    setPayError("");
+
     try {
       const data = await createRechargeOrder({
-        msisdn: sim.phone,
+        msisdn: sim.phone_number,
         productId: selectedPlan.id,
-        simSerial: sim.simSerial,
-        simIccid: sim.simIccid,
       });
+
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        setOrderRef(data.order_ref);
-        setStep("success");
+        setPayError("Could not start checkout. Please try again.");
+        setPaying(false);
       }
-    } catch (e) {
-      setError(e.message || "Payment failed.");
-      setStep("error");
+    } catch (err) {
+      setPayError(
+        err instanceof RechargeAPIError
+          ? err.message
+          : "Payment could not be started. Please try again."
+      );
+      setPaying(false);
     }
-  };
+  }
 
-  const gb = (p) => {
-    const g = p.attributes?.data_gb;
-    if (!g) return null;
-    return g >= 999 ? "UNLIMITED" : `${g}GB`;
-  };
-
-  return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className={styles.mHead}>
-          <h2 className={styles.mTitle}>Select Recharge Plan</h2>
-          <button onClick={onClose} className={styles.mClose}>✕</button>
-        </div>
-
-        {/* SIM strip */}
-        <div className={styles.simStrip}>
-          <div className={styles.stripInfo}>
-            <span><b className={styles.stripLbl}>Phone:</b> {sim.phone}</span>
-            <span><b className={styles.stripLbl}>SIM ID:</b> {sim.simCardIdMasked}</span>
-          </div>
-          <button onClick={onClose} className={styles.stripChange}>Change</button>
-        </div>
-
-        {/* Loading */}
-        {step === "loading" && (
-          <div className={styles.mid}><div className={styles.spin} /><p>Loading products...</p></div>
-        )}
-
-        {/* Plans grid */}
-        {step === "plans" && (
-          <div className={styles.planGrid}>
-            {products.map((p) => (
-              <button key={p.id} className={styles.planCard} onClick={() => { setSelectedPlan(p); setStep("payment"); }}>
-                {gb(p) && (
-                  <div className={styles.planBadge}>
-                    <span className={styles.planGb}>{gb(p)}</span>
-                    {gb(p) !== "UNLIMITED" && <span className={styles.planUnit}>DATA</span>}
-                  </div>
-                )}
-                <span className={styles.planName}>{p.name}</span>
-                <span className={styles.planPrice}>{p.formatted_price}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Payment */}
-        {step === "payment" && selectedPlan && (
-          <div className={styles.payWrap}>
-            <div className={styles.selPlan}>
-              <p className={styles.selTag}>Selected Plan</p>
-              <p className={styles.selName}>{selectedPlan.name}</p>
-              <p className={styles.selPrice}>{selectedPlan.formatted_price}</p>
-            </div>
-            <button className={styles.backBtn} onClick={() => setStep("plans")}>← Back to plans</button>
-
-            <div className={styles.payOpts}>
-              <div className={styles.payOpt}>
-                <span className={styles.payTitle}>Cash on delivery</span>
-                <span className={styles.paySub}>Pay with cash upon delivery.</span>
-              </div>
-              <div className={styles.payOpt}>
-                <div className={styles.payIcons}>
-                  <svg viewBox="0 0 24 24" width="22" height="22" className={styles.gpay}>
-                    <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z" fill="#4285F4"/>
-                  </svg>
-                  <span className={styles.payTitle}>Google Pay</span>
-                </div>
-              </div>
-              <div className={styles.payOpt}>
-                <div className={styles.payIcons}>
-                  <span className={styles.cb} style={{background:"#1a237e"}}>AMEX</span>
-                  <span className={styles.cb} style={{background:"#ef6c00"}}>DISC</span>
-                  <span className={styles.cb} style={{background:"#1565c0"}}>VISA</span>
-                  <span className={styles.cb} style={{background:"#c62828"}}>MC</span>
-                </div>
-                <span className={styles.payTitle}>Credit/Debit Cards</span>
-              </div>
-            </div>
-
-            <button className={styles.payNow} onClick={handlePay}>Pay Now</button>
-          </div>
-        )}
-
-        {/* Processing */}
-        {step === "processing" && (
-          <div className={styles.mid}>
-            <div className={styles.spinLg} />
-            <h3>Processing Payment...</h3>
-            <p>Please wait while we process your recharge.</p>
-          </div>
-        )}
-
-        {/* Success */}
-        {step === "success" && (
-          <div className={styles.mid}>
-            <div className={styles.okIcon}>✓</div>
-            <h3>Success!</h3>
-            <p>Payment successful! Your recharge has been processed.</p>
-            {orderRef && <p><strong>Order Number:</strong> #{orderRef}</p>}
-            <p><strong>Phone:</strong> {sim.phone}</p>
-            <button onClick={onClose} className={styles.doneBtn}>Close</button>
-          </div>
-        )}
-
-        {/* Error */}
-        {step === "error" && (
-          <div className={styles.mid}>
-            <div className={styles.failIcon}>✕</div>
-            <h3>Payment Failed</h3>
-            <p>{error || "Something went wrong."}</p>
-            <button onClick={() => setStep(selectedPlan ? "payment" : "plans")} className={styles.retryBtn}>Try Again</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Page ────────────────────────────────────────────────────────────────
-
-export default function RechargePage() {
-  const [sim, setSim] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-
-  const handleValidated = useCallback((d) => setSim(d), []);
+  // ── Derived ──────────────────────────────────────────────────────────
+  const canRecharge = !!sim && sim.rechargeable;
 
   return (
     <div className={styles.page}>
-      {/* Hero Banner — full-width image */}
-      <section className={styles.hero}>
-        <img
-          src="/images/recharge-hero.png"
-          alt="Stay connected without interruptions! Recharge your SIM today."
+      <div className={styles.hero}>
+        <Image
+          src={heroImg}
+          alt="Recharge your SIM"
           className={styles.heroBanner}
+          priority
         />
-      </section>
-
-      {/* Form */}
-      <div className={styles.formWrap}>
-        {!sim ? (
-          <PhoneStep onValidated={handleValidated} />
-        ) : (
-          <>
-            <SimDetails sim={sim} onRecharge={() => setShowModal(true)} />
-            <div className={styles.resetRow}>
-              <button onClick={() => { setSim(null); setShowModal(false); }} className={styles.resetBtn}>
-                Use a different number
-              </button>
-            </div>
-          </>
-        )}
       </div>
 
-      {showModal && sim && <PlanModal sim={sim} onClose={() => setShowModal(false)} />}
+      <div className={styles.formWrap}>
+        <div className={styles.phoneForm}>
+          <form onSubmit={handleValidate}>
+            <label className={styles.label} htmlFor="msisdn">
+              Phone Number (MSISDN) <span className={styles.req}>*</span>
+            </label>
+            <input
+              id="msisdn"
+              type="tel"
+              className={styles.phoneInput}
+              placeholder="Enter your phone number"
+              value={phone}
+              disabled={validating || !!sim}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+
+            {validating && (
+              <p className={styles.validating}>Validating phone number…</p>
+            )}
+            {validateError && <p className={styles.error}>{validateError}</p>}
+            {sim && (
+              <p className={styles.validated}>
+                ✓ Phone number validated successfully!
+              </p>
+            )}
+
+            {!sim && (
+              <button
+                type="submit"
+                className={styles.validateBtn}
+                disabled={validating || !phone.trim()}
+              >
+                {validating ? "Validating…" : "Validate Number"}
+              </button>
+            )}
+          </form>
+
+          {sim && (
+            <>
+              <div className={styles.simTable}>
+                <div className={styles.simTableHead}>SIM Details</div>
+                <div className={styles.simRow}>
+                  <span className={styles.simLabel}>Phone Number:</span>
+                  <span className={styles.simVal}>{sim.phone_number}</span>
+                </div>
+                <div className={styles.simRow}>
+                  <span className={styles.simLabel}>SIM Card ID:</span>
+                  <span className={styles.simVal}>
+                    {sim.sim_card_id_masked}
+                  </span>
+                </div>
+              </div>
+
+              {canRecharge ? (
+                <button className={styles.rechargeBtn} onClick={openPlanModal}>
+                  Recharge Now
+                </button>
+              ) : (
+                <p className={styles.notRechargeable}>
+                  This SIM is not currently eligible for recharge.
+                </p>
+              )}
+
+              <div className={styles.resetRow}>
+                <button className={styles.resetBtn} onClick={handleChangeNumber}>
+                  Use a different number
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {modalOpen && (
+        <div className={styles.overlay} onClick={closeModal}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.mHead}>
+              <h3 className={styles.mTitle}>Select Recharge Plan</h3>
+              <button className={styles.mClose} onClick={closeModal}>
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.simStrip}>
+              <div className={styles.stripInfo}>
+                <span>
+                  <span className={styles.stripLbl}>Phone: </span>
+                  {sim?.phone_number}
+                </span>
+                <span>
+                  <span className={styles.stripLbl}>SIM ID: </span>
+                  {sim?.sim_card_id_masked}
+                </span>
+              </div>
+              <button
+                className={styles.stripChange}
+                onClick={() => {
+                  closeModal();
+                  handleChangeNumber();
+                }}
+              >
+                Change
+              </button>
+            </div>
+
+            {modalStep === STEP_PLANS && (
+              <>
+                {plansLoading && <div className={styles.mid}>Loading plans…</div>}
+                {plansError && (
+                  <div className={styles.mid}>
+                    <p className={styles.error}>{plansError}</p>
+                  </div>
+                )}
+                {!plansLoading && !plansError && (
+                  <div className={styles.planGrid}>
+                    {plans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        className={styles.planCard}
+                        onClick={() => handleSelectPlan(plan)}
+                      >
+                        <div className={styles.planBadge}>
+                          <span className={styles.planGb}>
+                            {plan.attributes?.data || plan.name}
+                          </span>
+                          {plan.attributes?.data && (
+                            <span className={styles.planUnit}>DATA</span>
+                          )}
+                        </div>
+                        <span className={styles.planName}>{plan.name}</span>
+                        <span className={styles.planPrice}>
+                          {plan.formatted_price}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {modalStep === STEP_PAYMENT && selectedPlan && (
+              <div className={styles.payWrap}>
+                <div className={styles.selPlan}>
+                  <p className={styles.selTag}>Selected Plan</p>
+                  <p className={styles.selName}>{selectedPlan.name}</p>
+                  <p className={styles.selPrice}>
+                    {selectedPlan.formatted_price}
+                  </p>
+                </div>
+
+                <button
+                  className={styles.backBtn}
+                  onClick={() => setModalStep(STEP_PLANS)}
+                >
+                  ← Back to plans
+                </button>
+
+                <div className={styles.payOpts}>
+                  <div className={styles.payOpt}>
+                    <span className={styles.payTitle}>Google Pay</span>
+                  </div>
+                  <div className={styles.payOpt}>
+                    <span className={styles.payTitle}>Credit/Debit Cards</span>
+                    <span className={styles.paySub}>
+                      Visa, Mastercard, Amex, Discover
+                    </span>
+                  </div>
+                </div>
+
+                {payError && <p className={styles.error}>{payError}</p>}
+
+                <button
+                  className={styles.payNow}
+                  onClick={handlePayNow}
+                  disabled={paying}
+                >
+                  {paying ? "Redirecting to payment…" : "Pay Now"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
