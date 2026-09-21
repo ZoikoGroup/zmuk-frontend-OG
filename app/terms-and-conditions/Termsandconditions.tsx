@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
 type Subsection = { label: string; text: string };
@@ -119,7 +124,6 @@ const sections: Section[] = [
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
-/** Numbered badge — plain text on a green circle. */
 function NumberBadge({ num }: { num: number }) {
   return (
     <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#1f9d6b] text-sm font-bold text-white">
@@ -131,6 +135,22 @@ function NumberBadge({ num }: { num: number }) {
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function TermsAndConditions() {
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("zoiko_token");
+    setIsLoggedIn(!!token);
+  }, []);
+
+  const handleAccountButton = () => {
+    if (isLoggedIn) {
+      router.push("/dashboard");
+    } else {
+      router.push("/login");
+    }
+  };
+
   return (
     <main className="bg-gray-50 font-sans dark:bg-gray-900">
       {/* ─── Hero ─── */}
@@ -215,15 +235,15 @@ export default function TermsAndConditions() {
               for choosing Zoiko Mobile as your online destination. We value your compliance with
               these guidelines to ensure a secure and enjoyable online experience.
             </p>
-            <a
-              href="/account"
+            <button
+              onClick={handleAccountButton}
               className="mt-6 inline-block rounded-full bg-gradient-to-r from-[#17a06a] to-[#0e8f74] px-7 py-3 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
             >
-              Back to My Account
-            </a>
+              {isLoggedIn ? "Back to My Account" : "Log In"}
+            </button>
           </div>
         </div>
       </div>
     </main>
   );
-} 
+}
