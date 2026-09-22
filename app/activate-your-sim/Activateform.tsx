@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 // Client-side helper that calls OUR OWN /api/transatel/* routes (never Transatel directly).
 import { fetchSubscriber } from "@/lib/useTransatel";
 
@@ -248,6 +248,17 @@ export default function Activateform() {
   type SimCheck = "idle" | "checking" | "found" | "notfound" | "error";
   const [simCheck, setSimCheck] = useState<SimCheck>("idle");
   const [simMsg, setSimMsg] = useState<string | null>(null);
+
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setIsLoggedIn(!!localStorage.getItem("zoiko_token"));
+  }, []);
+
+  const handleAccountButton = () => {
+    router.push(isLoggedIn ? "/dashboard" : "/login");
+  };
 
   const otpVerified = otpPhase === "verified";
 
@@ -614,14 +625,14 @@ export default function Activateform() {
             >
               {status === "submitting" ? "Submitting…" : "Submit"}
             </button>
-            <Link
-              href="/account"
-              className={`flex items-center justify-center rounded bg-[#1d6fd8] py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#175bb5] ${
-                status === "submitting" ? "pointer-events-none opacity-60" : ""
-              }`}
+            <button
+              type="button"
+              onClick={handleAccountButton}
+              disabled={status === "submitting"}
+              className="flex items-center justify-center rounded bg-[#1d6fd8] py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#175bb5] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Back to My Account
-            </Link>
+              {isLoggedIn ? "Back to My Account" : "Log In"}
+            </button>
           </div>
         </form>
       </div>
