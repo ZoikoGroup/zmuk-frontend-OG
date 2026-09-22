@@ -302,7 +302,7 @@ export default function RechargePage() {
                   ← Back to plans
                 </button>
 
-                <div className={styles.payOpts}>
+                {/* <div className={styles.payOpts}>
                   <div className={styles.payOpt}>
                     <span className={styles.payTitle}>Google Pay</span>
                   </div>
@@ -312,7 +312,7 @@ export default function RechargePage() {
                       Visa, Mastercard, Amex, Discover
                     </span>
                   </div>
-                </div>
+                </div> */}
 
                 {payError && <p className={styles.error}>{payError}</p>}
 
