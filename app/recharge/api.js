@@ -89,8 +89,8 @@ export async function createRechargeOrder({
     customer_name: customerName || "",
     customer_email: customerEmail || "",
     module,
-   success_url: `${origin}/recharge/success?ref={ORDER_REF}`,
-cancel_url: `${origin}/recharge`,
+    success_url: `${origin}/recharge/success`,
+    cancel_url: `${origin}/recharge`,
   });
 }
 
@@ -106,7 +106,7 @@ export async function confirmPayment({ orderRef, paymentIntentId }) {
 // ── Step 5: Get order status ─────────────────────────────────────────────
 
 export async function getOrderStatus(orderRef) {
-  return request("GET", `/orders/${orderRef}/`);
+  return request("GET", `/order-status/${orderRef}/`);
 }
 
 export { RechargeAPIError };

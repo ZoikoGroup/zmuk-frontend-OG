@@ -5,6 +5,22 @@ import { useSearchParams } from "next/navigation";
 import { getOrderStatus } from "../api";
 import styles from "../recharge.module.css";
 
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000";
+
+async function confirmBySession(orderRef) {
+  const res = await fetch(`${API_BASE}/api/recharge/confirm-session/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_ref: orderRef }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || `Confirm failed (${res.status})`);
+  return data;
+}
+
 export default function RechargeSuccessPage() {
   return (
     <Suspense
@@ -42,36 +58,52 @@ function RechargeSuccessContent() {
       return;
     }
 
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    async function pollOrder() {
+    async function processSuccess() {
       try {
-        const data = await getOrderStatus(orderRef);
-        if (data.success) {
-          setOrder(data.order);
-
-          // If still processing, keep polling (reactivation may take a few seconds)
-          if (
-            data.order.status === "processing" ||
-            data.order.status === "pending_payment"
-          ) {
-            attempts++;
-            if (attempts < maxAttempts) {
-              setTimeout(pollOrder, 2000);
-              return;
-            }
-          }
-        } else {
-          setError(data.message || "Order not found.");
+        // Step 1: Try to confirm directly via Stripe session (no CLI needed)
+        const confirmData = await confirmBySession(orderRef);
+        if (confirmData.success) {
+          setOrder(confirmData.order);
+          setLoading(false);
+          return;
         }
-      } catch (err) {
-        setError(err.message || "Failed to load order.");
+      } catch (confirmErr) {
+        console.warn("Session confirm failed, falling back to poll:", confirmErr.message);
       }
-      setLoading(false);
+
+      // Step 2: Fallback — poll order status (works when webhook fires)
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      async function pollOrder() {
+        try {
+          const data = await getOrderStatus(orderRef);
+          if (data.success) {
+            setOrder(data.order);
+            if (
+              data.order.status === "processing" ||
+              data.order.status === "pending_payment" ||
+              data.order.status === "pending"
+            ) {
+              attempts++;
+              if (attempts < maxAttempts) {
+                setTimeout(pollOrder, 2000);
+                return;
+              }
+            }
+          } else {
+            setError(data.message || "Order not found.");
+          }
+        } catch (err) {
+          setError(err.message || "Failed to load order.");
+        }
+        setLoading(false);
+      }
+
+      pollOrder();
     }
 
-    pollOrder();
+    processSuccess();
   }, [orderRef]);
 
   if (loading) {
@@ -82,7 +114,7 @@ function RechargeSuccessContent() {
             <div className={styles.centered}>
               <div className={styles.spinnerLarge} />
               <h3>Processing Payment...</h3>
-              <p>Please wait while we process your recharge.</p>
+              <p>Please wait while we confirm your recharge.</p>
             </div>
           </div>
         </div>
@@ -110,7 +142,9 @@ function RechargeSuccessContent() {
   }
 
   const isSuccess =
-    order?.status === "completed" || order?.status === "processing";
+    order?.status === "completed" ||
+    order?.status === "processing" ||
+    order?.status === "pending";
 
   return (
     <div className={styles.page}>
@@ -120,31 +154,27 @@ function RechargeSuccessContent() {
             {isSuccess ? (
               <>
                 <div className={styles.successIcon}>✓</div>
-                <h3>Success!</h3>
-                <p>Payment successful! Your recharge has been processed.</p>
-                <p>
-                  <strong>Order Number:</strong> #{order.order_ref}
-                </p>
-                <p>
-                  <strong>Phone:</strong> {order.msisdn}
-                </p>
-                <p>
-                  <strong>Amount:</strong> {order.amount}
-                </p>
+                <h3>Payment Successful!</h3>
+                <p>Your recharge has been processed.</p>
+                <p><strong>Order Number:</strong> #{order.order_ref}</p>
+                <p><strong>Phone:</strong> {order.msisdn}</p>
+                <p><strong>Amount:</strong> {order.amount}</p>
+                {order.product_name && (
+                  <p><strong>Plan:</strong> {order.product_name}</p>
+                )}
                 {order.reactivation_status === "success" && (
                   <p style={{ color: "#2e7d32", marginTop: "0.75rem" }}>
                     ✓ SIM reactivated successfully
                   </p>
                 )}
-                {order.reactivation_status === "pending" && (
+                {(order.reactivation_status === "pending" || order.status === "pending") && (
                   <p style={{ color: "#f57c00", marginTop: "0.75rem" }}>
-                    ⏳ SIM reactivation in progress...
+                    ⏳ Payment received — SIM reactivation in progress...
                   </p>
                 )}
                 {order.reactivation_status === "failed" && (
                   <p style={{ color: "#e53935", marginTop: "0.75rem" }}>
-                    ⚠ SIM reactivation failed — our team has been notified and
-                    will retry shortly.
+                    ⚠ SIM reactivation failed — our team has been notified and will retry shortly.
                   </p>
                 )}
               </>
@@ -152,12 +182,10 @@ function RechargeSuccessContent() {
               <>
                 <div className={styles.errorIcon}>✕</div>
                 <h3>Payment Failed</h3>
-                <p>
-                  Your payment was not completed. No charge has been made.
-                </p>
+                <p>Your payment was not completed. No charge has been made.</p>
               </>
-                        )}
-              <a
+            )}
+            <a
               href="/recharge"
               className={styles.closeModalBtn}
               style={{ display: "inline-block", textDecoration: "none", marginTop: "1.25rem" }}
