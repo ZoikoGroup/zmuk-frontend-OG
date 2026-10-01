@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { sanitizeArticleHtml } from "@/lib/sanitizeArticle";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -279,11 +280,18 @@ function BlogDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Strip the theme-hostile inline styles once per post, not per render.
-  const cleanHtml = useMemo(
-    () => (post ? sanitizeArticleHtml(post.content) : ""),
-    [post]
-  );
+  // Strip theme-hostile inline styles AND rewrite relative /media/ image
+  // paths so they resolve against the API server, not the frontend domain.
+  const cleanHtml = useMemo(() => {
+    if (!post) return "";
+    let html = sanitizeArticleHtml(post.content);
+    // Rewrite src="/media/..." → src="https://api.zoikomobile.co.uk/media/..."
+    html = html.replace(
+      /src=["'](\/media\/[^"']+)["']/g,
+      `src="${API_BASE}$1"`
+    );
+    return html;
+  }, [post]);
 
   useEffect(() => {
     if (!slug) return;
@@ -351,6 +359,42 @@ function BlogDetail() {
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
+      {/* JSON-LD Schema — BlogPosting (dynamic per post) */}
+      <Script
+        id={`schema-blog-${post.slug}`}
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": post.title,
+            "description": post.seo_description || post.excerpt,
+            "url": `https://zoikomobile.co.uk/blogs/${post.slug}`,
+            "mainEntityOfPage": {
+              "@type": "WebPage",
+              "@id": `https://zoikomobile.co.uk/blogs/${post.slug}`
+            },
+            "publisher": {
+              "@type": "Organization",
+              "name": "Zoiko Mobile UK",
+              "url": "https://zoikomobile.co.uk/"
+            },
+            "author": {
+              "@type": "Person",
+              "name": post.author
+            },
+            "datePublished": post.created_at,
+            "dateModified": post.updated_at,
+            ...(post.featured_image && {
+              "image": imageUrl(post.featured_image)
+            }),
+            ...(post.seo_keywords && {
+              "keywords": post.seo_keywords.split(",").map((k: string) => k.trim())
+            })
+          })
+        }}
+      />
+
       {/* Title banner — min-h stops it collapsing to a thin strip */}
       <div className="flex min-h-[180px] items-center bg-gradient-to-r from-green-600 to-teal-500 px-4 py-10">
         <div className="mx-auto w-full max-w-6xl">

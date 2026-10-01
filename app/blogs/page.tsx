@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Script from "next/script";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -154,6 +155,26 @@ function Blogs() {
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
+      {/* JSON-LD Schema — Blog listing */}
+      <Script
+        id="schema-blog-list"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            "name": "Zoiko Mobile UK Blog",
+            "description": "Latest news, guides and updates from Zoiko Mobile UK.",
+            "url": "https://zoikomobile.co.uk/blogs",
+            "publisher": {
+              "@type": "Organization",
+              "name": "Zoiko Mobile UK",
+              "url": "https://zoikomobile.co.uk/"
+            }
+          })
+        }}
+      />
+
       {/* Banner */}
       <div className="bg-gradient-to-r from-green-600 to-teal-500 px-4 py-10 text-center">
         <h1 className="text-2xl font-bold text-white sm:text-3xl">
