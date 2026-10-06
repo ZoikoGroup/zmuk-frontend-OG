@@ -6,6 +6,11 @@ import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePay
 import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { isLoggedIn as checkIsLoggedIn, getUser } from "../utils/auth";
 
+// Initialize Stripe ONCE outside the component — calling loadStripe()
+// inside the component causes it to re-initialize on every render which
+// causes browser performance issues and the "called many times" warning.
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "");
+
 
 interface RawCartItem {
   cartKey?: string;
@@ -268,8 +273,8 @@ export default function CheckoutPage() {
   const stripeFormRef = useRef<StripePaymentFormRef>(null);
   const [showOrderErrorPopup, setShowOrderErrorPopup] = useState(false);
   const [orderError, setOrderError] = useState("");
-  const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "");
   const [clientSecret, setClientSecret] = useState("");
+  const [orderRef, setOrderRef] = useState("");
   const [showThankYou, setShowThankYou] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [coupon, setCoupon] = useState("");
@@ -364,18 +369,19 @@ export default function CheckoutPage() {
     };
   }, [clientSecret, isDark]);
 
+  const isDev = process.env.NODE_ENV === "development";
   const emptyAddress: Address = {
-    firstName: "",
-    lastName: "",
+    firstName: isDev ? "Test" : "",
+    lastName: isDev ? "User" : "",
     companyName: "",
     region: "United Kingdom (UK)",
     state: "",
-    city: "",
-    street: "",
-    houseNumber: "",
-    zip: "",
-    phone: "",
-    email: "",
+    city: isDev ? "London" : "",
+    street: isDev ? "123 Test Street" : "",
+    houseNumber: isDev ? "123" : "",
+    zip: isDev ? "SW1A 1AA" : "",
+    phone: isDev ? "07123456789" : "",
+    email: isDev ? "test@zoikomobile.co.uk" : "",
   };
 
   const [billingAddress, setBillingAddress] = useState<Address>(emptyAddress);
@@ -534,7 +540,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (total > 0 && cart.length > 0) {
-      fetch("/api/create-payment-intent", {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/checkout/create-intent/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -548,7 +554,10 @@ export default function CheckoutPage() {
       })
         .then((r) => r.json())
         .then((d) => {
-          if (d.clientSecret) setClientSecret(d.clientSecret);
+          if (d.clientSecret) {
+            setClientSecret(d.clientSecret);
+            setOrderRef(d.order_ref || "");
+          }
         })
         .catch(() => {});
     }
@@ -669,57 +678,67 @@ export default function CheckoutPage() {
         }
       }
 
-      // 2️⃣ Build the SIM-plan order and save it to Django. The backend reserves
-      //    a matching SIM from the Transatel inventory per line (by simType +
-      //    transatelID) and sends the activation / dispatch email.
-      const user = getUser();
-      const orderPayload = {
-        user_id: user?.id ?? null,
-        email: billingAddress.email || user?.email || "",
-        country_code: "UK",
-        billingAddress,
-        shippingAddress: hasPhysicalSim ? shippingAddress : billingAddress,
-        coupon: discountData ? { ...discountData } : null,
-        items: buildItems(),
-        totals: { subtotal, discount: discountAmount, total },
-        agreedToTerms: agreeTerms,
-        paymentMethod: "stripe",
-        createdAt: new Date().toISOString(),
-      };
-
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (user?.token) headers.Authorization = `Bearer ${user.token}`;
-
-      // Transatel SIM order: the backend reserves a SIM per line (matched by
-      // simType), assigns it to this order, and activates it via the Transatel
-      // API using the plan's transatelID as the package code.
-      const orderRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/sim-orders/`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(orderPayload),
-        },
-      );
-      const orderResData = await orderRes.json().catch(() => ({}));
-      console.log(
-        "✅ Django response ok:", orderRes.ok,
-        "status:", orderRes.status, "data:", orderResData,
-      );
-
-      if (!orderRes.ok || !orderResData?.success) {
-        setOrderError(orderResData?.message || "Order could not be saved.");
+      // 2️⃣ Payment succeeded. Confirm directly with Django — no webhook needed.
+      if (!orderRef) {
+        setOrderError("Payment succeeded but order reference missing. Contact support — you will not be charged twice.");
         setShowOrderErrorPopup(true);
         return;
       }
 
-      // Order saved — clear the cart so it isn't re-submitted.
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+      let confirmed = false;
+
+      try {
+        // Step 1: Get the payment intent ID stored on the order
+        const statusRes = await fetch(`${API_BASE}/api/v1/checkout/order-status/${orderRef}/`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+
+          if (statusData.processed) {
+            confirmed = true;
+          } else if (statusData.stripe_payment_intent_id) {
+            // Step 2: Confirm directly via Stripe API — no CLI or webhook needed
+            const confirmRes = await fetch(`${API_BASE}/api/v1/checkout/confirm/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                order_ref: orderRef,
+                payment_intent_id: statusData.stripe_payment_intent_id,
+              }),
+            });
+            if (confirmRes.ok) {
+              const confirmData = await confirmRes.json();
+              if (confirmData.success) confirmed = true;
+            }
+          }
+        }
+      } catch { /* fall through to polling */ }
+
+      // Fallback — poll for webhook confirmation
+      if (!confirmed) {
+        for (let i = 0; i < 8; i++) {
+          try {
+            const res = await fetch(`${API_BASE}/api/v1/checkout/order-status/${orderRef}/`);
+            if (res.ok) {
+              const d = await res.json();
+              if (d.processed) { confirmed = true; break; }
+              if (d.status === "failed") break;
+            }
+          } catch { /* keep retrying */ }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      if (!confirmed) {
+        setOrderError(`Payment succeeded (ref: ${orderRef}) but order still confirming. Check your email or contact support with this reference.`);
+        setShowOrderErrorPopup(true);
+        return;
+      }
+
       try {
         localStorage.removeItem("cart");
         window.dispatchEvent(new Event("cart-updated"));
-      } catch {
-        /* ignore storage errors */
-      }
+      } catch { /* ignore */ }
       setShowThankYou(true);
     } catch (err: unknown) {
       console.error("❌ caught error:", err);
