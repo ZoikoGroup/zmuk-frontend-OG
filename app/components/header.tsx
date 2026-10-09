@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X, ChevronDown, Search, ShoppingCart, LayoutDashboard, LogOut } from "lucide-react";
-import { useCart } from "../context/Cartcontext";
+import { useCart } from "../context/CartContext";
 
 // Top utility bar links
 const topLinks = [

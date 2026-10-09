@@ -5,7 +5,7 @@ import { FaUser, FaLock, FaCheckCircle, FaExclamationCircle } from "react-icons/
 
 // Uses the same env var as the rest of the app. In .env.local:
 //   NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
 const UPDATE_PROFILE_URL = `${API_BASE}/api/accounts/update-profile/`;
 const CHANGE_PASSWORD_URL = `${API_BASE}/api/accounts/change-password/`;
 
@@ -183,11 +183,11 @@ export default function EditProfilePage() {
             <h5 className="font-semibold text-base mb-4">Account Info</h5>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-gray-400 text-xs mb-1 dark:bg-gray-900 dark:text-white">Username</p>
-                <p className="text-sm font-medium">{username || "—"}</p>
+                <p className="text-gray-600 text-xs md:text-sm lg:text-base mb-1 dark:bg-gray-900 dark:text-white">User Name</p>
+                <p className="text-sm font-medium">{nameData.first_name || "—"}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs mb-1 dark:bg-gray-900 dark:text-white">Email</p>
+                <p className="text-gray-600 text-xs md:text-sm lg:text-base mb-1 dark:bg-gray-900 dark:text-white">Email</p>
                 <p className="text-sm font-medium">{email || "—"}</p>
               </div>
             </div>

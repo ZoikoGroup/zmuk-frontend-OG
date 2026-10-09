@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCart } from "../context/Cartcontext";
+import { useCart } from "../context/CartContext";
 import React, { useEffect, useMemo, useState } from "react";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000

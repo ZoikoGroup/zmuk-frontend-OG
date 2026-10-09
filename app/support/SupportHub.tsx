@@ -28,33 +28,33 @@ const customerSupport: Card[] = [
 ];
 
 const getStarted: Card[] = [
-  { title: "Switch & Save", desc: "Make the switch to Zoiko Mobile and start saving on your mobile bills", href: "" },
-  { title: "Join Zoiko Family", desc: "Bring your family together with our family plans and shared benefits", href: "" },
-  { title: "Free Delivery", desc: "Get your SIM card and devices delivered to your door at no extra cost", href: "" },
-  { title: "Refurbished Smartphones", desc: "Explore our range of quality refurbished smartphones at great prices", href: "" },
-  { title: "Return Policy", desc: "Learn about our hassle-free return policy and process", href: "" },
+  { title: "Switch & Save", desc: "Make the switch to Zoiko Mobile and start saving on your mobile bills", href: "/switch-and-save" },
+  { title: "Join Zoiko Family", desc: "Bring your family together with our family plans and shared benefits", href: "/login" },
+  { title: "Free Delivery", desc: "Get your SIM card and devices delivered to your door at no extra cost", href: "/free-delivery" },
+  { title: "Refurbished Smartphones", desc: "Explore our range of quality refurbished smartphones at great prices", href: "/devices" },
+  { title: "Return Policy", desc: "Learn about our hassle-free return policy and process", href: "/return-policy" },
 ];
 
 const tariffs: Card[] = [
-  { title: "Roaming Charges", desc: "Find out about charges for using your phone when traveling abroad", href: "" },
-  { title: "Bundled Offers", desc: "Discover our money-saving bundle deals for calls, texts, and data", href: "" },
-  { title: "Free International Calls", desc: "Learn about destinations included in your free international calling", href: "" },
-  { title: "Out-of-Bundle Rates", desc: "Standard charges for calls, texts, and data outside your plan", href: "" },
-  { title: "Public Sector Lifetime Deals", desc: "Special pricing and offers for public sector employees", href: "" },
+  { title: "Roaming Charges", desc: "Find out about charges for using your phone when traveling abroad", href: "/roaming-and-coverage" },
+  { title: "Bundled Offers", desc: "Discover our money-saving bundle deals for calls, texts, and data", href: "/bundled-offers" },
+  { title: "Free International Calls", desc: "Learn about destinations included in your free international calling", href: "/international-calling" },
+  { title: "Out-of-Bundle Rates", desc: "Standard charges for calls, texts, and data outside your plan", href: "/out-of-bundle-rates" },
+  { title: "Public Sector Lifetime Deals", desc: "Special pricing and offers for public sector employees", href: "/civilservants" },
 ];
 
 const whatsIncluded: Card[] = [
-  { title: "5G Speed", desc: "Experience lightning-fast 5G speeds across our network coverage", href: "" },
-  { title: "Wi-Fi Calling", desc: "Make calls and send texts over Wi-Fi when mobile signal is weak", href: "" },
-  { title: "EU Roaming", desc: "Use your UK allowances when traveling in the European Union", href: "" },
-  { title: "International Calls", desc: "Stay connected with friends and family around the world", href: "" },
-  { title: "eSIM", desc: "Get connected instantly with our digital eSIM technology", href: "" },
+  { title: "5G Speed", desc: "Experience lightning-fast 5G speeds across our network coverage", href: "/superfast-5g-data" },
+  // { title: "Wi-Fi Calling", desc: "Make calls and send texts over Wi-Fi when mobile signal is weak", href: "/wifi-calling" },
+  { title: "EU Roaming", desc: "Use your UK allowances when traveling in the European Union", href: "/roaming-and-coverage" },
+  { title: "International Calls", desc: "Stay connected with friends and family around the world", href: "/international-calling" },
+  { title: "eSIM", desc: "Get connected instantly with our digital eSIM technology", href: "/activate-your-sim" },
 ];
 
 const contactCards = [
   { title: "Phone Support", lines: ["333 (from Zoiko mobile)", "0333 004 0333 (other networks)"], badge: "24/7 Available", href: "tel:03330040333" },
   { title: "Live Chat", lines: ["Get instant help from our support team"], badge: "Available now", href: "" },
-  { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
+  // { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
   { title: "Email Support", lines: ["help@zoikomobile.co.uk"], badge: "Response within 24 hours", href: "mailto:help@zoikomobile.co.uk" },
 ];
 

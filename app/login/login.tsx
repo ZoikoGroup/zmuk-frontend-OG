@@ -515,8 +515,12 @@ function LoginInner() {
 // ─── PAGE (wrapper — provides the Google OAuth context) ─────────────────────────
 
 function Login() {
+  // GoogleOAuthProvider must always wrap LoginInner (useGoogleLogin requires
+  // the context even if unused). Fall back to a placeholder ID when no real
+  // client ID is configured -- the "Sign in with Google" button already
+  // shows a friendly error via startGoogle() in that case.
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID || "not-configured"}>
       <LoginInner />
     </GoogleOAuthProvider>
   );

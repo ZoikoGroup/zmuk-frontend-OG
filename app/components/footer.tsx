@@ -41,10 +41,10 @@ const linkColumns: { title: string; links: FooterLink[] }[] = [
   {
     title: "Zoiko Mobile UK",
     links: [
-      { label: "Zoiko Mobile Plans", href: "" },
-      { label: "Business SIM Deals", href: "" },
-      { label: "Data Only SIMs", href: "" },
-      { label: "30-Day Plans", href: "" },
+      { label: "Zoiko Mobile Plans", href: "/plans" },
+      { label: "Business SIM Deals", href: "/business-deals_sim-only-plans" },
+      { label: "Data Only SIMs", href: "/data-only-plans" },
+      { label: "30-Day Plans", href: "/30-day-plan" },
       { label: "Coverage Checker", href: "https://ee.co.uk/help/mobile-coverage-checker" },
       { label: "Zoiko Broadband", href: "https://zoikobroadband.com/" },
       { label: "Zoiko Orbit", href: "https://zoikoorbit.com/" },
@@ -62,8 +62,8 @@ const linkColumns: { title: string; links: FooterLink[] }[] = [
   {
     title: "About Zoiko",
     links: [
-      { label: "Blogs", href: "" },
-      { label: "News", href: "" },
+      { label: "Blogs", href: "/blogs" },
+      { label: "News", href: "/news" },
       { label: "FAQs", href: "/faqs" },
       { label: "Contact Us", href: "/contact-us" },
     ],
@@ -71,7 +71,7 @@ const linkColumns: { title: string; links: FooterLink[] }[] = [
   {
     title: "Zoiko Legal",
     links: [
-      { label: "Privacy Policy", href: "" },
+      { label: "Privacy Policy", href: "/privacy-policy" },
       { label: "Terms and Conditions", href: "/terms-and-conditions" },
       { label: "Vulnerability Policy", href: "/vulnerability-policy" },
       { label: "Modern Slavery Policy", href: "/modern-slavery-policy" },
@@ -82,8 +82,8 @@ const linkColumns: { title: string; links: FooterLink[] }[] = [
 
 // App store buttons — add the real store URLs in `href`.
 const storeButtons = [
-  { label: "Google Play", img: "/image/google-play.png", href: "" },
-  { label: "App Store", img: "/image/app-store.png", href: "" },
+  { label: "Google Play", img: "/images/apple.png", href: "" },
+  { label: "App Store", img: "/images/play.png", href: "" },
 ];
 
 // Social links — fill each `href`.

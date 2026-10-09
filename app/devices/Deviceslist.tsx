@@ -111,11 +111,24 @@ function DevicesList() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(LIST_URL);
-        if (!res.ok) throw new Error("Failed to load products");
-        const data = await res.json();
-        // supports array OR paginated { results: [...] }
-        setProducts(Array.isArray(data) ? data : data.results ?? []);
+        let all: Product[] = [];
+        let url: string | null = LIST_URL;
+
+        while (url) {
+          const res: Response = await fetch(url);
+          if (!res.ok) throw new Error("Failed to load products");
+          const data: { results?: Product[]; next?: string | null } = await res.json();
+
+          if (Array.isArray(data)) {
+            all = data as unknown as Product[];
+            break;
+          }
+
+          all = all.concat(data.results ?? []);
+          url = data.next ?? null;
+        }
+
+        setProducts(all);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load products");
       } finally {

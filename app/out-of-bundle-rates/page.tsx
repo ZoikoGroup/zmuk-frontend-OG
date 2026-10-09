@@ -1,11 +1,12 @@
-import { Recharge } from "./Recharge";
+import Bundless from "./Bundless";
+
 
 export default function page(){
 
 
     return(
         <>
-        <Recharge/>
+        <Bundless/>
         </>
     );
 }

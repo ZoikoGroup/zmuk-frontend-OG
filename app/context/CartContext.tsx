@@ -47,12 +47,14 @@ export interface CartItem {
 
 //   totalPrice: number;
 // }
+
+
 interface CartContextType {
     cart: CartItem[];
 
     addToCart: (item: CartItem) => void;
 
-    addPlanToCart: (plan: any) => void;
+    addPlanToCart: (plan: any, simType?: "esim" | "psim") => void;
 
     addProductToCart: (
         product: any,
@@ -122,9 +124,9 @@ export function CartProvider({
         });
     };
 
-    const addPlanToCart = (plan: any) => {
+    const addPlanToCart = (plan: any, simType: "esim" | "psim" = "psim") => {
         const cartItem: CartItem = {
-            cartKey: `plan-${plan.id}-${plan.duration_days}`,
+            cartKey: `plan-${plan.id}-${plan.duration_days}-${simType}`,
 
             id: plan.id,
 
@@ -143,6 +145,7 @@ export function CartProvider({
             quantity: 1,
 
             metadata: {
+                simType: simType,
                 duration: plan.duration_days,
                 dataAllowance: plan.data_allowance,
                 transatelID: plan.transatelID,

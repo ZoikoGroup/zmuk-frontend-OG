@@ -5,6 +5,10 @@ import React, { useEffect, useMemo, useState } from "react";
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
+
+
+
+
 // ── API shape: GET /api/products/<slug>/  (ProductDetailSerializer) ──
 interface ImageT { id: number; image: string; alt_text: string; is_primary: boolean; order: number; }
 interface VariantT {
@@ -130,6 +134,41 @@ function ProductDetail({ slug }: { slug: string }) {
   const images = product.images ?? [];
   const mainSrc = images[activeImg] ? absUrl(images[activeImg].image) : "";
 
+  const addToCart = () => {
+  if (!matched || !product) return;
+
+  const item = {
+    id: matched.id,
+    slug: product.slug,
+    name: product.name,
+    image: images[0] ? absUrl(images[0].image) : null,
+    price: Number(matched.price),
+    qty,
+    type: "product",
+    attributes: matched.attributes_dict,
+  };
+
+  const existing = JSON.parse(localStorage.getItem("cart") || "[]");
+
+  // If same variant already exists, increase quantity
+  const index = existing.findIndex(
+    (x: any) => x.id === item.id && x.type === "product"
+  );
+
+  if (index >= 0) {
+    existing[index].qty += qty;
+  } else {
+    existing.push(item);
+  }
+
+  localStorage.setItem("cart", JSON.stringify(existing));
+
+  window.dispatchEvent(new Event("zoiko-cart"));
+
+  alert("Added to cart!");
+};
+
+
   return (
     <div className="bg-white dark:bg-gray-900">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 lg:grid-cols-2">
@@ -211,7 +250,8 @@ function ProductDetail({ slug }: { slug: string }) {
             />
             <button
               type="button"
-              disabled={!canAdd}
+  onClick={addToCart}
+  disabled={!canAdd}
               className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               Add to cart

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ const TERMS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Publicsectordeals() {
+  const router = useRouter();
   return (
     <div className="bg-white dark:bg-gray-900">
 
@@ -80,7 +82,7 @@ function Publicsectordeals() {
               <span className="font-semibold text-yellow-300">20% lifetime discount for up to 5 nominated family and friends.</span>
             </p>
 
-            <button className="rounded-md bg-yellow-400 px-6 py-3 text-sm font-bold text-gray-900 transition-colors hover:bg-yellow-300">
+            <button onClick={()=>router.push("/student-discount-application")} className="cursor-pointer rounded-md bg-yellow-400 px-6 py-3 text-sm font-bold text-gray-900 transition-colors hover:bg-yellow-300">
               Register Now
             </button>
           </div>
@@ -126,7 +128,7 @@ function Publicsectordeals() {
               Take advantage of this exclusive offer and enjoy significant savings on your mobile plan. Browse our
               plans today and start saving with Zoiko Mobile.
             </p>
-            <button className="rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
+            <button onClick={()=>router.push("/plans")} className="rounded-md cursor-pointer border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
               Browse Plans Now
             </button>
           </div>
@@ -181,10 +183,10 @@ function Publicsectordeals() {
           </div>
 
           <div className="mt-8 flex justify-center gap-4">
-            <button className="rounded-md bg-[#e6007e] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a]">
+            <button onClick={()=>router.push("/student-discount-application")} className="cursor-pointer rounded-md bg-[#e6007e] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a]">
               Join Now
             </button>
-            <button className="rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
+            <button onClick={()=>router.push("/switch-and-save")} className="cursor-pointer rounded-md border border-green-600 px-6 py-2.5 text-sm font-semibold text-green-600 transition-colors hover:bg-green-50 dark:hover:bg-gray-700">
               Switch &amp; Save
             </button>
           </div>

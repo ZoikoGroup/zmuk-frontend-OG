@@ -19,9 +19,9 @@ const navItems = [
 type Card = { img: string; title: string; desc: string };
 
 const environmental: Card[] = [
-  { img: "/images/Background+Shadow (7).png", title: "Compliance", desc: "Zoiko Mobile is committed to strict compliance with all relevant environmental laws and regulations, ensuring that our operations adhere to the highest environmental standards." },
-  { img: "/images/Background+Shadow (13).png", title: "Resource Efficiency", desc: "We will actively work to minimize resource consumption and reduce our carbon footprint by embracing energy-efficient practices and waste reduction." },
-  { img: "/images/Background+Shadow (14).png", title: "Innovation for Sustainability", desc: "Zoiko Mobile will drive innovation in the development of environmentally friendly and energy-efficient products and services, contributing to a more sustainable environment." },
+  { img: "/images/bg7.png", title: "Compliance", desc: "Zoiko Mobile is committed to strict compliance with all relevant environmental laws and regulations, ensuring that our operations adhere to the highest environmental standards." },
+  { img: "/images/bg13.png", title: "Resource Efficiency", desc: "We will actively work to minimize resource consumption and reduce our carbon footprint by embracing energy-efficient practices and waste reduction." },
+  { img: "/images/bg14.png", title: "Innovation for Sustainability", desc: "Zoiko Mobile will drive innovation in the development of environmentally friendly and energy-efficient products and services, contributing to a more sustainable environment." },
 ];
 
 const social: Card[] = [
@@ -31,10 +31,10 @@ const social: Card[] = [
 ];
 
 const governance: Card[] = [
-  { img: "/images/Background+Shadow (8).png", title: "Ethical Conduct", desc: "Zoiko Mobile conducts its business with the highest ethical standards, guided by a robust code of conduct that applies to all employees and stakeholders." },
-  { img: "/images/Background+Shadow (9).png", title: "Board Diversity", desc: "Our board of directors strives to be diverse in terms of expertise, gender, and background, encouraging a broader range of perspectives in our decision-making processes." },
-  { img: "/images/Background+Shadow (10).png", title: "Transparency and Accountability", desc: "We are committed to maintaining transparency in financial reporting, corporate governance, and decision-making processes, while adhering to legal and regulatory requirements." },
-  { img: "/images/Background+Shadow (11).png", title: "Risk Management", desc: "Zoiko Mobile actively assesses and manages risks to the business, including those related to ESG issues, to safeguard the long-term interests of our stakeholders." },
+  { img: "/images/bg8.png", title: "Ethical Conduct", desc: "Zoiko Mobile conducts its business with the highest ethical standards, guided by a robust code of conduct that applies to all employees and stakeholders." },
+  { img: "/images/bg9.png", title: "Board Diversity", desc: "Our board of directors strives to be diverse in terms of expertise, gender, and background, encouraging a broader range of perspectives in our decision-making processes." },
+  { img: "/images/bg10.png", title: "Transparency and Accountability", desc: "We are committed to maintaining transparency in financial reporting, corporate governance, and decision-making processes, while adhering to legal and regulatory requirements." },
+  { img: "/images/bg11.png", title: "Risk Management", desc: "Zoiko Mobile actively assesses and manages risks to the business, including those related to ESG issues, to safeguard the long-term interests of our stakeholders." },
 ];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ function ESGPolicy() {
             <div className="mt-5 rounded-2xl bg-gradient-to-b from-[#eef9f3] to-[#f6fbf8] p-8 text-center ring-1 ring-[#cdeede] dark:from-[#0e8f74]/10 dark:to-[#0e8f74]/5 dark:ring-[#0e8f74]/30">
               {/* Conclusion icon — image slot */}
               <Image
-                src="/images/Background+Shadow (12).png"
+                src="/images/bg12.png"
                 alt="ESG commitment"
                 width={80}
                 height={80}

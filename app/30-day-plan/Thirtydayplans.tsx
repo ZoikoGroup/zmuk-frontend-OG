@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCart } from "../context/Cartcontext";
+import { useCart } from "../context/CartContext";
+import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 
 // .env.local -> NEXT_PUBLIC_API_URL
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -113,8 +114,16 @@ function ThirtyDayPlans() {
   const { addPlanToCart } = useCart();
   const router = useRouter();
 
+  const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
+
   const handleBuyNow = (plan: Plan) => {
-    addPlanToCart(plan);
+    setSimTypePlan(plan);
+  };
+
+  const confirmSimType = (simType: "esim" | "psim") => {
+    if (!simTypePlan) return;
+    addPlanToCart(simTypePlan, simType);
+    setSimTypePlan(null);
     router.push("/checkout");
   };
 
@@ -143,6 +152,13 @@ function ThirtyDayPlans() {
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
+      {simTypePlan && (
+        <ChooseSimTypeModal
+          planName={simTypePlan.name}
+          onConfirm={confirmSimType}
+          onClose={() => setSimTypePlan(null)}
+        />
+      )}
 
       {/* Hero */}
       <div className="bg-gradient-to-r from-green-600 to-teal-500 px-4 py-14 text-center">
@@ -223,6 +239,9 @@ function ThirtyDayPlans() {
             <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
               <div>
                 <p className="text-sm italic leading-relaxed text-gray-600 dark:text-gray-300">
+
+
+              
                   &ldquo;Brilliant service. From the moment I downloaded their app, accessing their brilliant
                   customer services has been a pleasure. Not only is it incredibly user-friendly, but its pricing is
                   also very competitive compared to other options in the market. I can confidently say that Zoiko

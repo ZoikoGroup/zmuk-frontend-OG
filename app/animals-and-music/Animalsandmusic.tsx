@@ -143,7 +143,7 @@ function AnimalsAndMusic() {
     </h1>
     <p className="mt-2 text-sm text-white/90">Discover The Unique Bond Between Animals And Music</p>
 
-    <Link href="" className="mt-7 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-[#e6007e] shadow-md transition-opacity hover:opacity-90">
+    <Link href="/plans" className="mt-7 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-[#e6007e] shadow-md transition-opacity hover:opacity-90">
       View All Plans
     </Link>
   </div>

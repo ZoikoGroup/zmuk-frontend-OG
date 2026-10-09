@@ -45,7 +45,7 @@ export default function ReasonsToLoveZoiko() {
             <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Join the pack and experience the love for yourself!</p>
 
             <Link
-              href=""
+              href="/plans"
               className="mt-7 inline-block rounded-full bg-gradient-to-r from-[#f0568f] to-[#e6007e] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
             >
               Join Our Network Today!

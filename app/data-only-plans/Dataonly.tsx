@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCart } from "../context/Cartcontext";
+import { useCart } from "../context/CartContext";
+import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -53,8 +54,16 @@ function PlanCard({ plan, duration }: { plan: Plan; duration: Duration }) {
     const { addPlanToCart } = useCart();
     const router = useRouter();
   
+    const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
+
     const handleBuyNow = (plan: Plan) => {
-      addPlanToCart(plan);
+      setSimTypePlan(plan);
+    };
+
+    const confirmSimType = (simType: "esim" | "psim") => {
+      if (!simTypePlan) return;
+      addPlanToCart(simTypePlan, simType);
+      setSimTypePlan(null);
       router.push("/checkout");
     };
   
@@ -62,6 +71,13 @@ function PlanCard({ plan, duration }: { plan: Plan; duration: Duration }) {
     <div className={`relative flex h-full flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${
       plan.is_popular ? "border-2 border-teal-400" : "border border-gray-100 dark:border-gray-700"
     }`}>
+      {simTypePlan && (
+        <ChooseSimTypeModal
+          planName={simTypePlan.name}
+          onConfirm={confirmSimType}
+          onClose={() => setSimTypePlan(null)}
+        />
+      )}
       {plan.is_popular && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#e6007e] px-3 py-0.5 text-xs font-semibold text-white">
           Most Popular
@@ -272,4 +288,3 @@ export default function Dataonly() {
     </div>
   );
 }
-

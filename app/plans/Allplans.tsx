@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCart } from "../context/Cartcontext";
+import { useCart } from "../context/CartContext";
+import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -249,13 +250,32 @@ function Allplans() {
     scroller.current?.scrollBy({ left: dir * 344, behavior: "smooth" });
   };
 
+  // "Buy this plan" now opens the Choose SIM Type modal first (eSIM / pSIM),
+  // matching the old WordPress flow. The chosen type is stored on the cart item.
+  const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
+
   const handleBuyNow = (plan: Plan) => {
-    addPlanToCart(plan);
+    setSimTypePlan(plan);
+  };
+
+  const confirmSimType = (simType: "esim" | "psim") => {
+    if (!simTypePlan) return;
+    addPlanToCart(simTypePlan, simType);
+    setSimTypePlan(null);
     router.push("/checkout");
   };
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
+      {/* Choose SIM Type modal (eSIM / pSIM) */}
+      {simTypePlan && (
+        <ChooseSimTypeModal
+          planName={simTypePlan.name}
+          onConfirm={confirmSimType}
+          onClose={() => setSimTypePlan(null)}
+        />
+      )}
+
       {/* Banner */}
       <div className="bg-gradient-to-r from-green-600 to-teal-500 py-8 px-4 text-center">
         <h1 className="text-2xl font-bold text-white sm:text-3xl">
