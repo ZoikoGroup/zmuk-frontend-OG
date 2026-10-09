@@ -71,7 +71,7 @@ export default function SecurityPage() {
   ];
 
   const navigationItems = [
-    { label: "Security", icon: ShieldCheck, href: "/security" },
+    { label: "Security", icon: ShieldCheck, href: "dashboard/security" },
     { label: "Refer & Earn", icon: Share2, href: "/refer-a-friend" },
     { label: "Latest Offers", icon: Tag, href: "/bundled-offers" },
   ];
@@ -169,7 +169,7 @@ export default function SecurityPage() {
 
   const submitReport = async () => {
     if (!reportNote.trim()) {
-      showToast("Please describe the suspicious activity first.", "error");
+      alert("Please describe the suspicious activity first.");
       return;
     }
     setReportLoading(true);
@@ -184,15 +184,23 @@ export default function SecurityPage() {
       });
 
       if (res.ok) {
-        showToast(
+        // showToast(
+        //   "Report submitted. Our team will review it shortly.",
+        //   "success",
+        // );
+         alert(
           "Report submitted. Our team will review it shortly.",
-          "success",
+          // "success",
         );
         setReportNote("");
       } else {
-        showToast(
+        // showToast(
+        //   "Report received (local). We'll follow up by email.",
+        //   "success",
+        // );
+         alert(
           "Report received (local). We'll follow up by email.",
-          "success",
+          // "success",
         );
         setReportNote("");
       }
@@ -456,7 +464,7 @@ export default function SecurityPage() {
           </div>
 
           {/* Login History Section */}
-          <div className="pt-4 border-t border-gray-100">
+          {/* <div className="pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={() => setIsHistoryOpen((prev) => !prev)}
@@ -486,7 +494,7 @@ export default function SecurityPage() {
               </div>
             </button>
 
-            {/* Collapsible List Container */}
+            
             {isHistoryOpen && (
               <div className="space-y-2 mt-2 transition-all duration-200">
                 {loginHistory.map((entry) => (
@@ -507,7 +515,7 @@ export default function SecurityPage() {
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Report Suspicious Activity Section */}
           <div className="pt-4 border-t border-gray-100">

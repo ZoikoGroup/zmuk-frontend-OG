@@ -44,17 +44,17 @@ const tariffs: Card[] = [
 ];
 
 const whatsIncluded: Card[] = [
-  { title: "5G Speed", desc: "Experience lightning-fast 5G speeds across our network coverage", href: "" },
-  { title: "Wi-Fi Calling", desc: "Make calls and send texts over Wi-Fi when mobile signal is weak", href: "" },
-  { title: "EU Roaming", desc: "Use your UK allowances when traveling in the European Union", href: "" },
-  { title: "International Calls", desc: "Stay connected with friends and family around the world", href: "" },
-  { title: "eSIM", desc: "Get connected instantly with our digital eSIM technology", href: "" },
+  { title: "5G Speed", desc: "Experience lightning-fast 5G speeds across our network coverage", href: "/superfast-5g-data" },
+  // { title: "Wi-Fi Calling", desc: "Make calls and send texts over Wi-Fi when mobile signal is weak", href: "/wifi-calling" },
+  { title: "EU Roaming", desc: "Use your UK allowances when traveling in the European Union", href: "/roaming-and-coverage" },
+  { title: "International Calls", desc: "Stay connected with friends and family around the world", href: "/international-calling" },
+  { title: "eSIM", desc: "Get connected instantly with our digital eSIM technology", href: "/activate-your-sim" },
 ];
 
 const contactCards = [
   { title: "Phone Support", lines: ["333 (from Zoiko mobile)", "0333 004 0333 (other networks)"], badge: "24/7 Available", href: "tel:03330040333" },
   { title: "Live Chat", lines: ["Get instant help from our support team"], badge: "Available now", href: "" },
-  { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
+  // { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
   { title: "Email Support", lines: ["help@zoikomobile.co.uk"], badge: "Response within 24 hours", href: "mailto:help@zoikomobile.co.uk" },
 ];
 

@@ -183,11 +183,11 @@ export default function EditProfilePage() {
             <h5 className="font-semibold text-base mb-4">Account Info</h5>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-gray-400 text-xs mb-1 dark:bg-gray-900 dark:text-white">Username</p>
-                <p className="text-sm font-medium">{username || "—"}</p>
+                <p className="text-gray-600 text-xs md:text-sm lg:text-base mb-1 dark:bg-gray-900 dark:text-white">User Name</p>
+                <p className="text-sm font-medium">{nameData.first_name || "—"}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs mb-1 dark:bg-gray-900 dark:text-white">Email</p>
+                <p className="text-gray-600 text-xs md:text-sm lg:text-base mb-1 dark:bg-gray-900 dark:text-white">Email</p>
                 <p className="text-sm font-medium">{email || "—"}</p>
               </div>
             </div>

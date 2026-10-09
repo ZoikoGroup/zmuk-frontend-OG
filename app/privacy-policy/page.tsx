@@ -272,9 +272,11 @@ export default function PrivacyPolicy() {
                   To exercise any of these rights, please contact our Data Protection Officer using the contact details provided at the end of this policy.
                 </p>
               </div>
+              <Link href="/contact-us">
               <button className="bg-[#49a873] hover:bg-[#3d9162] text-white px-6 py-2.5 rounded-full text-[13px] font-bold transition-colors">
                 Contact Us
               </button>
+              </Link>
             </div>
           </section>
 
@@ -392,9 +394,11 @@ export default function PrivacyPolicy() {
             <p className="text-[13px] text-gray-500 dark:text-gray-400 mb-6">
               By using the App, you agree to these Terms. Thank you for choosing Zoiko Mobile and for adhering to these guidelines for app usage.
             </p>
+            <Link href="/plans">
             <button className="bg-[#49a873] hover:bg-[#3d9162] text-white px-8 py-2.5 rounded-full text-[14px] font-bold transition-colors">
               View Plans
             </button>
+            </Link>
           </div>
 
         </main>

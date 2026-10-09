@@ -110,7 +110,7 @@ function ActivateGuide() {
                 Call us on{" "}
                 <a href="tel:+442071646399" className="font-bold text-[#e6007e] hover:underline">+44 (0) 2071 646 399</a>{" "}
                 or visit our{" "}
-                <Link href="" className="font-semibold text-[#e6007e] hover:underline">Help &amp; Support page</Link>.
+                <Link href="/help-support" className="font-semibold text-[#e6007e] hover:underline">Help &amp; Support page</Link>.
               </p>
             </div>
 

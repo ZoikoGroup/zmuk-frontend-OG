@@ -61,12 +61,12 @@ const offices = [
 ];
 
 const topics = [
-  { icon: "/images/Contact form/💳.png", title: "Account & Billing", desc: "Payment methods, billing queries, and account management" },
-  { icon: "/images/Contact form/📶.png", title: "Network & Coverage", desc: "Signal issues, network coverage, and connectivity problems" },
-  { icon: "/images/Contact form/🌍.png", title: "Roaming & International", desc: "International calls, roaming setup, and data charges abroad" },
-  { icon: "/images/Contact form/📞.png", title: "Call & Text Charges", desc: "Call rates, international charges, and premium services" },
-  { icon: "/images/Contact form/📅.png", title: "Plans & Packages", desc: "Day pass options, roaming plans, and service upgrades" },
-  { icon: "/images/Contact form/📱.png", title: "SIM & Device Setup", desc: "SIM activation, device configuration, and technical support" },
+  { icon: "/images/Contact form/💳.png", title: "Account & Billing", desc: "Payment methods, billing queries, and account management", href:"/dashboard" },
+  { icon: "/images/Contact form/📶.png", title: "Network & Coverage", desc: "Signal issues, network coverage, and connectivity problems", href:"https://ee.co.uk/help/mobile-coverage-checker" },
+  { icon: "/images/Contact form/🌍.png", title: "Roaming & International", desc: "International calls, roaming setup, and data charges abroad", href:"/roaming-and-coverage" },
+  { icon: "/images/Contact form/📞.png", title: "Call & Text Charges", desc: "Call rates, international charges, and premium services", href:"/plans" },
+  { icon: "/images/Contact form/📅.png", title: "Plans & Packages", desc: "Day pass options, roaming plans, and service upgrades", href:"/plans" },
+  { icon: "/images/Contact form/📱.png", title: "SIM & Device Setup", desc: "SIM activation, device configuration, and technical support", href:"/activate-your-sim" },
 ];
 
 // ─── ICONS ───────────────────────────────────────────────────────────────────
@@ -252,8 +252,10 @@ type FormState = {
   newsletter: boolean;
 };
 
-type FormErrors = Partial<Record<FormFields, string>>;
-type TouchedFields = Partial<Record<FormFields, boolean>>;
+type FormErrors = Partial<Record<FieldName, string>>;
+type CheckboxFields = "savePref" | "newsletter";
+type FieldName = FormFields | CheckboxFields;
+type TouchedFields = Partial<Record<FieldName, boolean>>;
 
 const initialForm: FormState = {
   name: "",
@@ -294,6 +296,16 @@ export default function ContactUs() {
     return validators[field](value);
   }, []);
 
+  // const validateAll = useCallback((): FormErrors => {
+  //   const newErrors: FormErrors = {};
+  //   const textFields: FormFields[] = ["name", "email", "phone", "subject", "message"];
+  //   textFields.forEach((field) => {
+  //     const err = validateField(field, form[field] as string);
+  //     if (err) newErrors[field] = err;
+  //   });
+  //   return newErrors;
+  // }, [form, validateField]);
+
   const validateAll = useCallback((): FormErrors => {
     const newErrors: FormErrors = {};
     const textFields: FormFields[] = ["name", "email", "phone", "subject", "message"];
@@ -301,24 +313,64 @@ export default function ContactUs() {
       const err = validateField(field, form[field] as string);
       if (err) newErrors[field] = err;
     });
+
+    const checkboxFields: CheckboxFields[] = ["savePref", "newsletter"];
+    checkboxFields.forEach((field) => {
+      const err = checkboxValidators[field](form[field]);
+      if (err) newErrors[field] = err;
+    });
+
     return newErrors;
   }, [form, validateField]);
 
+  const checkboxValidators: Record<CheckboxFields, (checked: boolean) => string | null> = {
+    savePref: (checked) =>
+      checked ? null : "Please agree to save your details in this browser to continue.",
+    newsletter: (checked) =>
+      checked ? null : "Please agree to subscribe to our newsletter to continue.",
+  };
+
+  // const handleChange = (
+  //   e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  // ) => {
+  //   const target = e.target;
+  //   const value = target.type === "checkbox" ? (target as HTMLInputElement).checked : target.value;
+  //   const name = target.name as FormFields;
+
+  //   setForm((f) => ({ ...f, [name]: value }));
+
+  //   // Clear error as user types (only if field was already touched)
+  //   if (touched[name] && typeof value === "string") {
+  //     const err = validateField(name, value);
+  //     setErrors((prev) => ({ ...prev, [name]: err ?? undefined }));
+  //   }
+  // };
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const target = e.target;
-    const value = target.type === "checkbox" ? (target as HTMLInputElement).checked : target.value;
-    const name = target.name as FormFields;
 
+    // Checkboxes: validate as soon as they're toggled
+    if (target instanceof HTMLInputElement && target.type === "checkbox") {
+      const name = target.name as CheckboxFields;
+      const checked = target.checked;
+      setForm((f) => ({ ...f, [name]: checked }));
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      setErrors((prev) => ({ ...prev, [name]: checkboxValidators[name](checked) ?? undefined }));
+      return;
+    }
+
+    // Text fields
+    const name = target.name as FormFields;
+    const value = target.value;
     setForm((f) => ({ ...f, [name]: value }));
 
-    // Clear error as user types (only if field was already touched)
-    if (touched[name] && typeof value === "string") {
+    if (touched[name]) {
       const err = validateField(name, value);
       setErrors((prev) => ({ ...prev, [name]: err ?? undefined }));
     }
   };
+
 
   const handleBlur = (
     e: FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -333,7 +385,13 @@ export default function ContactUs() {
     e.preventDefault();
 
     // Mark all fields touched
-    const allTouched: TouchedFields = { name: true, email: true, phone: true, subject: true, message: true };
+    // const allTouched: TouchedFields = { name: true, email: true, phone: true, subject: true, message: true };
+    // setTouched(allTouched);
+
+    const allTouched: TouchedFields = {
+      name: true, email: true, phone: true, subject: true, message: true,
+      savePref: true, newsletter: true,
+    };
     setTouched(allTouched);
 
     const newErrors = validateAll();
@@ -375,8 +433,13 @@ export default function ContactUs() {
         // Handle structured backend validation errors
         if (data.errors && typeof data.errors === "object") {
           const backendErrors: FormErrors = {};
+          // Object.entries(data.errors).forEach(([key, msg]) => {
+          //   if (key in validators) backendErrors[key as FormFields] = String(msg);
+          // });
           Object.entries(data.errors).forEach(([key, msg]) => {
-            if (key in validators) backendErrors[key as FormFields] = String(msg);
+            if (key in validators || key in checkboxValidators) {
+              backendErrors[key as FieldName] = String(msg);
+            }
           });
           setErrors(backendErrors);
           showToast("error", "Submission failed", data.message || "Some fields are invalid. Please review and try again.");
@@ -434,7 +497,7 @@ export default function ContactUs() {
               />
               {touched.name && errors.name && (
                 <p id="name-error" className="mt-1.5 flex items-center gap-1.5 text-xs text-red-500" role="alert">
-                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z"/></svg>
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
                   {errors.name}
                 </p>
               )}
@@ -455,7 +518,7 @@ export default function ContactUs() {
               />
               {touched.email && errors.email && (
                 <p id="email-error" className="mt-1.5 flex items-center gap-1.5 text-xs text-red-500" role="alert">
-                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z"/></svg>
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
                   {errors.email}
                 </p>
               )}
@@ -476,7 +539,7 @@ export default function ContactUs() {
               />
               {touched.phone && errors.phone && (
                 <p id="phone-error" className="mt-1.5 flex items-center gap-1.5 text-xs text-red-500" role="alert">
-                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z"/></svg>
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
                   {errors.phone}
                 </p>
               )}
@@ -501,7 +564,7 @@ export default function ContactUs() {
               </select>
               {touched.subject && errors.subject && (
                 <p id="subject-error" className="mt-1.5 flex items-center gap-1.5 text-xs text-red-500" role="alert">
-                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z"/></svg>
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
                   {errors.subject}
                 </p>
               )}
@@ -524,7 +587,7 @@ export default function ContactUs() {
               <div className="mt-1 flex items-start justify-between">
                 {touched.message && errors.message ? (
                   <p id="message-error" className="flex items-center gap-1.5 text-xs text-red-500" role="alert">
-                    <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z"/></svg>
+                    <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
                     {errors.message}
                   </p>
                 ) : <span />}
@@ -535,7 +598,7 @@ export default function ContactUs() {
             </div>
 
             {/* Checkboxes */}
-            <label className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
+            {/* <label className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
               <input
                 type="checkbox" name="savePref" checked={form.savePref} onChange={handleChange}
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#e6007e] focus:ring-[#e6007e]"
@@ -548,7 +611,43 @@ export default function ContactUs() {
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#e6007e] focus:ring-[#e6007e]"
               />
               <span>Subscribe to our newsletter for updates and exclusive offers</span>
-            </label>
+            </label> */}
+            {/* Checkboxes (both required) */}
+            {(
+              [
+                { name: "savePref", text: "Save my name, email, and website in this browser for future use" },
+                { name: "newsletter", text: "Subscribe to our newsletter for updates and exclusive offers" },
+              ] as { name: CheckboxFields; text: string }[]
+            ).map(({ name, text }) => {
+              const hasError = !!(touched[name] && errors[name]);
+              return (
+                <div key={name}>
+                  <label htmlFor={name} className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400 cursor-pointer">
+                    <input
+                      id={name}
+                      type="checkbox"
+                      name={name}
+                      checked={form[name]}
+                      onChange={handleChange}
+                      aria-required="true"
+                      aria-invalid={hasError}
+                      aria-describedby={hasError ? `${name}-error` : undefined}
+                      className={`mt-0.5 h-4 w-4 rounded text-[#e6007e] focus:ring-[#e6007e] ${hasError ? "border-red-400 ring-1 ring-red-300" : "border-gray-300"
+                        }`}
+                    />
+                    <span>
+                      {text} <span className="text-red-400" aria-hidden="true">*</span>
+                    </span>
+                  </label>
+                  {hasError && (
+                    <p id={`${name}-error`} className="mt-1.5 ml-6 flex items-center gap-1.5 text-xs text-red-500" role="alert">
+                      <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2zm0 5a1 1 0 00-1 1v5a1 1 0 102 0V8a1 1 0 00-1-1zm0 9a1.25 1.25 0 110 2.5A1.25 1.25 0 0112 16z" /></svg>
+                      {errors[name]}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
 
             <button
               type="submit"
@@ -654,7 +753,7 @@ export default function ContactUs() {
                 <Image src={t.icon} alt={t.title} width={40} height={40} className="h-10 w-10 object-contain" />
                 <h3 className="mt-4 text-base font-bold text-gray-800 dark:text-white">{t.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500">{t.desc}</p>
-                <Link href="#" className="mt-4 text-sm font-semibold text-[#0e8f74] hover:underline">View Questions &rarr;</Link>
+                <Link href={t.href} className="mt-4 text-sm font-semibold text-[#0e8f74] hover:underline">View Questions &rarr;</Link>
               </div>
             ))}
           </div>
@@ -680,7 +779,7 @@ export default function ContactUs() {
             </div>
           </div>
           <div className="mt-6 flex flex-col items-center">
-            <div className="flex gap-1">{[0,1,2,3,4].map((i) => <Star key={i} />)}</div>
+            <div className="flex gap-1">{[0, 1, 2, 3, 4].map((i) => <Star key={i} />)}</div>
             <p className="mt-2 text-xs text-gray-400">5.0 out of 5 stars</p>
           </div>
         </div>
