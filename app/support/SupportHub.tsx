@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { openChat } from "../components/ChatWidget";
 
 // ─── ICONS ─────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ const whatsIncluded: Card[] = [
 
 const contactCards = [
   { title: "Phone Support", lines: ["333 (from Zoiko mobile)", "0333 004 0333 (other networks)"], badge: "24/7 Available", href: "tel:03330040333" },
-  { title: "Live Chat", lines: ["Get instant help from our support team"], badge: "Available now", href: "" },
+  // { title: "Live Chat", lines: ["Get instant help from our support team"], badge: "Available now", href: "" },
   // { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
   { title: "Email Support", lines: ["help@zoikomobile.co.uk"], badge: "Response within 24 hours", href: "mailto:help@zoikomobile.co.uk" },
 ];

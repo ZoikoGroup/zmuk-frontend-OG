@@ -199,7 +199,7 @@ export default function SecurityPage() {
         //   "success",
         // );
          alert(
-          "Report received (local). We'll follow up by email.",
+          "Report received. We'll follow up by email.",
           // "success",
         );
         setReportNote("");
