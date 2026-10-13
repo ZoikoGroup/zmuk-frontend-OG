@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+// import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // In .env.local:
@@ -13,6 +14,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 // Where to send the user after a successful login. Change to your dashboard route.
 const AFTER_LOGIN = "/dashboard";
+
+// Return to the page the user originally wanted (only same-site paths, to prevent open redirects)
+function getRedirectPath(): string {
+  if (typeof window === "undefined") return AFTER_LOGIN;
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : AFTER_LOGIN;
+}
 
 // ─── ICONS ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +50,7 @@ function setSession(token: string, user: AuthUser) {
   if (typeof window === "undefined") return;
   localStorage.setItem("zoiko_token", token);
   localStorage.setItem("zoiko_user", JSON.stringify(user));
-  
+
   window.dispatchEvent(new Event("zoiko-auth"));
 }
 // Pull a readable message out of a DRF error response (handles field errors + non_field_errors).
@@ -67,19 +75,44 @@ const inputCx =
   "w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-700 focus:border-[#e6007e] focus:outline-none focus:ring-1 focus:ring-[#e6007e] dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500";
 const labelCx = "mb-1.5 block text-sm font-semibold text-[#0e8f74] dark:text-[#34d39e]";
 
-function GoogleButton({ label, onClick, disabled }: { label: string; onClick?: () => void; disabled?: boolean }) {
+// function GoogleButton({ label, onClick, disabled }: { label: string; onClick?: () => void; disabled?: boolean }) {
+//   return (
+//     <button
+//       type="button"
+//       onClick={onClick}
+//       disabled={disabled}
+//       className="inline-flex items-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm disabled:opacity-60 dark:border-gray-600"
+//     >
+//       <span className="px-3 py-2">
+//         <GoogleG />
+//       </span>
+//       <span className="bg-[#4285F4] px-4 py-2.5 text-sm font-semibold text-white">{label}</span>
+//     </button>
+//   );
+// }
+function GoogleSignIn({
+  text,
+  onSuccess,
+  onError,
+}: {
+  text: "signin_with" | "signup_with";
+  onSuccess: (res: CredentialResponse) => void;
+  onError: () => void;
+}) {
+  if (!GOOGLE_CLIENT_ID) {
+    return <p className="text-sm text-gray-500 dark:text-gray-400">Google sign-in isn&apos;t configured yet.</p>;
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm disabled:opacity-60 dark:border-gray-600"
-    >
-      <span className="px-3 py-2">
-        <GoogleG />
-      </span>
-      <span className="bg-[#4285F4] px-4 py-2.5 text-sm font-semibold text-white">{label}</span>
-    </button>
+    <GoogleLogin
+      onSuccess={onSuccess}
+      onError={onError}
+      text={text}
+      theme="outline"
+      shape="rectangular"
+      size="large"
+      width="350"
+      logo_alignment="center"
+    />
   );
 }
 
@@ -133,57 +166,39 @@ function LoginInner() {
   };
 
   // ── GOOGLE SIGN-IN ──
-  // Implicit token flow: get an access token, read the user's Google profile,
-  // then hand the email + name to our backend's social-user endpoint.
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setError("");
-      setSuccess("");
-      setLoading(true);
-      try {
-        // 1) Fetch the Google profile (email, given/family name) with the access token
-        const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const profile = await profileRes.json();
-        if (!profile?.email) {
-          setError("Could not read your Google account email.");
-          return;
-        }
-
-        // 2) Exchange it with our backend for a token
-        const res = await fetch(`${API_BASE}/api/accounts/social-user/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: profile.email,
-            first_name: profile.given_name ?? "",
-            last_name: profile.family_name ?? "",
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(parseError(data, "Google login failed."));
-          return;
-        }
-        setSession(data.token, data.user);
-        router.push(AFTER_LOGIN);
-      } catch {
-        setError("Google login failed. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    onError: () => setError("Google sign-in was cancelled or failed."),
-  });
-
-  const startGoogle = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      setError("Google sign-in isn't configured yet (missing client ID).");
+  // GoogleLogin returns a Google-signed ID token (JWT) as `credential`.
+  // The backend verifies it against GOOGLE_CLIENT_ID and returns our own token.
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    const idToken = credentialResponse.credential;
+    if (!idToken) {
+      setError("Google sign-in failed. Please try again.");
       return;
     }
-    googleLogin();
+
+    setError("");
+    setSuccess("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/accounts/social-user/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(parseError(data, "Google login failed."));
+        return;
+      }
+      setSession(data.token, data.user);
+      router.push(AFTER_LOGIN);
+    } catch {
+      setError("Google login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleGoogleError = () => setError("Google sign-in was cancelled or failed.");
 
   // ── LOGIN ──
   const handleLogin = async (e: FormEvent) => {
@@ -203,7 +218,8 @@ function LoginInner() {
         return;
       }
       setSession(data.token, data.user);
-      router.push(AFTER_LOGIN);
+      // router.push(AFTER_LOGIN);
+      router.push(getRedirectPath());
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -316,11 +332,10 @@ function LoginInner() {
                 key={t}
                 type="button"
                 onClick={() => switchTab(t)}
-                className={`-mb-px border-b-2 pb-2 text-sm font-semibold transition-colors ${
-                  tab === t
-                    ? "border-[#0e8f74] text-[#0e8f74] dark:border-[#34d39e] dark:text-[#34d39e]"
-                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                }`}
+                className={`-mb-px border-b-2 pb-2 text-sm font-semibold transition-colors ${tab === t
+                  ? "border-[#0e8f74] text-[#0e8f74] dark:border-[#34d39e] dark:text-[#34d39e]"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  }`}
               >
                 {t}
               </button>
@@ -369,9 +384,9 @@ function LoginInner() {
                 </div>
               </div>
 
-              <p className="mt-5 text-sm font-medium text-gray-700 dark:text-gray-200">Connect with</p>
+              <p className="mt-5 text-sm text-center font-medium text-gray-700 dark:text-gray-200">OR</p>
               <div className="mt-2">
-                <GoogleButton label="Login with Google" onClick={startGoogle} disabled={loading} />
+                <GoogleSignIn text="signin_with" onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
               </div>
 
               <label className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -455,9 +470,9 @@ function LoginInner() {
                 />
               </div>
 
-              <p className="mt-5 text-sm font-medium text-gray-700 dark:text-gray-200">Connect with</p>
+              <p className="mt-5 text-sm text-center font-medium text-gray-700 dark:text-gray-200">OR</p>
               <div className="mt-2">
-                <GoogleButton label="Sign up with Google" onClick={startGoogle} disabled={loading} />
+                <GoogleSignIn text="signup_with" onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
               </div>
 
               <Alert kind="error">{error}</Alert>

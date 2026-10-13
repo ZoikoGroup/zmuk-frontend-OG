@@ -23,12 +23,12 @@ const PoundIcon = () => (<span className="text-xl font-bold">£</span>);
 const REFERRAL_LINK = "https://zoikomobile.co.uk/refer/YOUR-UNIQUE-CODE";
 
 const shareButtons = [
-  { label: "WhatsApp", Icon: WhatsAppIcon, color: "bg-[#25D366] hover:bg-[#1ebe5a]", href: "" },
-  { label: "Facebook", Icon: FacebookIcon, color: "bg-[#1877F2] hover:bg-[#1568d6]", href: "" },
-  { label: "Twitter", Icon: TwitterIcon, color: "bg-[#1DA1F2] hover:bg-[#1a90d8]", href: "" },
-  { label: "LinkedIn", Icon: LinkedInIcon, color: "bg-[#0A66C2] hover:bg-[#0958a8]", href: "" },
-  { label: "Email", Icon: MailIcon, color: "bg-[#e23b2e] hover:bg-[#c8362a]", href: "" },
-  { label: "SMS", Icon: SmsIcon, color: "bg-[#f59e0b] hover:bg-[#d98c09]", href: "" },
+  { label: "WhatsApp", Icon: WhatsAppIcon, color: "bg-[#25D366] hover:bg-[#1ebe5a]", href: "https://wa.me/?text=Check%20out%20this%20great%20offer!%20Use%20my%20referral%20link:%20" + REFERRAL_LINK },
+  { label: "Facebook", Icon: FacebookIcon, color: "bg-[#1877F2] hover:bg-[#1568d6]", href: "https://www.facebook.com/sharer/sharer.php?u=" + REFERRAL_LINK },
+  { label: "Twitter", Icon: TwitterIcon, color: "bg-[#1DA1F2] hover:bg-[#1a90d8]", href: "https://twitter.com/intent/tweet?text=Check%20out%20this%20great%20offer!%20Use%20my%20referral%20link:%20" + REFERRAL_LINK },
+  { label: "LinkedIn", Icon: LinkedInIcon, color: "bg-[#0A66C2] hover:bg-[#0958a8]", href: "https://www.linkedin.com/shareArticle?mini=true&url=" + REFERRAL_LINK },
+  { label: "Email", Icon: MailIcon, color: "bg-[#e23b2e] hover:bg-[#c8362a]", href: "mailto:?subject=Check out this great offer!&body=Use my referral link: " + REFERRAL_LINK },
+  { label: "SMS", Icon: SmsIcon, color: "bg-[#f59e0b] hover:bg-[#d98c09]", href: "sms:?body=Check%20out%20this%20great%20offer!%20Use%20my%20referral%20link:%20" + REFERRAL_LINK },
 ];
 
 const steps = [

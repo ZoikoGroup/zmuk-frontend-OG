@@ -103,6 +103,7 @@ export default function SecurityPage() {
   const submitReport = async () => {
     if (!reportNote.trim()) {
       showToast("Please describe the suspicious activity first.", "error");
+      alert("Please describe the suspicious activity first.");
       return;
     }
     setReportLoading(true);
@@ -118,13 +119,16 @@ export default function SecurityPage() {
 
       if (res.ok) {
         showToast("Report submitted. Our team will review it shortly.", "success");
+        alert("Report submitted. Our team will review it shortly.");
         setReportNote("");
       } else {
-        showToast("Report received (local). We'll follow up by email.", "success");
+        showToast("Report received. We'll follow up by email.", "success");
+        alert("Report received. We'll follow up by email.");
         setReportNote("");
       }
     } catch {
       showToast("Network error. Please try again.", "error");
+      alert("Network error. Please try again.");
     }
     setReportLoading(false);
   };
@@ -227,7 +231,7 @@ export default function SecurityPage() {
           </div>
 
           {/* Login History */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="text-green-500 text-xl">
                 <FaHistory />
@@ -262,7 +266,7 @@ export default function SecurityPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </div> */}
 
           {/* Report Suspicious Activity */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

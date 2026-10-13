@@ -82,7 +82,7 @@ function Publicsectordeals() {
               <span className="font-semibold text-yellow-300">20% lifetime discount for up to 5 nominated family and friends.</span>
             </p>
 
-            <button onClick={()=>router.push("/student-discount-application")} className="cursor-pointer rounded-md bg-yellow-400 px-6 py-3 text-sm font-bold text-gray-900 transition-colors hover:bg-yellow-300">
+            <button onClick={()=>router.push("/public-sector-workers-form")} className="cursor-pointer rounded-md bg-yellow-400 px-6 py-3 text-sm font-bold text-gray-900 transition-colors hover:bg-yellow-300">
               Register Now
             </button>
           </div>
