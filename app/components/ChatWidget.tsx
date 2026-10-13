@@ -1,8 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-const CHATBOT_URL = "https://zovie-chatbot-git-722985113446.europe-west9.run.app/";
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+// In .env.local:  NEXT_PUBLIC_CHATBOT_URL=http://127.0.0.1:8001
+// On the live site, set it to the deployed chatbot address.
+const CHATBOT_ORIGIN = (process.env.NEXT_PUBLIC_CHATBOT_URL ?? "http://127.0.0.1:8001").replace(/\/$/, "");
+const CHATBOT_URL = `${CHATBOT_ORIGIN}/?embed=1`; // embed mode: no second bubble/header
+const CHATBOT_STANDALONE_URL = `${CHATBOT_ORIGIN}/`; // for "open in new tab"
+
+// true  = chat opens in the panel on the page (chatbot must allow iframe embedding)
+// false = chat opens in a popup window instead
+const EMBED_ALLOWED = true;
+
 const OPEN_EVENT = "zoiko-open-chat";
 
 /**
@@ -13,20 +24,39 @@ export function openChat() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_EVENT));
 }
 
+function openChatPopup() {
+  const w = 420;
+  const h = 680;
+  const left = window.screenX + window.outerWidth - w - 20;
+  const top = window.screenY + window.outerHeight - h - 20;
+  const popup = window.open(
+    CHATBOT_STANDALONE_URL,
+    "zovie-chat",
+    `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+  );
+  if (!popup) window.open(CHATBOT_STANDALONE_URL, "_blank", "noopener"); // popup blocked → new tab
+  else popup.focus();
+}
+
+// ─── COMPONENT ───────────────────────────────────────────────────────────────
+
 /**
  * Site-wide chat widget. Add it once in app/layout.tsx.
  * - Floating purple bubble in the bottom-right corner on every page.
- * - Clicking it toggles the chat panel.
  * - The chatbot iframe loads on first open and stays loaded, so the
  *   conversation survives closing/reopening and navigating between pages.
  */
 export default function ChatWidget() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   const show = useCallback(() => {
+    if (!EMBED_ALLOWED) {
+      openChatPopup();
+      return;
+    }
     setHasOpened(true);
     setOpen(true);
   }, []);
@@ -45,12 +75,37 @@ export default function ChatWidget() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // The chatbot asks us to open a page (e.g. "Visit Support" → "/support")
+  useEffect(() => {
+    const chatbotOrigin = new URL(CHATBOT_ORIGIN).origin;
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== chatbotOrigin) return; // only trust messages from the chatbot
+      if (e.data?.type !== "zovie:navigate" || typeof e.data.url !== "string") return;
+
+      let target: URL;
+      try {
+        target = new URL(e.data.url, window.location.origin);
+      } catch {
+        return;
+      }
+
+      if (target.origin === window.location.origin) {
+        router.push(target.pathname + target.search + target.hash); // our own pages
+      } else if (target.protocol === "https:" || target.protocol === "http:") {
+        window.open(target.href, "_blank", "noopener"); // external links
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [router]);
+
   return (
     <>
       {/* ─── Chat panel ─── */}
       {hasOpened && (
         <div
-          ref={panelRef}
           role="dialog"
           aria-label="Zovie live chat"
           aria-hidden={!open}
@@ -63,12 +118,12 @@ export default function ChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between bg-gradient-to-r from-[#7c3aed] to-[#9333ea] px-4 py-3 text-white">
             <div>
-              <p className="text-sm font-bold">Live Chat</p>
-              <p className="text-xs text-white/85">Zoiko Mobile support</p>
+              <p className="text-sm font-bold">Zovie</p>
+              <p className="text-xs text-white/85">Your Zoiko Mobile assistant</p>
             </div>
             <div className="flex items-center gap-1">
               <a
-                href={CHATBOT_URL}
+                href={CHATBOT_STANDALONE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open chat in a new tab"
@@ -93,7 +148,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Chatbot */}
-          <div className="relative flex-1 bg-[#f3f4f6]">
+          <div className="relative flex-1 bg-[#f9fafb]">
             {!loaded && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
                 Loading chat…
