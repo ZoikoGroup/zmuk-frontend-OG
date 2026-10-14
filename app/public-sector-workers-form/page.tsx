@@ -36,7 +36,13 @@ type ToastState = { msg: string; type: "success" | "error" } | null;
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
 const MAX_NOMINEES = 5;
-const API_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/public-sector-workers/`;
+// const API_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/public-sector-workers/`;
+const API_BASE =
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "http://127.0.0.1:8000";
+
+const API_URL = `${API_BASE.replace(/\/+$/, "")}/api/public-sector-workers/`;
 
 const initialForm: FormState = {
     fullName: "",
@@ -60,6 +66,51 @@ const newNominee = (): Nominee => ({
     phone: "",
     relationship: "",
 });
+
+/** Backend (snake_case) field names → form field names */
+const SERVER_FIELD_MAP: Record<string, MainField> = {
+    full_name: "fullName",
+    email: "email",
+    phone: "phone",
+    date_of_birth: "dob",
+    employer_name: "employerName",
+    job_title: "jobTitle",
+    work_email: "workEmail",
+    department: "department",
+    agree_terms: "agreeTerms",
+    is_public_sector_worker: "confirmPublicSector",
+    confirm_accurate: "confirmAccurate",
+};
+
+const SERVER_NOMINEE_FIELD_MAP: Record<string, NomineeField> = {
+    full_name: "fullName",
+    email: "email",
+    phone: "phone",
+    relationship: "relationship",
+};
+
+/** DRF sends errors as ["message"]; take the first one. */
+const firstMessage = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+    return undefined;
+};
+
+/** YYYY-MM-DD in the user's local time (toISOString() uses UTC). */
+const toLocalISODate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+};
+
+const focusFirstInvalid = () => {
+    requestAnimationFrame(() => {
+        const firstInvalid = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+        firstInvalid?.focus();
+        firstInvalid?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+};
 
 // ─── VALIDATION ───────────────────────────────────────────────────────────────
 
@@ -272,7 +323,7 @@ export default function PublicSectorWorkersForm() {
     const [toast, setToast] = useState<ToastState>(null);
     const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const todayISO = new Date().toISOString().split("T")[0];
+    const todayISO = toLocalISODate(new Date());
 
     useEffect(
         () => () => {
@@ -290,18 +341,16 @@ export default function PublicSectorWorkersForm() {
     // ── Main fields ──
 
     const updateField = <K extends MainField>(field: K, value: FormState[K]) => {
-        setForm((prev) => {
-            const next = { ...prev, [field]: value };
-            // Re-validate live once a field has been touched
-            if (touched[field]) {
-                setErrors((e) => ({ ...e, [field]: validateMainField(field, next) ?? undefined }));
-            }
-            // Work email depends on personal email
-            if (field === "email" && touched.workEmail) {
-                setErrors((e) => ({ ...e, workEmail: validateMainField("workEmail", next) ?? undefined }));
-            }
-            return next;
-        });
+        const next = { ...form, [field]: value };
+        setForm(next);
+        // Re-validate live once a field has been touched
+        if (touched[field]) {
+            setErrors((e) => ({ ...e, [field]: validateMainField(field, next) ?? undefined }));
+        }
+        // Work email depends on personal email
+        if (field === "email" && touched.workEmail) {
+            setErrors((e) => ({ ...e, workEmail: validateMainField("workEmail", next) ?? undefined }));
+        }
     };
 
     const touchField = (field: MainField) => {
@@ -312,14 +361,12 @@ export default function PublicSectorWorkersForm() {
     // ── Nominees ──
 
     const updateNominee = (id: number, field: NomineeField, value: string) => {
-        setNominees((prev) => {
-            const next = prev.map((n) => (n.id === id ? { ...n, [field]: value } : n));
-            if (nomineeTouched[id]) {
-                const target = next.find((n) => n.id === id)!;
-                setNomineeErrors((e) => ({ ...e, [id]: validateNominee(target, next, form) }));
-            }
-            return next;
-        });
+        const next = nominees.map((n) => (n.id === id ? { ...n, [field]: value } : n));
+        setNominees(next);
+        if (nomineeTouched[id]) {
+            const target = next.find((n) => n.id === id);
+            if (target) setNomineeErrors((e) => ({ ...e, [id]: validateNominee(target, next, form) }));
+        }
     };
 
     const touchNominee = (id: number) => {
@@ -345,10 +392,54 @@ export default function PublicSectorWorkersForm() {
         });
     };
 
+    // ── Helpers ──
+
+    const resetForm = () => {
+        setForm(initialForm);
+        setNominees([newNominee()]);
+        setErrors({});
+        setNomineeErrors({});
+        setTouched({});
+        setNomineeTouched({});
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    /** Put the backend's validation errors onto the matching inputs. */
+    const applyServerErrors = (serverErrors: Record<string, unknown>, submitted: Nominee[]) => {
+        const mainErrs: MainErrors = {};
+        for (const [key, value] of Object.entries(serverErrors)) {
+            const field = SERVER_FIELD_MAP[key];
+            const msg = firstMessage(value);
+            if (field && msg) mainErrs[field] = msg;
+        }
+
+        // Nominee errors come back as a list in the same order we sent them
+        const nomErrs: NomineeErrors = {};
+        const rawNominees = serverErrors.nominees;
+        if (Array.isArray(rawNominees)) {
+            rawNominees.forEach((item, index) => {
+                const target = submitted[index];
+                if (!target || !item || typeof item !== "object" || Array.isArray(item)) return;
+                const errs: Partial<Record<NomineeField, string>> = {};
+                for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+                    const field = SERVER_NOMINEE_FIELD_MAP[key];
+                    const msg = firstMessage(value);
+                    if (field && msg) errs[field] = msg;
+                }
+                if (Object.keys(errs).length) nomErrs[target.id] = errs;
+            });
+        }
+
+        setErrors(mainErrs);
+        setNomineeErrors(nomErrs);
+        focusFirstInvalid();
+    };
+
     // ── Submit ──
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
         const fields = Object.keys(initialForm) as MainField[];
         const newErrors: MainErrors = {};
@@ -370,14 +461,12 @@ export default function PublicSectorWorkersForm() {
 
         if (Object.keys(newErrors).length || Object.keys(newNomineeErrors).length) {
             showToast("Please fix the highlighted fields before submitting.", "error");
-            // Move focus to the first invalid field
-            requestAnimationFrame(() => {
-                const firstInvalid = document.querySelector<HTMLElement>('[aria-invalid="true"]');
-                firstInvalid?.focus();
-                firstInvalid?.scrollIntoView({ behavior: "smooth", block: "center" });
-            });
+            focusFirstInvalid();
             return;
         }
+
+        // Only filled-in nominee blocks are sent; keep this list to map errors back
+        const submittedNominees = nominees.filter((n) => !isNomineeEmpty(n));
 
         const payload = {
             full_name: form.fullName.trim(),
@@ -388,64 +477,48 @@ export default function PublicSectorWorkersForm() {
             job_title: form.jobTitle.trim(),
             work_email: form.workEmail.trim().toLowerCase(),
             department: form.department.trim(),
-            agree_terms: true,
-            is_public_sector_worker: true,
-            confirm_accurate: true,
-            nominees: nominees
-                .filter((n) => !isNomineeEmpty(n))
-                .map((n) => ({
-                    full_name: n.fullName.trim(),
-                    email: n.email.trim().toLowerCase(),
-                    phone: n.phone.trim(),
-                    relationship: n.relationship.trim(),
-                })),
+            agree_terms: form.agreeTerms === "yes",
+            is_public_sector_worker: form.confirmPublicSector === "yes",
+            confirm_accurate: form.confirmAccurate,
+            nominees: submittedNominees.map((n) => ({
+                full_name: n.fullName.trim(),
+                email: n.email.trim().toLowerCase(),
+                phone: n.phone.trim(),
+                relationship: n.relationship.trim(),
+            })),
         };
 
-        // TODO: Backend endpoint not ready yet. Remove this block and
-        // uncomment the fetch below once the API is available.
-        console.log("Public sector registration payload:", payload);
-        alert("Thank you! Your registration has been submitted successfully.");
+        setIsSubmitting(true);
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json().catch(() => ({}));
 
-        setForm(initialForm);
-        setNominees([newNominee()]);
-        setErrors({});
-        setNomineeErrors({});
-        setTouched({});
-        setNomineeTouched({});
-        window.scrollTo({ top: 0, behavior: "smooth" });
+            if (res.ok) {
+                resetForm();
+                showToast(
+                    data.message || "Registration submitted. We'll email you once it's been reviewed.",
+                    "success",
+                );
+                return;
+            }
 
-        // setIsSubmitting(true);
-        // try {
-        //     const res = await fetch(API_URL, {
-        //         method: "POST",
-        //         headers: { "Content-Type": "application/json" },
-        //         body: JSON.stringify(payload),
-        //     });
-        //     const data = await res.json().catch(() => ({}));
+            if (res.status === 400 && data.errors && typeof data.errors === "object") {
+                applyServerErrors(data.errors, submittedNominees);
+            }
 
-        //     if (res.ok) {
-        //         setForm(initialForm);
-        //         setNominees([newNominee()]);
-        //         setErrors({});
-        //         setNomineeErrors({});
-        //         setTouched({});
-        //         setNomineeTouched({});
-        //         window.scrollTo({ top: 0, behavior: "smooth" });
-        //         showToast("Registration submitted. We'll email you once it's been reviewed.", "success");
-        //         alert("Registration submitted. We'll email you once it's been reviewed.");
-        //     } else {
-        //         showToast(
-        //             data.message || data.error || `Registration failed (error ${res.status}). Please try again.`,
-        //             "error",
-        //         );
-        //         alert(`Registration failed (error ${res.status}). Please try again.`);
-        //     }
-        // } catch {
-        //     showToast("We couldn't reach our servers. Check your connection and try again.", "error");
-        //     alert("We couldn't reach our servers. Check your connection and try again.");
-        // } finally {
-        //     setIsSubmitting(false);
-        // }
+            showToast(
+                data.message || `Registration failed (error ${res.status}). Please try again.`,
+                "error",
+            );
+        } catch {
+            showToast("We couldn't reach our servers. Check your connection and try again.", "error");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const err = (f: MainField) => (touched[f] ? errors[f] : undefined);

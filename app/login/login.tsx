@@ -66,6 +66,24 @@ function parseError(data: unknown, fallback: string): string {
   return fallback;
 }
 
+// Read the user's details (email, name) from Google's ID token.
+// The backend still verifies the token itself.
+function decodeGoogleIdToken(token: string): { email?: string; given_name?: string; family_name?: string } {
+  try {
+    let base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    base64 = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    );
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
+
 // ─── HELPERS / STYLES ─────────────────────────────────────────────────────────
 
 const tabs = ["Login", "Register", "Reset Password"] as const;
@@ -175,6 +193,12 @@ function LoginInner() {
       return;
     }
 
+    const profile = decodeGoogleIdToken(idToken);
+    if (!profile.email) {
+      setError("Could not read your Google account email. Please try again.");
+      return;
+    }
+
     setError("");
     setSuccess("");
     setLoading(true);
@@ -182,7 +206,12 @@ function LoginInner() {
       const res = await fetch(`${API_BASE}/api/accounts/social-user/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
+        body: JSON.stringify({
+          id_token: idToken,
+          email: profile.email,
+          first_name: profile.given_name ?? "",
+          last_name: profile.family_name ?? "",
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -190,7 +219,7 @@ function LoginInner() {
         return;
       }
       setSession(data.token, data.user);
-      router.push(AFTER_LOGIN);
+      router.push(getRedirectPath());
     } catch {
       setError("Google login failed. Please try again.");
     } finally {
