@@ -159,7 +159,7 @@ export default function SecurityPage() {
           )}
 
           {/* Two-Factor Authentication */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="text-green-500 text-xl">
                 <FaShieldAlt />
@@ -199,7 +199,7 @@ export default function SecurityPage() {
                   : "Enable 2FA"}
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* Change Password CTA */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
