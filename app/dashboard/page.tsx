@@ -359,7 +359,7 @@ export default function SecurityPage() {
           {/* Top Section: Two-Factor Authentication & Change Password */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
             {/* Two-Factor Authentication Card */}
-            <div className="md:col-span-6 border border-[#DF1E5A] bg-[#DF1E5A0D] rounded-2xl p-5 flex flex-col justify-between">
+            {/* <div className="md:col-span-6 border border-[#DF1E5A] bg-[#DF1E5A0D] rounded-2xl p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -386,7 +386,7 @@ export default function SecurityPage() {
                 </p>
               </div>
 
-              {/* Toggle */}
+              
               <div className="mt-4 pt-3 border-t border-[#FFC2D1] flex items-center justify-center gap-3 text-xs">
                 <span className="font-bold text-gray-900 text-[12px]">
                   Enable 2FA:
@@ -418,7 +418,7 @@ export default function SecurityPage() {
                   </span>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Change Password Card */}
             <div className="md:col-span-6 border border-gray-200 rounded-2xl p-5 flex flex-col justify-between shadow-sm bg-white">
