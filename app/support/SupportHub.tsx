@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { openChat } from "../components/ChatWidget";
+import { openChat } from "../components/ChatbotWidget";
 
 // ─── ICONS ─────────────────────────────────────────────────────────────────
 
@@ -54,8 +54,7 @@ const whatsIncluded: Card[] = [
 
 const contactCards = [
   { title: "Phone Support", lines: ["333 (from Zoiko mobile)", "0333 004 0333 (other networks)"], badge: "24/7 Available", href: "tel:03330040333" },
-  // { title: "Live Chat", lines: ["Get instant help from our support team"], badge: "Available now", href: "" },
-  // { title: "WhatsApp", lines: ["Message us on WhatsApp for quick support"], badge: "Business hours", href: "" },
+  { title: "Live Chat", lines: ["Chat with Zovie, our mobile assistant"], badge: "Available now", action: "chat" as const },
   { title: "Email Support", lines: ["help@zoikomobile.co.uk"], badge: "Response within 24 hours", href: "mailto:help@zoikomobile.co.uk" },
 ];
 
@@ -149,21 +148,38 @@ function SupportHub() {
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
-            {contactCards.map((c) => (
-              <a
-                key={c.title}
-                href={c.href || "#"}
-                className="rounded-xl bg-white/15 p-5 transition-colors hover:bg-white/20"
-              >
-                <p className="font-bold text-white">{c.title}</p>
-                {c.lines.map((line) => (
-                  <p key={line} className="mt-1 text-sm text-white/90">{line}</p>
-                ))}
-                <span className="mt-3 inline-block rounded-full bg-white/25 px-3 py-1 text-xs font-semibold text-white">
-                  {c.badge}
-                </span>
-              </a>
-            ))}
+            {contactCards.map((c) => {
+              const inner = (
+                <>
+                  <p className="font-bold text-white">{c.title}</p>
+                  {c.lines.map((line) => (
+                    <p key={line} className="mt-1 text-sm text-white/90">{line}</p>
+                  ))}
+                  <span className="mt-3 inline-block rounded-full bg-white/25 px-3 py-1 text-xs font-semibold text-white">
+                    {c.badge}
+                  </span>
+                </>
+              );
+
+              return "action" in c && c.action === "chat" ? (
+                <button
+                  key={c.title}
+                  type="button"
+                  onClick={openChat}
+                  className="text-left rounded-xl bg-white/15 p-5 transition-colors hover:bg-white/20"
+                >
+                  {inner}
+                </button>
+              ) : (
+                <a
+                  key={c.title}
+                  href={"href" in c ? c.href : "#"}
+                  className="rounded-xl bg-white/15 p-5 transition-colors hover:bg-white/20"
+                >
+                  {inner}
+                </a>
+              );
+            })}
           </div>
         </section>
       </div>
