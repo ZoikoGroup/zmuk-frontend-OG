@@ -474,7 +474,7 @@ export default function CheckoutPage() {
   // ── Coupon ────────────────────────────────────────────────────────────────
 
   const handleApplyCoupon = async () => {
-    const user = JSON.parse(localStorage.getItem("user") ?? "null");
+    const user = JSON.parse(localStorage.getItem("zoiko_user") ?? "null");
     if (!user) {
       setLoginPromptReason("coupon");
       setShowLoginPopup(true);
