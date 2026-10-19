@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 // ─── ICONS (inline SVG) ────────────────────────────────────────────────────────
 
@@ -120,6 +123,19 @@ const offices = [
 // ─── COMPONENT ──────────────────────────────────────────────────────────────
 
 export default function Footer() {
+  const pathname = usePathname();
+  if (
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/my-mobile-numbers") ||
+    pathname.startsWith("/dashboard/usage-and-allowances") ||
+    pathname.startsWith("/dashboard/sim-and-esim") ||
+    pathname.startsWith("/dashboard/bills-and-payments") ||
+    pathname.startsWith("/dashboard/roaming-and-travel") ||
+    pathname.startsWith("/dashboard/addons-and-boosters")
+  ) {
+    return null;
+  }
+
   return (
     <footer className="bg-gradient-to-br from-[#1ba36b] to-[#0e8f74] text-white">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:px-8 lg:py-16">

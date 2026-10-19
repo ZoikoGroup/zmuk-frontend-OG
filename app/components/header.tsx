@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X, ChevronDown, Search, ShoppingCart, LayoutDashboard, LogOut } from "lucide-react";
 import { useCart } from "../context/CartContext";
@@ -59,6 +59,7 @@ const navLinks: NavItem[] = [
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -89,6 +90,18 @@ export default function Header() {
     router.push("/");
     router.refresh();
   };
+
+  if (
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/my-mobile-numbers") ||
+    pathname.startsWith("/dashboard/usage-and-allowances") ||
+    pathname.startsWith("/dashboard/sim-and-esim") ||
+    pathname.startsWith("/dashboard/bills-and-payments") ||
+    pathname.startsWith("/dashboard/roaming-and-travel") ||
+    pathname.startsWith("/dashboard/addons-and-boosters")
+  ) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-800">

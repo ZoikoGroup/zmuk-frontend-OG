@@ -41,7 +41,10 @@ export default function SecurityPage() {
 
   // ── Load token (optional — auth gating disabled) ──
   useEffect(() => {
-    const storedToken = localStorage.getItem("driverx_token") || "";
+    const storedToken =
+      localStorage.getItem("zoiko_token") ||
+      localStorage.getItem("driverx_token") ||
+      "";
     setToken(storedToken);
 
     const stored2FA = localStorage.getItem("driverx_2fa") === "true";
@@ -159,7 +162,7 @@ export default function SecurityPage() {
           )}
 
           {/* Two-Factor Authentication */}
-          {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="text-green-500 text-xl">
                 <FaShieldAlt />
@@ -199,7 +202,7 @@ export default function SecurityPage() {
                   : "Enable 2FA"}
               </button>
             </div>
-          </div> */}
+          </div>
 
           {/* Change Password CTA */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
@@ -231,7 +234,7 @@ export default function SecurityPage() {
           </div>
 
           {/* Login History */}
-          {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="text-green-500 text-xl">
                 <FaHistory />
@@ -266,7 +269,7 @@ export default function SecurityPage() {
                 </tbody>
               </table>
             </div>
-          </div> */}
+          </div>
 
           {/* Report Suspicious Activity */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
