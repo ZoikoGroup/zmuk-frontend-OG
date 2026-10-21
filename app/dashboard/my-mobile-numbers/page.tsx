@@ -36,11 +36,18 @@ import {
   BoosterModal,
   ReportActivityModal,
   ComparePlansModal,
+  AddNumberModal,
+  AddNumberData,
 } from "../components/DashboardModals";
 
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
 
 export interface MobileNumberLine {
   id: string;
@@ -172,6 +179,7 @@ export default function MyMobileNumbersPage() {
   const [boosterOpen, setBoosterOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [comparePlansOpen, setComparePlansOpen] = useState(false);
+  const [addNumberModalOpen, setAddNumberModalOpen] = useState(false);
   const [pacModalOpen, setPacModalOpen] = useState(false);
   const [billLimitModalOpen, setBillLimitModalOpen] = useState(false);
   const [tempBillLimit, setTempBillLimit] = useState<string>("0");
@@ -643,6 +651,66 @@ export default function MyMobileNumbersPage() {
           console.warn("Error fetching orders:", e);
         }
       }
+
+      // If no BeQuick telecom lines were returned, check fallback
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setActiveLineId("");
+            setUnreadNotifications(0);
+            return [];
+          }
+          const boosterInfo = getBoosterSummary(fallback.id);
+          const totalGb = fallback.planGb + boosterInfo.totalGb;
+          const now = new Date();
+          const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          const actDate = new Date(now.getFullYear(), now.getMonth() - 2, 15);
+          const primaryLine: MobileNumberLine = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            simType: fallback.simType,
+            status: "Active",
+            renewDate: nextMonth.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            activationDate: actDate.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            contractType: "Monthly rolling",
+            networkTechnology: "5G & 4G LTE",
+            price: 14.99,
+            isPrimary: true,
+            isUnlimited: fallback.planName.toLowerCase().includes("unlimited"),
+            callsLabel: "Unlimited mins (UK standard)",
+            textsLabel: "Unlimited texts (UK standard)",
+            roamingIncluded: true,
+          };
+          setActiveLineId(primaryLine.id);
+          setUsageMetrics({
+            [primaryLine.id]: {
+              dataRemaining: Math.max(0, totalGb - 14.2),
+              dataTotal: totalGb,
+              dataUsed: 14.2,
+              callsRemaining: null,
+              callsTotal: null,
+              callsUnlimited: true,
+              textsRemaining: null,
+              textsTotal: null,
+              textsUnlimited: true,
+              roamingRemaining: Number((Math.min(25, totalGb) - 3.8).toFixed(1)),
+              roamingTotal: Math.min(25, totalGb),
+            },
+          });
+          setUnreadNotifications(1);
+          return [primaryLine];
+        }
+        return current;
+      });
     } catch (err) {
       console.error("My mobile numbers dynamic load error:", err);
     } finally {
@@ -652,6 +720,13 @@ export default function MyMobileNumbersPage() {
 
   useEffect(() => {
     loadDynamicNumbers();
+    const handleSync = () => loadDynamicNumbers();
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [loadDynamicNumbers]);
 
   // ── Active Line & Derived Values ──
@@ -725,6 +800,13 @@ export default function MyMobileNumbersPage() {
 
   const handleApplyBooster = (addedGb: number, cost: number) => {
     if (!currentLine.id) return;
+    recordBoosterPurchase({
+      addedGb,
+      cost,
+      lineId: currentLine.id,
+      lineNumber: currentLine.number,
+      boosterName: `${addedGb} GB Data Booster`,
+    });
     setUsageMetrics((prev) => {
       const cur = prev[currentLine.id];
       if (!cur) return prev;
@@ -733,12 +815,58 @@ export default function MyMobileNumbersPage() {
         [currentLine.id]: {
           ...cur,
           dataRemaining: Number((cur.dataRemaining + addedGb).toFixed(1)),
-          dataTotal: cur.dataTotal + addedGb,
+          dataTotal: Number((cur.dataTotal + addedGb).toFixed(1)),
         },
       };
     });
     setNextCollectionAmount((prev) => Number((prev + cost).toFixed(2)));
-    showToast(`Added +${addedGb} GB data booster to ${currentLine.number}!`);
+    showToast(`Added +${addedGb} GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`);
+  };
+
+  const handleAddNewNumber = (data: AddNumberData) => {
+    const newId = `line-${Date.now()}`;
+    const planGb = data.planGb || 20;
+    const newLine: MobileNumberLine = {
+      id: newId,
+      number: formatUkNumber(data.number),
+      planName: data.planName,
+      simType: data.simType,
+      status: "Active",
+      renewDate: "Monthly rolling",
+      activationDate: new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+      contractType: "Monthly rolling",
+      networkTechnology: "5G & 4G LTE",
+      price: 14.99,
+      isPrimary: lines.length === 0,
+      isUnlimited: data.planName.toLowerCase().includes("unlimited"),
+      callsLabel: "Unlimited mins (UK standard)",
+      textsLabel: "Unlimited texts (UK standard)",
+      roamingIncluded: true,
+    };
+    setLines((prev) => [...prev, newLine]);
+    setUsageMetrics((prev) => ({
+      ...prev,
+      [newId]: {
+        dataRemaining: planGb,
+        dataTotal: planGb,
+        dataUsed: 0,
+        callsRemaining: null,
+        callsTotal: null,
+        callsUnlimited: true,
+        textsRemaining: null,
+        textsTotal: null,
+        textsUnlimited: true,
+        roamingRemaining: Math.min(25, planGb),
+        roamingTotal: Math.min(25, planGb),
+      },
+    }));
+    setActiveLineId(newId);
+    showToast(`Added mobile line ${newLine.number} (${data.planName})!`, "success");
+    setAddNumberModalOpen(false);
   };
 
   const handleSelectPlan = (planName: string, planGb: number, price: number) => {
@@ -832,9 +960,9 @@ export default function MyMobileNumbersPage() {
       )}
 
       {/* Outer Frame */}
-      <div className="w-full max-w-[1520px] flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Left Sticky Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -843,7 +971,7 @@ export default function MyMobileNumbersPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => setAddNumberModalOpen(true)}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -863,14 +991,8 @@ export default function MyMobileNumbersPage() {
             onClearNotifications={() => setUnreadNotifications(0)}
             subscriberId={subscriberId}
             activeLineId={currentLine.id}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
-            onManageNumbers={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/my-devices-sims/${subscriberId}`
-                  : "/dashboard/add-device"
-              )
-            }
+            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => setBoosterOpen(true)}
             customTitle="My mobile numbers"
             customSubtitle="Manage your Zoiko Mobile UK numbers, plans and SIMs."
@@ -911,7 +1033,7 @@ export default function MyMobileNumbersPage() {
             {/* Right CTA: + Add a new number */}
             <button
               type="button"
-              onClick={() => router.push("/dashboard/add-device")}
+              onClick={() => setAddNumberModalOpen(true)}
               className="px-4 py-2.5 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-[0px_6px_14px_-6px_rgba(224,28,91,0.60)] flex items-center gap-2 transition cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -941,6 +1063,28 @@ export default function MyMobileNumbersPage() {
                   <div className="h-5 w-20 bg-slate-100 rounded-full" />
                 </div>
               ))
+            ) : lines.length === 0 ? (
+              <div className="col-span-full rounded-[22px] p-6 bg-white border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-pink-50 flex items-center justify-center shrink-0">
+                    <Smartphone className="w-6 h-6 text-[#E01C5B]" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-[#0D1935]">No mobile numbers active</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      You currently have no active UK mobile lines on this account.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddNumberModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Add a new number</span>
+                </button>
+              </div>
             ) : (
               lines.map((line) => {
                 const isSelected = line.id === currentLine.id;
@@ -1205,7 +1349,7 @@ export default function MyMobileNumbersPage() {
 
             {/* Add a new number Card */}
             <div
-              onClick={() => router.push("/dashboard/add-device")}
+              onClick={() => setAddNumberModalOpen(true)}
               className="rounded-[22px] border border-dashed border-pink-300 bg-white/75 hover:bg-white hover:border-[#E01C5B] p-5 flex flex-col items-center justify-center text-center gap-2.5 transition-all cursor-pointer min-h-[225px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.02)]"
             >
               <div className="w-10 h-10 rounded-full bg-pink-50 text-[#E01C5B] flex items-center justify-center mb-0.5">
@@ -1219,7 +1363,7 @@ export default function MyMobileNumbersPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push("/dashboard/add-device");
+                  setAddNumberModalOpen(true);
                 }}
                 className="mt-1 px-4 py-1.5 rounded-xl bg-white border border-pink-200 hover:border-[#E01C5B] hover:bg-pink-50 text-[#E01C5B] text-xs font-semibold transition cursor-pointer shadow-2xs"
               >
@@ -1292,9 +1436,7 @@ export default function MyMobileNumbersPage() {
                 <div className="flex items-center gap-2.5 flex-wrap my-4">
                   <button
                     type="button"
-                    onClick={() =>
-                      hasLines ? setComparePlansOpen(true) : router.push("/plans")
-                    }
+                    onClick={() => router.push("/dashboard/compare-plans")}
                     className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold shadow-[0px_6px_14px_-6px_rgba(224,28,91,0.60)] transition cursor-pointer"
                   >
                     {hasLines ? "Manage plan" : "Browse plans"}
@@ -1915,7 +2057,7 @@ export default function MyMobileNumbersPage() {
                     </p>
                   </div>
                   <Link
-                    href="/roaming-and-coverage"
+                    href="/dashboard/roaming-and-travel"
                     className="text-xs font-semibold text-[#E01C5B] hover:underline flex items-center gap-0.5 flex-shrink-0"
                   >
                     <span>Manage</span>
@@ -2002,6 +2144,12 @@ export default function MyMobileNumbersPage() {
       </div>
 
       {/* ── INTERACTIVE MODALS ── */}
+      <AddNumberModal
+        isOpen={addNumberModalOpen}
+        onClose={() => setAddNumberModalOpen(false)}
+        onAddNumber={handleAddNewNumber}
+      />
+
       <BoosterModal
         isOpen={boosterOpen}
         onClose={() => setBoosterOpen(false)}

@@ -14,11 +14,11 @@ interface UsageDonutCardProps {
 }
 
 export default function UsageDonutCard({
-  dataRemainingGb = 18.4,
-  dataTotalGb = 30,
-  dataUsedGb = 11.6,
-  dataRemainingPct = 61.3,
-  updatedTime = "09:30 BST, 14 Oct",
+  dataRemainingGb = 0,
+  dataTotalGb = 0,
+  dataUsedGb = 0,
+  dataRemainingPct = 0,
+  updatedTime = "Just now",
   onOpenBoosterModal,
   onOpenDetails,
 }: UsageDonutCardProps) {

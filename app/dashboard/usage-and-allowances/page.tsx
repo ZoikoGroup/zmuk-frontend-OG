@@ -42,6 +42,11 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
 
 export interface UsageLineItem {
   id: string;
@@ -344,6 +349,10 @@ export default function UsageAndAllowancesPage() {
 
   // ── Modals & Toast ──
   const [boosterOpen, setBoosterOpen] = useState<boolean>(false);
+  const [preselectedBooster, setPreselectedBooster] = useState<{ gb: number; price: number }>({
+    gb: 5,
+    price: 5,
+  });
   const [reportOpen, setReportOpen] = useState<boolean>(false);
   const [comparePlansOpen, setComparePlansOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
@@ -690,6 +699,24 @@ export default function UsageAndAllowancesPage() {
                   }
                 } catch {}
 
+                // Check local/persisted booster sync for this line
+                const boosterInfo = getBoosterSummary(lineId);
+                if (boosterInfo.count > 0) {
+                  metric.activeBoostersCount = Math.max(
+                    metric.activeBoostersCount,
+                    boosterInfo.count
+                  );
+                  metric.activeBoostersGb = Number(
+                    (metric.activeBoostersGb + boosterInfo.totalGb).toFixed(1)
+                  );
+                  metric.dataTotal = Number(
+                    (metric.dataTotal + boosterInfo.totalGb).toFixed(1)
+                  );
+                  metric.dataRemaining = Number(
+                    (metric.dataRemaining + boosterInfo.totalGb).toFixed(1)
+                  );
+                }
+
                 newMetricsMap[lineId] = metric;
 
                 const renewDate = endAt.toLocaleDateString("en-GB", {
@@ -770,6 +797,97 @@ export default function UsageAndAllowancesPage() {
           console.warn("Error fetching user lines for usage page:", e);
         }
       }
+
+      // If no BeQuick telecom lines were returned yet, check fallback
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setSelectedLineId("");
+            setMetricsByLine({});
+            setUnreadNotifications(0);
+            return [];
+          }
+          const boosterInfo = getBoosterSummary(fallback.id);
+          const baseGb = fallback.planGb;
+          const storedRemaining =
+            typeof window !== "undefined"
+              ? localStorage.getItem("zoiko_data_remaining")
+              : null;
+          const remainingGb =
+            storedRemaining && !isNaN(Number(storedRemaining))
+              ? Number(storedRemaining)
+              : Number(Math.max(0, baseGb - 14.2 + boosterInfo.totalGb).toFixed(1));
+          const totalGb = Number((baseGb + boosterInfo.totalGb).toFixed(1));
+
+          const startAt = new Date(now.getFullYear(), now.getMonth(), 1);
+          const endAt = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+          const primaryLine: UsageLineItem = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            status: "Active",
+            isPrimary: true,
+            isUnlimited: fallback.planName.toLowerCase().includes("unlimited"),
+            renewDate: endAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            renewDateFull: endAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            daysUntilRenew: Math.max(
+              0,
+              Math.ceil((endAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            ),
+            cycleStartLabel: startAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            cycleEndLabel: endAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            cycleEndWithYear: endAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            cycleTotalDays: 30,
+            cycleCompletedDays: Math.max(1, now.getDate() - 1),
+            cycleStartDate: startAt,
+          };
+
+          const primaryMetric: LineAllowanceMetrics = {
+            dataTotal: totalGb,
+            dataUsed: Number(Math.max(0, totalGb - remainingGb).toFixed(1)),
+            dataRemaining: remainingGb,
+            roamingDataUsed: 3.8,
+            callsUnlimited: true,
+            callsTotal: null,
+            callsUsed: 142,
+            callsRemaining: null,
+            textsUnlimited: true,
+            textsTotal: null,
+            textsUsed: 58,
+            textsRemaining: null,
+            roamingTotal: Math.min(25, baseGb),
+            roamingUsed: 3.8,
+            roamingRemaining: Number((Math.min(25, baseGb) - 3.8).toFixed(1)),
+            activeBoostersCount: boosterInfo.count,
+            activeBoostersGb: boosterInfo.totalGb,
+          };
+
+          setMetricsByLine({ [primaryLine.id]: primaryMetric });
+          setSelectedLineId(primaryLine.id);
+          setUnreadNotifications(1);
+          return [primaryLine];
+        }
+        return current;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -777,6 +895,13 @@ export default function UsageAndAllowancesPage() {
 
   useEffect(() => {
     loadUsageData();
+    const handleSync = () => loadUsageData();
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [loadUsageData]);
 
   const handleRefresh = async () => {
@@ -1030,9 +1155,9 @@ export default function UsageAndAllowancesPage() {
       )}
 
       {/* Outer Frame — identical structure & sticky sidebar wrapper to My mobile numbers */}
-      <div className="w-full max-w-[1520px] flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Left Sticky Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -1041,7 +1166,7 @@ export default function UsageAndAllowancesPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -1061,14 +1186,8 @@ export default function UsageAndAllowancesPage() {
             onClearNotifications={() => setUnreadNotifications(0)}
             subscriberId={subscriberId}
             activeLineId={currentLine.id}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
-            onManageNumbers={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/my-devices-sims/${subscriberId}`
-                  : "/dashboard/add-device"
-              )
-            }
+            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => setBoosterOpen(true)}
             customTitle="Usage & allowances"
             customSubtitle="Check your data, calls and texts, see what your plan includes, and add more before you run out."
@@ -2167,7 +2286,10 @@ export default function UsageAndAllowancesPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setBoosterOpen(true)}
+                            onClick={() => {
+                              setPreselectedBooster({ gb: 2, price: 3 });
+                              setBoosterOpen(true);
+                            }}
                             className="h-9 px-3.5 py-2 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c8164f] transition cursor-pointer"
                           >
                             Review
@@ -2196,7 +2318,10 @@ export default function UsageAndAllowancesPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setBoosterOpen(true)}
+                            onClick={() => {
+                              setPreselectedBooster({ gb: 5, price: 5 });
+                              setBoosterOpen(true);
+                            }}
                             className="h-9 px-3.5 py-2 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c8164f] transition cursor-pointer"
                           >
                             Review
@@ -2211,14 +2336,13 @@ export default function UsageAndAllowancesPage() {
                     </div>
 
                     <div className="pt-3.5">
-                      <button
-                        type="button"
-                        onClick={() => setBoosterOpen(true)}
+                      <Link
+                        href="/dashboard/addons-and-boosters"
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline cursor-pointer"
                       >
                         <span>View all data boosters</span>
                         <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -2507,23 +2631,30 @@ export default function UsageAndAllowancesPage() {
         isOpen={boosterOpen}
         onClose={() => setBoosterOpen(false)}
         currentRemainingGb={currentMetrics.dataRemaining}
+        initialGb={preselectedBooster.gb}
+        initialPrice={preselectedBooster.price}
         onApplyBooster={(addedGb, cost) => {
-          if (currentLine.id) {
-            setMetricsByLine((prev) => {
-              const cur = prev[currentLine.id];
-              if (!cur) return prev;
-              return {
-                ...prev,
-                [currentLine.id]: {
-                  ...cur,
-                  dataTotal: Number((cur.dataTotal + addedGb).toFixed(1)),
-                  dataRemaining: Number((cur.dataRemaining + addedGb).toFixed(1)),
-                  activeBoostersCount: cur.activeBoostersCount + 1,
-                  activeBoostersGb: Number((cur.activeBoostersGb + addedGb).toFixed(1)),
-                },
-              };
-            });
-          }
+          const targetId = currentLine.id || "primary-line-1";
+          recordBoosterPurchase({
+            addedGb,
+            cost,
+            lineId: targetId,
+            lineNumber: currentLine.number,
+            boosterName: `${addedGb} GB Data Booster`,
+          });
+          setMetricsByLine((prev) => {
+            const cur = prev[targetId] || currentMetrics;
+            return {
+              ...prev,
+              [targetId]: {
+                ...cur,
+                dataTotal: Number((cur.dataTotal + addedGb).toFixed(1)),
+                dataRemaining: Number((cur.dataRemaining + addedGb).toFixed(1)),
+                activeBoostersCount: cur.activeBoostersCount + 1,
+                activeBoostersGb: Number((cur.activeBoostersGb + addedGb).toFixed(1)),
+              },
+            };
+          });
           showToast(
             `Added +${addedGb} GB Data Booster (£${cost.toFixed(2)}) to ${currentLine.number}!`,
             "success"

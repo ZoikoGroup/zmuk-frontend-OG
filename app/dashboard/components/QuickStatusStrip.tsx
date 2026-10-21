@@ -184,7 +184,7 @@ export default function QuickStatusStrip({
               </div>
               <button
                 type="button"
-                onClick={onManagePlan || (() => window.location.assign("/plans"))}
+                onClick={onManagePlan || (() => window.location.assign("/dashboard/compare-plans"))}
                 className="ml-2 text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
               >
                 <span>Manage plan</span>
@@ -221,7 +221,7 @@ export default function QuickStatusStrip({
 
             {/* Empty State Pill 3: Link to Plans */}
             <a
-              href="/30-day-plan"
+              href="/dashboard/compare-plans"
               className="h-11 px-3.5 bg-pink-50 rounded-2xl border border-pink-200 flex items-center gap-2 text-xs font-semibold text-[#E01C5B] hover:bg-pink-100 transition"
             >
               <Cpu className="w-4 h-4 text-[#E01C5B]" />

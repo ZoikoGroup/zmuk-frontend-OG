@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState ,useEffect } from "react";
+import Link from "next/link";
 import {
   X,
   Zap,
@@ -29,6 +30,8 @@ interface BoosterModalProps {
   onClose: () => void;
   currentRemainingGb: number;
   onApplyBooster: (addedGb: number, cost: number) => void;
+  initialGb?: number;
+  initialPrice?: number;
 }
 
 export function BoosterModal({
@@ -36,20 +39,36 @@ export function BoosterModal({
   onClose,
   currentRemainingGb,
   onApplyBooster,
+  initialGb,
+  initialPrice,
 }: BoosterModalProps) {
   const [selectedBooster, setSelectedBooster] = useState<{ gb: number; price: number }>({
-    gb: 5,
-    price: 10,
+    gb: initialGb ?? 5,
+    price: initialPrice ?? 5,
   });
   const [isApplying, setIsApplying] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialGb !== undefined) {
+        setSelectedBooster({
+          gb: initialGb,
+          price: initialPrice !== undefined ? initialPrice : (initialGb === 1 || initialGb === 2 ? 3 : initialGb === 5 ? 5 : initialGb === 10 ? 10 : 18),
+        });
+      } else {
+        setSelectedBooster({ gb: 5, price: 5 });
+      }
+    }
+  }, [isOpen, initialGb, initialPrice]);
 
   if (!isOpen) return null;
 
   const boosters = [
     { gb: 1, price: 3, label: "Quick top-up" },
-    { gb: 5, price: 10, label: "Most popular", recommended: true },
-    { gb: 10, price: 18, label: "Heavy usage" },
-    { gb: 20, price: 30, label: "Streaming & travel" },
+    { gb: 2, price: 3, label: "Light boost" },
+    { gb: 5, price: 5, label: "Most popular", recommended: true },
+    { gb: 10, price: 10, label: "Heavy usage" },
+    { gb: 20, price: 18, label: "Streaming & travel" },
   ];
 
   const handlePurchase = () => {
@@ -643,7 +662,7 @@ export function ManageAllNumbersModal({
           </button>
           <div className="flex items-center justify-between text-[11px] px-1 pt-0.5">
             <a
-              href={`/dashboard/my-devices-sims/${subIdStr}`}
+              href="/dashboard/my-mobile-numbers"
               className="text-slate-600 hover:text-[#E01C5B] font-semibold flex items-center gap-1 transition"
             >
               <span>Open Full Devices &amp; SIMs Manager</span>
@@ -754,10 +773,16 @@ interface ComparePlansModalProps {
 export function ComparePlansModal({
   isOpen,
   onClose,
-  currentPlanName = "Zoiko Max 30GB",
+  currentPlanName,
   onSelectPlan,
 }: ComparePlansModalProps) {
   if (!isOpen) return null;
+
+  const effectiveCurrentPlan =
+    currentPlanName ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("zoiko_active_plan") || "Zoiko SIM Plan"
+      : "Zoiko SIM Plan");
 
   const plans = [
     {
@@ -780,8 +805,8 @@ export function ComparePlansModal({
     },
     {
       name: "Zoiko Unlimited",
-      price: "£29.99",
-      priceNum: 29.99,
+      price: "£19.99",
+      priceNum: 19.99,
       gb: 100,
       data: "Unlimited 5G Data",
       calls: "Unlimited UK Calls & Texts",
@@ -815,7 +840,10 @@ export function ComparePlansModal({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-2">
           {plans.map((p) => {
             const isCurrent =
-              currentPlanName.toLowerCase() === p.name.toLowerCase();
+              effectiveCurrentPlan.toLowerCase() === p.name.toLowerCase() ||
+              (effectiveCurrentPlan.toLowerCase().includes("lite") && p.name.includes("Lite")) ||
+              (effectiveCurrentPlan.toLowerCase().includes("unlimited") && p.name.includes("Unlimited")) ||
+              (effectiveCurrentPlan.toLowerCase().includes("max") && p.name.includes("Max"));
             return (
               <div
                 key={p.name}
@@ -856,6 +884,10 @@ export function ComparePlansModal({
                   type="button"
                   disabled={isCurrent}
                   onClick={() => {
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("zoiko_active_plan", p.name);
+                      window.dispatchEvent(new Event("zoiko-auth"));
+                    }
                     if (onSelectPlan) {
                       onSelectPlan(p.name, p.gb, p.priceNum);
                     }
@@ -876,13 +908,14 @@ export function ComparePlansModal({
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
           <span className="text-slate-500">Want to explore all 30-day &amp; contract plans?</span>
-          <a
-            href="/plans"
+          <Link
+            href="/dashboard/compare-plans"
+            onClick={onClose}
             className="text-[#E01C5B] font-semibold hover:underline flex items-center gap-1"
           >
-            <span>Browse all plans</span>
+            <span>Compare all plans in dashboard</span>
             <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>

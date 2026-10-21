@@ -25,7 +25,7 @@ export default function SupportBanner() {
       {/* Right: Action Buttons */}
       <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
         <Link
-          href="/help-support"
+          href="/dashboard/support"
           className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0D1935] font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
         >
           <BookOpen className="w-4 h-4 text-slate-600" />

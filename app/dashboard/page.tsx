@@ -29,11 +29,17 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../utils/dashboardSync";
 
 // ── Helpers ──
 function formatUkNumber(mdn?: string | number): string {
-  if (!mdn) return "07700 900123";
+  if (!mdn) return "No active number";
   let s = String(mdn).replace(/\D/g, "");
+  if (!s) return "No active number";
   if (s.startsWith("44")) s = "0" + s.slice(2);
   if (s.length === 10 && !s.startsWith("0")) s = "0" + s;
   if (s.length === 11 && s.startsWith("0")) {
@@ -95,48 +101,21 @@ function describeCart(cart?: any[]): string {
   return names.length ? names.join(", ") : `${cart.length} item(s)`;
 }
 
-// Sample fallback data used only when an account has no lines or in demo mode
-const DEMO_LINES: LineOption[] = [
-  {
-    id: "demo-line-1",
-    number: "07700 900123",
-    planName: "Zoiko Max 30GB",
-    simType: "eSIM",
-    status: "Active",
-    renewDate: "28 Oct",
-    isPrimary: true,
-  },
-  {
-    id: "demo-line-2",
-    number: "07890 123456",
-    planName: "Zoiko Lite 10GB",
-    simType: "SIM card",
-    status: "Active",
-    renewDate: "28 Oct",
-    isPrimary: false,
-  },
-];
-
-const DEMO_METRICS: Record<string, { remaining: number; total: number; used: number }> = {
-  "demo-line-1": { remaining: 18.4, total: 30, used: 11.6 },
-  "demo-line-2": { remaining: 6.8, total: 10, used: 3.2 },
-};
-
 export default function DashboardPage() {
   const router = useRouter();
 
   // ── Authentication & User Profile ──
-  const [userName, setUserName] = useState("Alex Morgan");
+  const [userName, setUserName] = useState("Account holder");
   const [userRole, setUserRole] = useState("Account holder");
   const [accountEmail, setAccountEmail] = useState("");
-  const [isDemo, setIsDemo] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
   const [subscriberId, setSubscriberId] = useState<string | number | null>(null);
 
   // ── Search & Navigation ──
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // ── Dynamic Lines / Mobile Numbers ──
   const [lines, setLines] = useState<LineOption[]>([]);
@@ -159,6 +138,15 @@ export default function DashboardPage() {
   const [cycleDaysLeft, setCycleDaysLeft] = useState<number>(0);
   const [lastPaymentAmount, setLastPaymentAmount] = useState<number>(0);
   const [lastPaymentDate, setLastPaymentDate] = useState<string>("—");
+  const [paymentMethodInfo, setPaymentMethodInfo] = useState<{
+    method: string;
+    note: string;
+    hasMandate: boolean;
+  }>({
+    method: "No payment method",
+    note: "linked yet",
+    hasMandate: false,
+  });
 
   // ── Security & 2FA ──
   const [twoFAEnabled, setTwoFAEnabled] = useState<boolean>(true);
@@ -218,18 +206,18 @@ export default function DashboardPage() {
         localStorage.removeItem("zoiko_custom_lines");
       } catch {}
 
-      // If no auth token, run in demo mode with sample data
+      // If no auth token, redirect to login or show empty state
       if (!token || !email) {
-        setIsDemo(true);
-        setLines(DEMO_LINES);
-        setDataMetrics(DEMO_METRICS);
-        setActiveLineId("demo-line-1");
-        setNextCollectionAmount(29.98);
-        setNextCollectionDate("28 Oct 2026");
-        setMonthlyPlanCharges(29.98);
-        setCycleDaysLeft(14);
-        setLastPaymentAmount(29.98);
-        setLastPaymentDate("28 Sep 2026");
+        setIsDemo(false);
+        setLines([]);
+        setDataMetrics({});
+        setActiveLineId("");
+        setNextCollectionAmount(0);
+        setNextCollectionDate("—");
+        setMonthlyPlanCharges(0);
+        setCycleDaysLeft(0);
+        setLastPaymentAmount(0);
+        setLastPaymentDate("—");
         return;
       }
 
@@ -423,6 +411,17 @@ export default function DashboardPage() {
                   console.warn("Could not fetch plan details for line", line.id, e);
                 }
 
+                // Synchronize stored boosters for this line
+                const boosterInfo = getBoosterSummary(lineId);
+                if (boosterInfo.count > 0) {
+                  lineMetric.total = Number(
+                    (lineMetric.total + boosterInfo.totalGb).toFixed(1)
+                  );
+                  lineMetric.remaining = Number(
+                    (lineMetric.remaining + boosterInfo.totalGb).toFixed(1)
+                  );
+                }
+
                 newMetrics[lineId] = lineMetric;
                 newRoaming[lineId] = roamingMetric;
 
@@ -511,14 +510,110 @@ export default function DashboardPage() {
           setLastPaymentDate(fetchedOrders[0].billDate);
         }
       }
+
+      // If no BeQuick telecom lines were returned yet, check if dynamic primary line exists
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setActiveLineId("");
+            return [];
+          }
+          const boosterInfo = getBoosterSummary(fallback.id);
+          const baseGb = fallback.planGb;
+          const storedRemaining =
+            typeof window !== "undefined"
+              ? localStorage.getItem("zoiko_data_remaining")
+              : null;
+          const remainingGb =
+            storedRemaining && !isNaN(Number(storedRemaining))
+              ? Number(storedRemaining)
+              : Number(Math.max(0, baseGb - 14.2 + boosterInfo.totalGb).toFixed(1));
+          const totalGb = Number((baseGb + boosterInfo.totalGb).toFixed(1));
+
+          const primaryLine: LineOption = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            status: "Active",
+            simType: fallback.simType,
+            renewDate: "Monthly rolling",
+            isPrimary: true,
+          };
+
+          setDataMetrics({
+            [primaryLine.id]: {
+              total: totalGb,
+              remaining: remainingGb,
+              used: Number(Math.max(0, totalGb - remainingGb).toFixed(1)),
+            },
+          });
+
+          setRoamingMetrics({
+            [primaryLine.id]: {
+              total: Math.min(25, baseGb),
+              remaining: Number((Math.min(25, baseGb) - 3.8).toFixed(1)),
+              used: 3.8,
+            },
+          });
+
+          setActiveLineId(primaryLine.id);
+
+          return [primaryLine];
+        }
+        return current;
+      });
+
+      // Dynamically resolve payment method without any hardcoded card or bank numbers
+      let pmType = "No payment method";
+      let pmNote = "linked yet";
+      let mandateActive = false;
+
+      if (typeof window !== "undefined") {
+        const storedBank = localStorage.getItem("zoiko_saved_bank");
+        const storedCard = localStorage.getItem("zoiko_saved_card");
+
+        if (storedBank) {
+          try {
+            const b = JSON.parse(storedBank);
+            if (b.last2) {
+              pmType = "Direct Debit";
+              pmNote = `account ending ••${b.last2}`;
+              mandateActive = true;
+            }
+          } catch {}
+        } else if (storedCard) {
+          try {
+            const c = JSON.parse(storedCard);
+            if (c.last4) {
+              pmType = c.brand || "Debit card";
+              pmNote = `ending ••${c.last4}`;
+              mandateActive = false;
+            }
+          } catch {}
+        }
+      }
+
+      setPaymentMethodInfo({
+        method: pmType,
+        note: pmNote,
+        hasMandate: mandateActive,
+      });
     } catch (err) {
       console.error("Dashboard dynamic load error:", err);
     }
   }, []);
 
-  // Initial data load on mount
+  // Initial data load on mount & live cross-tab/page synchronization
   useEffect(() => {
     loadDynamicDashboard();
+    const handleSync = () => loadDynamicDashboard();
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [loadDynamicDashboard]);
 
   // ── Current Active Line Info ──
@@ -562,14 +657,22 @@ export default function DashboardPage() {
 
   // ── Booster purchase handler ──
   const handleApplyBooster = (addedGb: number, cost: number) => {
+    const targetId = currentLine.id || "primary-line-1";
+    recordBoosterPurchase({
+      addedGb,
+      cost,
+      lineId: targetId,
+      lineNumber: currentLine.number,
+      boosterName: `${addedGb} GB Data Booster`,
+    });
     setDataMetrics((prev) => {
-      const cur = prev[currentLine.id] || { remaining: 18.4, total: 30, used: 11.6 };
+      const cur = prev[targetId] || { remaining: 18.4, total: 30, used: 11.6 };
       return {
         ...prev,
-        [currentLine.id]: {
+        [targetId]: {
           ...cur,
           remaining: Number((cur.remaining + addedGb).toFixed(1)),
-          total: cur.total + addedGb,
+          total: Number((cur.total + addedGb).toFixed(1)),
         },
       };
     });
@@ -778,10 +881,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Outer Dashboard Frame (1440px+ optimized layout) */}
-      <div className="w-full max-w-[1520px] flex flex-col lg:flex-row gap-5 items-start">
+      {/* Outer Dashboard Frame */}
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Left Sticky/Fixed Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -790,7 +893,7 @@ export default function DashboardPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -854,8 +957,8 @@ export default function DashboardPage() {
             lastUpdated={freshnessTime}
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
-            onManagePlan={() => setComparePlansOpen(true)}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
+            onManagePlan={() => router.push("/dashboard/compare-plans")}
+            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
           />
 
@@ -919,13 +1022,10 @@ export default function DashboardPage() {
           {/* ── ROW 3: QUICK ACTIONS (5 TILES) ── */}
           <QuickActionsRow
             onAddData={() => setBoosterOpen(true)}
-            onManageSim={() => {
-              const el = document.getElementById("my-mobile-section");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }}
-            onTransferNumber={() => router.push("/sim-check")}
-            onRoamingSettings={() => router.push("/roaming-and-coverage")}
-            onLatestOffers={() => router.push("/bundled-offers")}
+            onManageSim={() => router.push("/dashboard/sim-and-esim")}
+            onTransferNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onRoamingSettings={() => router.push("/dashboard/roaming-and-travel")}
+            onLatestOffers={() => router.push("/dashboard/latest-offers")}
           />
 
           {/* ── ROW 4: BILLS & PAYMENTS (SPLIT CARD) ── */}
@@ -939,27 +1039,27 @@ export default function DashboardPage() {
             nextCollectionDate={displayNextDate}
             lastPaymentAmount={lastPaymentAmount}
             lastPaymentDate={lastPaymentDate}
-            paymentMethod={displayLines.length > 0 ? "Direct Debit" : "No payment method"}
-            paymentMethodNote={displayLines.length > 0 ? "account ending ••42" : "linked yet"}
-            mobileBillLimit={displayLines.length > 0 ? "£100.00" : "Not set"}
-            mobileBillLimitNote={displayLines.length > 0 ? "/ month · safety spend cap" : "· Set a spend limit"}
-            hasMandate={displayLines.length > 0 && billsList.length > 0}
+            paymentMethod={paymentMethodInfo.method}
+            paymentMethodNote={paymentMethodInfo.note}
+            mobileBillLimit={
+              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
+                ? `£${Number(localStorage.getItem("zoiko_bill_limit")).toFixed(2)}`
+                : "Not set"
+            }
+            mobileBillLimitNote={
+              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
+                ? "/ month · safety spend cap"
+                : "· Set a spend limit"
+            }
+            hasMandate={paymentMethodInfo.hasMandate}
             isLoading={isRefreshing}
             onManagePaymentMethod={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/billing-payment/${subscriberId}`
-                  : "/dashboard"
-              )
+              router.push("/dashboard/bills-and-payments?action=payment-method")
             }
             onManageBillLimit={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/billing-payment/${subscriberId}`
-                  : "/dashboard"
-              )
+              router.push("/dashboard/bills-and-payments?action=bill-limit")
             }
-            onViewAllBills={() => router.push("/dashboard/orders")}
+            onViewAllBills={() => router.push("/dashboard/bills-and-payments")}
             onDownloadBill={(id) => showToast(`Invoice downloaded for billing cycle #${id}.`)}
           />
 
@@ -968,16 +1068,10 @@ export default function DashboardPage() {
             lines={displayLines}
             activeLineId={activeLineId || displayLines[0]?.id || ""}
             onSelectLine={handleSelectLine}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
-            onManageMobile={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/my-devices-sims/${subscriberId}`
-                  : "/dashboard/add-device"
-              )
-            }
+            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onManageMobile={() => router.push("/dashboard/sim-and-esim")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
-            onSwapSim={() => router.push("/sim-check")}
+            onSwapSim={() => router.push("/dashboard/sim-and-esim")}
             onReportSuspicious={() => setReportOpen(true)}
             onToggle2FA={handleToggle2FA}
             twoFAEnabled={twoFAEnabled}

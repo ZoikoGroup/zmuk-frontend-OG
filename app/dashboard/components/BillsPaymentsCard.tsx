@@ -46,7 +46,7 @@ interface BillsPaymentsCardProps {
 
 export default function BillsPaymentsCard({
   bills,
-  linesCount = 1,
+  linesCount = 0,
   outstandingBalance = 0,
   monthlyPlanCharges,
   monthlyBreakdownNote,
@@ -116,7 +116,7 @@ export default function BillsPaymentsCard({
 
         <button
           type="button"
-          onClick={onViewAllBills || (() => window.location.assign("/dashboard/orders"))}
+          onClick={onViewAllBills || (() => window.location.assign("/dashboard/bills-and-payments"))}
           className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
         >
           <span>View all bills</span>
@@ -193,7 +193,12 @@ export default function BillsPaymentsCard({
                   <div className="text-sm font-bold text-[#0D1935] mt-0.5">
                     £{nextCollectionAmount.toFixed(2)}{" "}
                     <span className="font-normal text-slate-500 text-xs">
-                      on {nextCollectionDate} · {paymentMethod}
+                      on {nextCollectionDate}
+                      {hasMandate
+                        ? ` · ${paymentMethod}`
+                        : paymentMethod.toLowerCase().includes("no payment")
+                        ? ""
+                        : ` · ${paymentMethod}`}
                     </span>
                   </div>
                 </div>
@@ -251,10 +256,10 @@ export default function BillsPaymentsCard({
               </div>
               <button
                 type="button"
-                onClick={onManagePaymentMethod || (() => window.location.assign("/dashboard/billing-payment/current"))}
+                onClick={onManagePaymentMethod || (() => window.location.assign("/dashboard/bills-and-payments?action=payment-method"))}
                 className="text-xs font-semibold text-[#E01C5B] hover:underline cursor-pointer"
               >
-                Manage
+                {paymentMethod.toLowerCase().includes("no payment") ? "Set up" : "Manage"}
               </button>
             </div>
 
@@ -276,7 +281,7 @@ export default function BillsPaymentsCard({
               </div>
               <button
                 type="button"
-                onClick={onManageBillLimit || (() => window.location.assign("/dashboard/billing-payment/current"))}
+                onClick={onManageBillLimit || (() => window.location.assign("/dashboard/bills-and-payments?action=bill-limit"))}
                 className="text-xs font-semibold text-[#E01C5B] hover:underline cursor-pointer"
               >
                 Manage
@@ -306,7 +311,7 @@ export default function BillsPaymentsCard({
                 </p>
                 <div className="mt-4">
                   <a
-                    href="/30-day-plan"
+                    href="/dashboard/compare-plans"
                     className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white font-semibold text-xs hover:bg-[#c9144e] transition cursor-pointer shadow-xs inline-block"
                   >
                     Browse Plans

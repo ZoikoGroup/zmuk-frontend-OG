@@ -67,14 +67,24 @@ export default function BottomThreeCards({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={hasLines ? onManageMobile : undefined}
-              className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
-            >
-              <span>{hasLines ? "Manage" : "Activate"}</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            {hasLines ? (
+              <button
+                type="button"
+                onClick={onManageMobile}
+                className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
+              >
+                <span>Manage</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <a
+                href="/dashboard/sim-and-esim"
+                className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
+              >
+                <span>Activate</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
 
           {/* SIM Card Visual Box */}
@@ -197,17 +207,17 @@ export default function BottomThreeCards({
           ) : (
             <>
               <a
-                href="/activate-your-sim"
+                href="/dashboard/sim-and-esim"
                 className="py-2.5 flex items-center justify-between text-[#0D1935] hover:text-[#E01C5B] transition"
               >
                 <span>Activate a SIM card</span>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </a>
               <a
-                href="/30-day-plan"
+                href="/dashboard/compare-plans"
                 className="py-2.5 flex items-center justify-between text-[#0D1935] hover:text-[#E01C5B] transition"
               >
-                <span>Browse 30-Day SIM Plans</span>
+                <span>Browse SIM Plans</span>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </a>
             </>

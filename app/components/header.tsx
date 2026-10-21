@@ -93,12 +93,7 @@ export default function Header() {
 
   if (
     pathname === "/dashboard" ||
-    pathname.startsWith("/dashboard/my-mobile-numbers") ||
-    pathname.startsWith("/dashboard/usage-and-allowances") ||
-    pathname.startsWith("/dashboard/sim-and-esim") ||
-    pathname.startsWith("/dashboard/bills-and-payments") ||
-    pathname.startsWith("/dashboard/roaming-and-travel") ||
-    pathname.startsWith("/dashboard/addons-and-boosters")
+    pathname.startsWith("/dashboard/")
   ) {
     return null;
   }

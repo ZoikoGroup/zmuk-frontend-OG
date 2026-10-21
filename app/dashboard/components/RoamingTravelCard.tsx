@@ -102,7 +102,7 @@ export default function RoamingTravelCard({
           </p>
         </div>
         <a
-          href="/roaming-and-coverage"
+          href="/dashboard/roaming-and-travel"
           className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline cursor-pointer"
         >
           <span>Manage</span>

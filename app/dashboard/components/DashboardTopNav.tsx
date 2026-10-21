@@ -41,13 +41,13 @@ interface TopNavProps {
 }
 
 export default function DashboardTopNav({
-  userName = "Alex Morgan",
+  userName = "Account holder",
   userRole = "Account holder",
-  isDemo = true,
+  isDemo = false,
   searchQuery,
   setSearchQuery,
   onLogout,
-  unreadNotifications = 3,
+  unreadNotifications = 0,
   onClearNotifications,
   subscriberId,
   activeLineId,
@@ -56,7 +56,7 @@ export default function DashboardTopNav({
   onOpenBoosterModal,
   customTitle,
   customSubtitle,
-  hideDemoBadgeInHeader = false,
+  hideDemoBadgeInHeader = true,
 }: TopNavProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -110,29 +110,13 @@ export default function DashboardTopNav({
     .map((n) => n[0]?.toUpperCase())
     .join("") || "AM";
 
-  const notifications = [
-    {
-      id: 1,
-      title: "Bill statement available",
-      desc: "Your bill for £29.98 has been generated.",
-      time: "2 hours ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Data usage alert",
-      desc: "61.3% of your 30 GB monthly data remaining.",
-      time: "5 hours ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "eSIM activated",
-      desc: "Line 07700 900123 active on this device.",
-      time: "1 day ago",
-      unread: true,
-    },
-  ];
+  const notifications: {
+    id: number;
+    title: string;
+    desc: string;
+    time: string;
+    unread: boolean;
+  }[] = [];
 
   const subIdStr = subscriberId ? String(subscriberId) : "1";
   const lineIdStr = activeLineId || "1";
@@ -152,21 +136,21 @@ export default function DashboardTopNav({
       keywords: "manage numbers lines devices primary pause",
       icon: Smartphone,
       action: onManageNumbers,
-      href: `/dashboard/my-devices-sims/${subIdStr}`,
+      href: "/dashboard/my-mobile-numbers",
     },
     {
       title: "Add device & IMEI compatibility checker",
       desc: "Check 15-digit IMEI or 32-digit EID compatibility",
       keywords: "add device imei eid compatibility check smartphone tablet",
       icon: Smartphone,
-      href: "/dashboard/add-device",
+      href: "/dashboard/my-mobile-numbers",
     },
     {
       title: "Activate a SIM or eSIM",
       desc: "Enter your Zoiko SIM activation code",
       keywords: "activate sim esim card code",
       icon: Smartphone,
-      href: "/activate-your-sim",
+      href: "/dashboard/sim-and-esim",
     },
     {
       title: "Buy data booster",
@@ -174,21 +158,21 @@ export default function DashboardTopNav({
       keywords: "buy data booster addon topup",
       icon: Zap,
       action: onOpenBoosterModal,
-      href: "#data-boosters",
+      href: "/dashboard/addons-and-boosters",
     },
     {
       title: "Full usage & allowances breakdown",
       desc: "View domestic & international voice, SMS, and data",
       keywords: "usage allowances data calls texts minutes report",
       icon: BarChart2,
-      href: `/dashboard/plan-usages/${lineIdStr}`,
+      href: "/dashboard/usage-and-allowances",
     },
     {
       title: "Bills, statements & payments",
       desc: "Download PDF invoices and manage payment methods",
       keywords: "bills payments invoices statements direct debit",
       icon: Receipt,
-      href: `/dashboard/billing-payment/${subIdStr}`,
+      href: "/dashboard/bills-and-payments",
     },
     {
       title: "My orders history",
@@ -230,14 +214,14 @@ export default function DashboardTopNav({
     : quickSearchItems.slice(0, 5);
 
   return (
-    <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+    <div className="w-full px-0.5 pt-1.5 pb-1 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
       {/* Left: Greeting & Date (or Custom Title & Subtitle) */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1935] tracking-tight">
+      <div className="flex flex-col gap-1 w-full lg:max-w-[480px] min-w-0">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0D1935] leading-tight tracking-tight break-words">
           {customTitle || `${greeting}, ${firstName}`}
         </h1>
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="text-sm text-slate-500 font-normal">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs sm:text-sm lg:text-base text-[#3B4866] font-normal leading-5">
             {customSubtitle || formattedDate}
           </span>
           {isDemo && !hideDemoBadgeInHeader && (
@@ -250,20 +234,20 @@ export default function DashboardTopNav({
       </div>
 
       {/* Right: Search + Action Buttons + Profile */}
-      <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+      <div className="flex items-center gap-2 sm:gap-2.5 w-full lg:w-auto justify-between sm:justify-end shrink-0">
         {/* Search Account Input + Quick Jump Dropdown */}
-        <div className="relative w-full sm:w-64 md:w-72" ref={searchRef}>
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="relative flex-1 min-w-0 sm:flex-initial sm:w-64 md:w-72" ref={searchRef}>
+          <Search className="w-4 h-4 text-[#54617E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search your account..."
+            placeholder="Search your account"
             value={searchQuery}
             onFocus={() => setSearchFocused(true)}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setSearchFocused(true);
             }}
-            className="w-full pl-9 pr-8 py-2 bg-white text-xs sm:text-sm text-slate-800 rounded-full border border-slate-200 focus:outline-none focus:border-[#E01C5B] focus:ring-2 focus:ring-pink-100 transition shadow-sm placeholder:text-slate-400"
+            className="w-full h-10 pl-9 sm:pl-10 pr-8 bg-white text-xs sm:text-sm text-[#0D1935] rounded-full border border-[#E6E8EE] focus:outline-none focus:border-[#E01C5B] focus:ring-2 focus:ring-pink-100 transition placeholder:text-[#54617E]"
           />
           {searchQuery && (
             <button
@@ -277,7 +261,7 @@ export default function DashboardTopNav({
 
           {/* Quick Search Results Dropdown */}
           {searchFocused && (
-            <div className="absolute right-0 left-0 sm:left-auto sm:w-80 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-2 animate-in fade-in zoom-in-95">
+            <div className="absolute left-0 sm:left-auto sm:right-0 w-[calc(100vw-1.5rem)] max-w-80 sm:w-80 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-2 animate-in fade-in zoom-in-95">
               <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 {searchQuery.trim() ? "Matching Account Actions" : "Quick Jump"}
               </div>
@@ -336,11 +320,11 @@ export default function DashboardTopNav({
             type="button"
             onClick={() => setNotifOpen(!notifOpen)}
             aria-label="Notifications"
-            className="relative w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
+            className="relative w-10 h-10 rounded-full bg-white border border-[#E6E8EE] flex items-center justify-center text-[#0D1935] hover:bg-slate-50 transition cursor-pointer"
           >
-            <Bell className="w-4 h-4 text-[#0D1935]" />
+            <Bell className="w-5 h-5 text-[#0D1935]" />
             {unreadNotifications > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#E01C5B] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+              <span className="absolute -top-1 -right-0.5 min-w-4 h-5 px-1.5 bg-[#E01C5B] text-white text-xs font-bold rounded-lg flex items-center justify-center ring-2 ring-[#EDEEF2]">
                 {unreadNotifications}
               </span>
             )}
@@ -348,7 +332,7 @@ export default function DashboardTopNav({
 
           {/* Notifications Dropdown */}
           {notifOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-4 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 mt-2 w-[calc(100vw-1.5rem)] max-w-80 sm:max-w-96 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-4 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <h4 className="font-bold text-sm text-slate-900">Notifications</h4>
@@ -370,19 +354,25 @@ export default function DashboardTopNav({
               </div>
 
               <div className="flex flex-col gap-2.5 mt-3 max-h-72 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className="p-2.5 rounded-xl bg-slate-50 hover:bg-pink-50/40 border border-slate-100 transition flex items-start gap-2.5"
-                  >
-                    <div className="w-2 h-2 mt-1.5 rounded-full bg-[#E01C5B] flex-shrink-0" />
-                    <div className="flex-1 text-xs">
-                      <div className="font-semibold text-slate-900">{n.title}</div>
-                      <div className="text-slate-500 mt-0.5">{n.desc}</div>
-                      <div className="text-[10px] text-slate-400 mt-1">{n.time}</div>
-                    </div>
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-500">
+                    No new notifications
                   </div>
-                ))}
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-2.5 rounded-xl bg-slate-50 hover:bg-pink-50/40 border border-slate-100 transition flex items-start gap-2.5"
+                    >
+                      <div className="w-2 h-2 mt-1.5 rounded-full bg-[#E01C5B] flex-shrink-0" />
+                      <div className="flex-1 text-xs">
+                        <div className="font-semibold text-slate-900">{n.title}</div>
+                        <div className="text-slate-500 mt-0.5">{n.desc}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">{n.time}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -392,9 +382,9 @@ export default function DashboardTopNav({
         <Link
           href="/dashboard/support"
           title="Help & Support"
-          className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
+          className="w-10 h-10 rounded-full bg-white border border-[#E6E8EE] flex items-center justify-center text-[#0D1935] hover:bg-slate-50 transition cursor-pointer"
         >
-          <HelpCircle className="w-4 h-4 text-[#0D1935]" />
+          <HelpCircle className="w-5 h-5 text-[#0D1935]" />
         </Link>
 
         {/* User Profile Pill & Dropdown */}
@@ -402,20 +392,20 @@ export default function DashboardTopNav({
           <button
             type="button"
             onClick={() => setProfileOpen(!profileOpen)}
-            className="h-10 pl-1 pr-3 py-1 bg-white rounded-full border border-slate-200 flex items-center gap-2.5 shadow-sm hover:bg-slate-50 transition cursor-pointer"
+            className="h-11 pl-1 pr-2.5 py-1 bg-white rounded-full border border-[#E6E8EE] flex items-center gap-2.5 hover:bg-slate-50 transition cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-pink-100 text-[#E01C5B] flex items-center justify-center font-bold text-xs flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#FDF2F6] text-[#BA1248] flex items-center justify-center font-bold text-sm flex-shrink-0">
               {initials}
             </div>
-            <div className="text-left hidden sm:flex flex-col leading-tight">
+            <div className="text-left hidden sm:flex flex-col leading-4">
               <span className="text-xs font-bold text-[#0D1935] truncate max-w-[110px]">
                 {userName}
               </span>
-              <span className="text-[10px] text-slate-500 font-normal">
+              <span className="text-xs text-[#54617E] font-normal">
                 {userRole}
               </span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            <ChevronDown className="w-4 h-4 text-[#0D1935]" />
           </button>
 
           {/* Profile Dropdown Menu */}

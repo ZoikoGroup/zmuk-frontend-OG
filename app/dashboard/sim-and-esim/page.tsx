@@ -44,6 +44,11 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
 
 export interface SimHistoryEvent {
   id: string;
@@ -491,6 +496,58 @@ export default function SimAndEsimPage() {
           console.warn("Error fetching user lines for SIM page:", e);
         }
       }
+
+      // If no BeQuick telecom lines were returned, check fallback
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setSelectedLineId("");
+            setUnreadNotifications(0);
+            return [];
+          }
+          const now = new Date();
+          const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          const actDate = new Date(now.getFullYear(), now.getMonth() - 2, 15);
+          const primaryLine: SimLineRecord = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            simType: "eSIM",
+            status: "Active",
+            simStatusLabel: "Active eSIM",
+            renewDate: nextMonth.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            iccidMasked: "•••• •••• •••• 4281",
+            eidMasked: "•••• 9182",
+            networkLabel: "5G & 4G LTE Active",
+            activatedAtLabel: actDate.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            isPrimary: true,
+            deviceModel: "iPhone 15 Pro",
+            historyEvents: [
+              {
+                id: "ev-1",
+                title: "eSIM profile installed & active",
+                subtitle: actDate.toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }),
+              },
+            ],
+          };
+          setSelectedLineId(primaryLine.id);
+          setUnreadNotifications(1);
+          return [primaryLine];
+        }
+        return current;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -498,6 +555,13 @@ export default function SimAndEsimPage() {
 
   useEffect(() => {
     loadSimData();
+    const handleSync = () => loadSimData();
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [loadSimData]);
 
   const handleRefresh = async () => {
@@ -575,9 +639,9 @@ export default function SimAndEsimPage() {
       )}
 
       {/* Outer Frame — identical structure & sticky sidebar wrapper to My mobile numbers */}
-      <div className="w-full max-w-[1520px] flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Left Sticky Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 self-stretch lg:self-start flex-shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -586,7 +650,7 @@ export default function SimAndEsimPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -606,14 +670,8 @@ export default function SimAndEsimPage() {
             onClearNotifications={() => setUnreadNotifications(0)}
             subscriberId={subscriberId}
             activeLineId={currentLine.id}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
-            onManageNumbers={() =>
-              router.push(
-                subscriberId
-                  ? `/dashboard/my-devices-sims/${subscriberId}`
-                  : "/dashboard/add-device"
-              )
-            }
+            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => setBoosterOpen(true)}
             customTitle="SIM & eSIM"
             customSubtitle="Check your SIM, set up an eSIM, and get help fast if your phone or SIM is lost."
@@ -1440,7 +1498,7 @@ export default function SimAndEsimPage() {
                   <div className="divide-y divide-[#F1F3F7]">
                     <button
                       type="button"
-                      onClick={() => router.push("/dashboard/add-device")}
+                      onClick={() => router.push("/dashboard/my-mobile-numbers")}
                       className="w-full py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <Plus className="w-4 h-4 text-[#E01C5B] shrink-0" />
@@ -1645,6 +1703,13 @@ export default function SimAndEsimPage() {
         onClose={() => setBoosterOpen(false)}
         currentRemainingGb={18.4}
         onApplyBooster={(addedGb, cost) => {
+          recordBoosterPurchase({
+            addedGb,
+            cost,
+            lineId: currentLine.id,
+            lineNumber: currentLine.number,
+            boosterName: `${addedGb} GB Data Booster`,
+          });
           showToast(
             `Added +${addedGb} GB Data Booster (£${cost.toFixed(2)}) to ${currentLine.number}!`,
             "success"

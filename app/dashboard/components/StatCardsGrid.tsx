@@ -22,16 +22,16 @@ interface StatCardsGridProps {
 }
 
 export default function StatCardsGrid({
-  dataRemainingGb = 18.4,
-  dataTotalGb = 30,
-  dataRemainingPct = 61.3,
-  nextCollectionAmount = 29.98,
-  nextCollectionDate = "28 Oct",
-  linesCount = 2,
-  cycleDaysLeft = 14,
-  renewDate = "28 Oct",
-  lineStatus = "Active",
-  simType = "eSIM",
+  dataRemainingGb = 0,
+  dataTotalGb = 0,
+  dataRemainingPct = 0,
+  nextCollectionAmount = 0,
+  nextCollectionDate = "—",
+  linesCount = 0,
+  cycleDaysLeft = 0,
+  renewDate = "—",
+  lineStatus = "Inactive",
+  simType = "—",
 }: StatCardsGridProps) {
   // Dot matrix SVG background pattern
   const DotMatrixWhite = () => (

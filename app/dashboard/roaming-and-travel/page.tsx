@@ -46,6 +46,11 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
 
 export interface RoamingLineRecord {
   id: string;
@@ -751,6 +756,44 @@ export default function RoamingAndTravelPage() {
           console.warn("Error fetching lines for roaming page:", e);
         }
       }
+
+      // If no BeQuick telecom lines were returned, check fallback
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setSelectedLineId("");
+            setUnreadNotifications(0);
+            return [];
+          }
+          const nextMonth = new Date();
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          const primaryLine: RoamingLineRecord = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            status: "Active",
+            renewDate: nextMonth.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            }),
+            roamingEnabled: true,
+            totalDataGb: fallback.planGb,
+            euFairUseLimitGb: Math.min(25, fallback.planGb),
+            euFairUseRemainingGb: Number(
+              (Math.min(25, fallback.planGb) - 3.8).toFixed(1)
+            ),
+            euUsedGb: 3.8,
+            roamingCallsMins: 45,
+            roamingTextsCount: 22,
+            billingPeriodLabel: "Current billing cycle",
+          };
+          setSelectedLineId(primaryLine.id);
+          setUnreadNotifications(1);
+          return [primaryLine];
+        }
+        return current;
+      });
     } catch (err) {
       console.error("Failed to load dynamic roaming data:", err);
     } finally {
@@ -760,6 +803,13 @@ export default function RoamingAndTravelPage() {
 
   useEffect(() => {
     loadRoamingData();
+    const handleSync = () => loadRoamingData();
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [loadRoamingData]);
 
   const handleManualRefresh = async () => {
@@ -931,9 +981,9 @@ export default function RoamingAndTravelPage() {
       )}
 
       {/* Main Container Layout — Identical Sticky Sidebar Frame */}
-      <div className="max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Sticky Left Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -942,7 +992,7 @@ export default function RoamingAndTravelPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -997,7 +1047,7 @@ export default function RoamingAndTravelPage() {
                 <div className="w-6 h-8 flex items-center justify-center text-[#1E2D4D] shrink-0">
                   <Smartphone className="w-5 h-5 stroke-[1.75]" />
                 </div>
-                <div className="min-w-[230px] pr-4">
+                <div className="min-w-0 sm:min-w-[230px] pr-2 sm:pr-4">
                   <div className="text-xs font-normal text-[#54617E] leading-4">
                     Roaming for
                   </div>
@@ -2575,7 +2625,14 @@ export default function RoamingAndTravelPage() {
         onClose={() => setBoosterOpen(false)}
         currentRemainingGb={currentLine.euFairUseRemainingGb || 15}
         onApplyBooster={(addedGb: number, cost: number) => {
-          showToast(`Added +${addedGb}GB data booster (£${cost.toFixed(2)})`, "success");
+          recordBoosterPurchase({
+            addedGb,
+            cost,
+            lineId: currentLine.id,
+            lineNumber: currentLine.number,
+            boosterName: `${addedGb} GB Data Booster`,
+          });
+          showToast(`Added +${addedGb}GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`, "success");
         }}
       />
       <ReportActivityModal

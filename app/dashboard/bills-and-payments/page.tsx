@@ -51,6 +51,11 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
 
 export interface BillingLineItem {
   id: string;
@@ -141,7 +146,7 @@ export default function BillsAndPaymentsPage() {
   const [billsHistory, setBillsHistory] = useState<IssuedBillItem[]>([]);
   const [accountCredit, setAccountCredit] = useState<number>(0);
   const [bankLast2, setBankLast2] = useState<string>("—");
-  const [mandateStatusLabel, setMandateStatusLabel] = useState<string>("—");
+  const [mandateStatusLabel, setMandateStatusLabel] = useState<string>("Not set up");
   const [mandateRefSuffix, setMandateRefSuffix] = useState<string>("—");
   const [savedCard, setSavedCard] = useState<SavedCardMethod | null>(null);
 
@@ -218,6 +223,20 @@ export default function BillsAndPaymentsPage() {
     }
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  // Check for URL actions (e.g. from Dashboard Manage buttons)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    if (action === "bill-limit") {
+      setBillLimitModalOpen(true);
+    } else if (action === "payment-method" || action === "direct-debit") {
+      setDdModalOpen(true);
+    } else if (action === "card") {
+      setCardModalOpen(true);
+    }
   }, []);
 
   // Load saved user billing preferences
@@ -298,7 +317,7 @@ export default function BillsAndPaymentsPage() {
       setBillsHistory([]);
       setAccountCredit(0);
       setBankLast2("—");
-      setMandateStatusLabel("—");
+      setMandateStatusLabel("Not set up");
       setMandateRefSuffix("—");
       setSavedCard(null);
 
@@ -521,11 +540,29 @@ export default function BillsAndPaymentsPage() {
             if (bankPm?.account_number) {
               setBankLast2(String(bankPm.account_number).slice(-2));
               setMandateStatusLabel("Active");
-            } else if (pms.length > 0) {
-              setMandateStatusLabel("Active");
             }
           }
         } catch {}
+
+        // Check local storage for user-managed payment methods
+        if (typeof window !== "undefined") {
+          const storedCard = localStorage.getItem("zoiko_saved_card");
+          if (storedCard) {
+            try {
+              setSavedCard(JSON.parse(storedCard));
+            } catch {}
+          }
+          const storedBank = localStorage.getItem("zoiko_saved_bank");
+          if (storedBank) {
+            try {
+              const parsed = JSON.parse(storedBank);
+              if (parsed.last2) {
+                setBankLast2(parsed.last2);
+                setMandateStatusLabel("Active");
+              }
+            } catch {}
+          }
+        }
 
         // 3c. Live User Lines from BeQuick
         let loadedLines: BillingLineItem[] = [];
@@ -707,6 +744,28 @@ export default function BillsAndPaymentsPage() {
         setBillsHistory(djangoInvoices);
         setQueryChargeBillRef(djangoInvoices[0].reference);
       }
+
+      // If no BeQuick telecom lines were returned, check fallback
+      setLines((current) => {
+        if (current.length === 0) {
+          const fallback = getFallbackUserLine(userData);
+          if (!fallback) {
+            setUnreadNotifications(0);
+            return [];
+          }
+          const primaryLine: BillingLineItem = {
+            id: fallback.id,
+            number: fallback.number,
+            planName: fallback.planName,
+            monthlyPrice: 14.99,
+            status: "Active",
+            renewDate: "Monthly",
+          };
+          setUnreadNotifications(1);
+          return [primaryLine];
+        }
+        return current;
+      });
     } catch (err) {
       console.error("Failed to load dynamic billing data:", err);
     } finally {
@@ -716,7 +775,28 @@ export default function BillsAndPaymentsPage() {
 
   useEffect(() => {
     loadBillingData();
+    const handleSync = () => loadBillingData();
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => window.removeEventListener("zoiko-auth", handleSync);
   }, [loadBillingData]);
+
+  // Synchronize booster charges with global booster state
+  useEffect(() => {
+    const syncBoosters = () => {
+      const summary = getBoosterSummary();
+      setExtraSpend((prev) => ({
+        ...prev,
+        boosters: summary.totalCost,
+      }));
+    };
+    syncBoosters();
+    window.addEventListener("zoiko-booster-updated", syncBoosters);
+    window.addEventListener("zoiko-auth", syncBoosters);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", syncBoosters);
+      window.removeEventListener("zoiko-auth", syncBoosters);
+    };
+  }, []);
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
@@ -925,25 +1005,56 @@ export default function BillsAndPaymentsPage() {
     e.preventDefault();
     const cleaned = tempBankLast2.replace(/\D/g, "").slice(-2);
     if (cleaned) {
-      setBankLast2(cleaned.padStart(2, "0"));
+      const val = cleaned.padStart(2, "0");
+      setBankLast2(val);
       setMandateStatusLabel("Active");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("zoiko_saved_bank", JSON.stringify({ last2: val }));
+        window.dispatchEvent(new Event("zoiko-auth"));
+      }
+      showToast(`Direct Debit mandate (••${val}) confirmed`, "success");
     }
     setDdModalOpen(false);
-    showToast(`Direct Debit mandate (••${cleaned || bankLast2}) confirmed`, "success");
+  };
+
+  const handleRemoveDirectDebit = () => {
+    setBankLast2("—");
+    setMandateStatusLabel("Not set up");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("zoiko_saved_bank");
+      window.dispatchEvent(new Event("zoiko-auth"));
+    }
+    setDdModalOpen(false);
+    showToast("Direct Debit mandate removed.", "info");
   };
 
   const handleSaveCard = (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned4 = tempCardLast4.replace(/\D/g, "").slice(-4);
     if (!cleaned4) return;
-    setSavedCard({
+    const newCard: SavedCardMethod = {
       id: `pm-${Date.now()}`,
-      brand: tempCardBrand || "Visa debit",
+      brand: tempCardBrand || "Debit card",
       last4: cleaned4.padStart(4, "0"),
       expiry: tempCardExpiry || "Active",
-    });
+    };
+    setSavedCard(newCard);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("zoiko_saved_card", JSON.stringify(newCard));
+      window.dispatchEvent(new Event("zoiko-auth"));
+    }
     setCardModalOpen(false);
-    showToast(`Saved card (${tempCardBrand} ••••${cleaned4}) updated`, "success");
+    showToast(`Saved card (${newCard.brand} ••••${cleaned4}) updated`, "success");
+  };
+
+  const handleRemoveCard = () => {
+    setSavedCard(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("zoiko_saved_card");
+      window.dispatchEvent(new Event("zoiko-auth"));
+    }
+    setCardModalOpen(false);
+    showToast("Payment card removed.", "info");
   };
 
   const handleSubmitChargeQuery = (e: React.FormEvent) => {
@@ -972,9 +1083,9 @@ export default function BillsAndPaymentsPage() {
       )}
 
       {/* Main Container Layout — Identical Sticky Sidebar Frame */}
-      <div className="max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Sticky Left Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -983,7 +1094,7 @@ export default function BillsAndPaymentsPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => router.push("/dashboard/add-device")}
+            onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={lines[0]?.planName || "No active plan"}
             renewDate={lines[0]?.renewDate || "—"}
           />
@@ -1786,23 +1897,39 @@ export default function BillsAndPaymentsPage() {
                         DD
                       </span>
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[#0D1935] text-sm font-bold leading-5">
-                        Direct Debit
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        Bank account ••{bankLast2} · mandate ref ••{mandateRefSuffix}
-                      </span>
-                      <div className="pt-1 flex flex-wrap items-center gap-1.5">
-                        <span className="px-2 py-0.5 bg-[#1E8E5A]/10 rounded-full inline-flex items-center gap-1 text-[#1E8E5A] text-[11px] font-semibold">
-                          <Check className="w-3 h-3" />
-                          {mandateStatusLabel}
+                    {bankLast2 !== "—" && bankLast2 !== "" ? (
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-[#0D1935] text-sm font-bold leading-5">
+                          Direct Debit
                         </span>
-                        <span className="px-2 py-0.5 bg-[#E01C5B]/10 rounded-full inline-flex items-center text-[#E01C5B] text-[11px] font-semibold">
-                          Collects your bills
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          Bank account ending ••{bankLast2}
                         </span>
+                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-[#1E8E5A]/10 rounded-full inline-flex items-center gap-1 text-[#1E8E5A] text-[11px] font-semibold">
+                            <Check className="w-3 h-3" />
+                            Active
+                          </span>
+                          <span className="px-2 py-0.5 bg-[#E01C5B]/10 rounded-full inline-flex items-center text-[#E01C5B] text-[11px] font-semibold">
+                            Collects your bills
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-[#0D1935] text-sm font-bold leading-5">
+                          Direct Debit
+                        </span>
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          No Direct Debit mandate set up yet
+                        </span>
+                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-slate-100 rounded-full inline-flex items-center text-slate-500 text-[11px] font-semibold">
+                            Not set up
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -1812,7 +1939,7 @@ export default function BillsAndPaymentsPage() {
                     }}
                     className="text-[#E01C5B] text-xs font-semibold hover:underline shrink-0 cursor-pointer"
                   >
-                    Manage
+                    {bankLast2 !== "—" && bankLast2 !== "" ? "Manage" : "Set up"}
                   </button>
                 </div>
 
@@ -1849,18 +1976,29 @@ export default function BillsAndPaymentsPage() {
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempCardBrand(savedCard?.brand || "Visa debit");
-                      setTempCardLast4(savedCard?.last4 || "");
-                      setTempCardExpiry(savedCard?.expiry || "");
-                      setCardModalOpen(true);
-                    }}
-                    className="text-[#E01C5B] text-xs font-semibold hover:underline shrink-0 cursor-pointer"
-                  >
-                    {savedCard ? "Manage" : "Add"}
-                  </button>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    {savedCard && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCard}
+                        className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempCardBrand(savedCard?.brand || "Visa debit");
+                        setTempCardLast4(savedCard?.last4 || "");
+                        setTempCardExpiry(savedCard?.expiry || "");
+                        setCardModalOpen(true);
+                      }}
+                      className="text-[#E01C5B] text-xs font-semibold hover:underline shrink-0 cursor-pointer"
+                    >
+                      {savedCard ? "Manage" : "Add"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Add or replace a card button */}
@@ -2626,20 +2764,31 @@ export default function BillsAndPaymentsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDdModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
-                >
-                  Close
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
-                >
-                  Update mandate
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2">
+                {bankLast2 !== "—" ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveDirectDebit}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                  >
+                    Remove mandate
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDdModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
+                  >
+                    {bankLast2 !== "—" ? "Update mandate" : "Set up mandate"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2695,7 +2844,7 @@ export default function BillsAndPaymentsPage() {
                   <input
                     type="text"
                     maxLength={4}
-                    placeholder="e.g. 4242"
+                    placeholder="4 digits"
                     value={tempCardLast4}
                     onChange={(e) => setTempCardLast4(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
@@ -2715,20 +2864,31 @@ export default function BillsAndPaymentsPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setCardModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
-                >
-                  Save card
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2">
+                {savedCard ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCard}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                  >
+                    Remove card
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCardModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
+                  >
+                    Save card
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2824,6 +2984,13 @@ export default function BillsAndPaymentsPage() {
         onClose={() => setBoosterOpen(false)}
         currentRemainingGb={20}
         onApplyBooster={(addedGb: number, cost: number) => {
+          recordBoosterPurchase({
+            addedGb,
+            cost,
+            lineId: lines[0]?.id || "primary-line-1",
+            lineNumber: lines[0]?.number,
+            boosterName: `${addedGb} GB Data Booster`,
+          });
           setExtraSpend((prev) => ({
             ...prev,
             boosters: Number((prev.boosters + cost).toFixed(2)),
@@ -2839,7 +3006,7 @@ export default function BillsAndPaymentsPage() {
       <ComparePlansModal
         isOpen={comparePlansOpen}
         onClose={() => setComparePlansOpen(false)}
-        currentPlanName={lines[0]?.planName || "Zoiko Max 30GB"}
+        currentPlanName={lines[0]?.planName || "Zoiko SIM Plan"}
         onSelectPlan={(planTitle: string) => {
           setComparePlansOpen(false);
           showToast(`Selected ${planTitle}`, "info");

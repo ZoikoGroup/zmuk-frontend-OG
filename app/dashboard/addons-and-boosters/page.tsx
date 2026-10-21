@@ -6,6 +6,11 @@ import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
 import beQuick from "../../utils/dasdbeQuickApi";
 import {
+  getFallbackUserLine,
+  getBoosterSummary,
+  recordBoosterPurchase,
+} from "../../utils/dashboardSync";
+import {
   Smartphone,
   ChevronDown,
   RotateCw,
@@ -486,7 +491,7 @@ export default function AddonsAndBoostersPage() {
             ? formatUkPhone(rawMsisdn)
             : `SIM #${idx + 1}`;
 
-          let planName = l.plan_name || "Zoiko Max 30GB";
+          let planName = l.plan_name || "Zoiko SIM Plan";
           let dataTotalGb = 30;
           let dataUsedGb = 0;
           let renewDate = "28 Apr";
@@ -614,6 +619,34 @@ export default function AddonsAndBoostersPage() {
         });
       }
 
+      if (assembledLines.length === 0) {
+        const fallback = getFallbackUserLine();
+        if (fallback) {
+          const boosterInfo = getBoosterSummary(fallback.id);
+          const nextMonth = new Date();
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          const renewStr = nextMonth.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+          });
+          assembledLines.push({
+            id: fallback.id,
+            number: fallback.number,
+            label: "Primary",
+            planName: fallback.planName,
+            status: "Active",
+            dataRemainingGb: Number(
+              Math.max(0, fallback.planGb - 14.2 + boosterInfo.totalGb).toFixed(1)
+            ),
+            dataTotalGb: Number((fallback.planGb + boosterInfo.totalGb).toFixed(1)),
+            callsLabel: "Unlimited",
+            textsLabel: "Unlimited",
+            renewDate: renewStr,
+            accountSuffix: String(fallback.id || "").slice(-4),
+          });
+        }
+      }
+
       setLines(assembledLines);
       if (assembledLines.length > 0) {
         setSelectedLineId((prev) =>
@@ -632,6 +665,21 @@ export default function AddonsAndBoostersPage() {
 
   useEffect(() => {
     fetchAddonsData(false);
+    const handleSync = () => {
+      fetchAddonsData(false);
+      const savedAddons = localStorage.getItem("zoiko_line_addons");
+      if (savedAddons) {
+        try {
+          setLineAddonsMap(JSON.parse(savedAddons));
+        } catch {}
+      }
+    };
+    window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-auth", handleSync);
+    return () => {
+      window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-auth", handleSync);
+    };
   }, [fetchAddonsData]);
 
   const currentLine: AddonLineRecord | null =
@@ -677,6 +725,19 @@ export default function AddonsAndBoostersPage() {
     if (typeof window !== "undefined") {
       localStorage.setItem("zoiko_line_addons", JSON.stringify(nextMap));
     }
+
+    const gbMatch =
+      pendingPurchase.title.match(/(\d+)\s*GB/i) ||
+      pendingPurchase.subtitle.match(/(\d+)\s*GB/i);
+    const addedGb = gbMatch ? Number(gbMatch[1]) : 0;
+
+    recordBoosterPurchase({
+      addedGb,
+      cost: pendingPurchase.price,
+      lineId: currentLine.id,
+      lineNumber: currentLine.number,
+      boosterName: pendingPurchase.title,
+    });
 
     setManageFilter(newItem.status === "Recurring" ? "Recurring" : "Active");
     showToast(`${pendingPurchase.title} added to ${currentLine.number}`);
@@ -780,9 +841,9 @@ export default function AddonsAndBoostersPage() {
 
   return (
     <div className="min-h-screen bg-[#EDEEF2] text-[#0D1935] font-sans p-4 md:p-5">
-      <div className="max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-5 items-start">
+      <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Sticky Sidebar */}
-        <div className="w-full lg:w-64 min-w-[256px] lg:sticky lg:top-5 shrink-0">
+        <div className="w-full lg:w-auto lg:sticky lg:top-5 shrink-0 z-30">
           <DashboardSidebar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
