@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
+import { validateUkMobile, validateEmail, validateName, validateUkPostcode } from "../utils/validators";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -122,8 +123,29 @@ function Switch() {
     setForm((f) => ({ ...f, [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value }));
   };
 
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
+
   const next = (e: FormEvent) => {
     e.preventDefault();
+    if (step === 1) {
+      const errors: Record<string, string> = {};
+      const fCheck = validateName(form.firstName, "First name");
+      if (!fCheck.isValid) errors.firstName = fCheck.error!;
+      const lCheck = validateName(form.lastName, "Last name");
+      if (!lCheck.isValid) errors.lastName = lCheck.error!;
+      const eCheck = validateEmail(form.email);
+      if (!eCheck.isValid) errors.email = eCheck.error!;
+      const mCheck = validateUkMobile(form.mobile);
+      if (!mCheck.isValid) errors.mobile = mCheck.error!;
+      const pCheck = validateUkPostcode(form.postcode);
+      if (!pCheck.isValid) errors.postcode = pCheck.error!;
+
+      if (Object.keys(errors).length > 0) {
+        setStepErrors(errors);
+        return;
+      }
+      setStepErrors({});
+    }
     setStep((s) => Math.min(3, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
@@ -223,22 +245,27 @@ function Switch() {
                     <div>
                       <label htmlFor="firstName" className={labelCx}>First Name <span className="text-[#e6007e]">*</span></label>
                       <input id="firstName" name="firstName" required value={form.firstName} onChange={update} className={inputCx} />
+                      {stepErrors.firstName && <p className="text-red-500 text-xs mt-1">{stepErrors.firstName}</p>}
                     </div>
                     <div>
                       <label htmlFor="lastName" className={labelCx}>Last Name <span className="text-[#e6007e]">*</span></label>
                       <input id="lastName" name="lastName" required value={form.lastName} onChange={update} className={inputCx} />
+                      {stepErrors.lastName && <p className="text-red-500 text-xs mt-1">{stepErrors.lastName}</p>}
                     </div>
                     <div>
                       <label htmlFor="email" className={labelCx}>Email <span className="text-[#e6007e]">*</span></label>
                       <input id="email" name="email" type="email" required value={form.email} onChange={update} className={inputCx} />
+                      {stepErrors.email && <p className="text-red-500 text-xs mt-1">{stepErrors.email}</p>}
                     </div>
                     <div>
                       <label htmlFor="mobile" className={labelCx}>Mobile <span className="text-[#e6007e]">*</span></label>
                       <input id="mobile" name="mobile" type="tel" required value={form.mobile} onChange={update} className={inputCx} />
+                      {stepErrors.mobile && <p className="text-red-500 text-xs mt-1">{stepErrors.mobile}</p>}
                     </div>
                     <div className="sm:col-span-2">
                       <label htmlFor="postcode" className={labelCx}>Billing Address / Postcode <span className="text-[#e6007e]">*</span></label>
                       <input id="postcode" name="postcode" required value={form.postcode} onChange={update} className={inputCx} />
+                      {stepErrors.postcode && <p className="text-red-500 text-xs mt-1">{stepErrors.postcode}</p>}
                     </div>
                   </div>
 

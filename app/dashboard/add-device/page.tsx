@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { validateImeiOrEid } from "../../utils/validators";
 
 // ---------- Types ----------
 interface DeviceOption {
@@ -54,12 +55,12 @@ export default function AddDevicePage() {
   };
 
   const validateIMEI = (): boolean => {
-    const valid = /^\d{15,16}$/.test(imei) || /^\d{32}$/.test(imei);
-    if (!valid) {
-      setValidationMsg("Please enter a valid 15/16-digit IMEI or 32-digit EID number.");
+    const check = validateImeiOrEid(imei);
+    if (!check.isValid) {
+      setValidationMsg(`❌ ${check.error || "Please enter a valid 15-digit IMEI or 32-digit EID number."}`);
       return false;
     }
-    setValidationMsg("✅ IMEI/EID validated successfully!");
+    setValidationMsg(`✅ ${check.type || "IMEI"} validated successfully!`);
     return true;
   };
 

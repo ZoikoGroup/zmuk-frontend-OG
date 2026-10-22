@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 // import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import { validateEmail, validatePassword, validateName } from "../utils/validators";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // In .env.local:
@@ -234,6 +235,17 @@ function LoginInner() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const emailCheck = validateEmail(loginEmail);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || "Please enter a valid email address.");
+      return;
+    }
+    if (!loginPassword) {
+      setError("Please enter your password.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/accounts/login/`, {
@@ -261,6 +273,24 @@ function LoginInner() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const nameCheck = validateName(regName, "Full name");
+    if (!nameCheck.isValid) {
+      setError(nameCheck.error || "Please enter your full name.");
+      return;
+    }
+
+    const emailCheck = validateEmail(regEmail);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || "Please enter a valid email address.");
+      return;
+    }
+
+    const passCheck = validatePassword(regPassword);
+    if (!passCheck.isValid) {
+      setError(passCheck.error || "Password does not meet complexity requirements.");
+      return;
+    }
 
     if (regPassword !== regConfirm) {
       setError("Passwords do not match.");
@@ -312,6 +342,13 @@ function LoginInner() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const emailCheck = validateEmail(resetEmail);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || "Please enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/accounts/forgot-password/`, {
