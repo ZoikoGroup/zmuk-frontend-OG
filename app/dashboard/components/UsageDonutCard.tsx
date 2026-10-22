@@ -162,7 +162,7 @@ export default function UsageDonutCard({
           </button>
         ) : (
           <a
-            href="/30-day-plan"
+            href="/dashboard/addons-and-boosters"
             className="w-full py-2.5 px-4 bg-[#E01C5B] hover:bg-[#c9144e] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />

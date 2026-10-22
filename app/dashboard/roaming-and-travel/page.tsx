@@ -51,6 +51,7 @@ import {
   getBoosterSummary,
   recordBoosterPurchase,
 } from "../../utils/dashboardSync";
+import { validateSpendLimit } from "../../utils/validators";
 
 export interface RoamingLineRecord {
   id: string;
@@ -945,8 +946,12 @@ export default function RoamingAndTravelPage() {
 
   const handleSaveBillLimit = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(tempBillLimit);
-    if (isNaN(val) || val < 0) return;
+    const check = validateSpendLimit(tempBillLimit);
+    if (!check.isValid) {
+      showToast(check.error || "Please enter a valid limit.", "info");
+      return;
+    }
+    const val = check.amount ?? 0;
     setBillLimit(val);
     try {
       localStorage.setItem("zoiko_bill_limit", String(val));
@@ -963,7 +968,10 @@ export default function RoamingAndTravelPage() {
 
   const handleSubmitRoamingQuery = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryRoamingNote.trim()) return;
+    if (!queryRoamingNote.trim() || queryRoamingNote.trim().length < 10) {
+      showToast("Please provide at least 10 characters describing your query.", "info");
+      return;
+    }
     const refCode = `ZM-ROAM-${Math.floor(100000 + Math.random() * 900000)}`;
     setQueryRoamingModalOpen(false);
     setQueryRoamingNote("");

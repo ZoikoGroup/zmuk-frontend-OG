@@ -561,6 +561,39 @@ export default function DashboardPage() {
 
           return [primaryLine];
         }
+
+        // Merge any user added lines from Add New Number wizard
+        try {
+          const storedAdded = localStorage.getItem("zoiko_added_lines");
+          if (storedAdded) {
+            const parsedAdded = JSON.parse(storedAdded);
+            if (Array.isArray(parsedAdded) && parsedAdded.length > 0) {
+              const existingIds = new Set(current.map((p) => p.id));
+              const existingNumbers = new Set(current.map((p) => p.number.replace(/\D/g, "")));
+              const toAdd = parsedAdded.filter(
+                (l: any) => !existingIds.has(l.id) && !existingNumbers.has(l.number.replace(/\D/g, ""))
+              );
+              if (toAdd.length > 0) {
+                setDataMetrics((prevMetrics) => {
+                  const updated = { ...prevMetrics };
+                  toAdd.forEach((line: any) => {
+                    if (!updated[line.id]) {
+                      const gb = line.planGb || (line.planName.toLowerCase().includes("unlimited") ? 100 : 30);
+                      updated[line.id] = {
+                        total: gb,
+                        remaining: gb,
+                        used: 0,
+                      };
+                    }
+                  });
+                  return updated;
+                });
+                return [...current, ...toAdd];
+              }
+            }
+          }
+        } catch {}
+
         return current;
       });
 
@@ -609,9 +642,11 @@ export default function DashboardPage() {
     loadDynamicDashboard();
     const handleSync = () => loadDynamicDashboard();
     window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-lines-updated", handleSync);
     window.addEventListener("zoiko-auth", handleSync);
     return () => {
       window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-lines-updated", handleSync);
       window.removeEventListener("zoiko-auth", handleSync);
     };
   }, [loadDynamicDashboard]);
@@ -958,7 +993,7 @@ export default function DashboardPage() {
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
             onManagePlan={() => router.push("/dashboard/compare-plans")}
-            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onAddNewNumber={() => router.push("/dashboard/add-new-number")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
           />
 
@@ -1021,9 +1056,9 @@ export default function DashboardPage() {
 
           {/* ── ROW 3: QUICK ACTIONS (5 TILES) ── */}
           <QuickActionsRow
-            onAddData={() => setBoosterOpen(true)}
+            onAddData={() => router.push("/dashboard/addons-and-boosters")}
             onManageSim={() => router.push("/dashboard/sim-and-esim")}
-            onTransferNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onTransferNumber={() => router.push("/switch-and-save")}
             onRoamingSettings={() => router.push("/dashboard/roaming-and-travel")}
             onLatestOffers={() => router.push("/dashboard/latest-offers")}
           />
@@ -1068,7 +1103,7 @@ export default function DashboardPage() {
             lines={displayLines}
             activeLineId={activeLineId || displayLines[0]?.id || ""}
             onSelectLine={handleSelectLine}
-            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onAddNewNumber={() => router.push("/dashboard/add-new-number")}
             onManageMobile={() => router.push("/dashboard/sim-and-esim")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onSwapSim={() => router.push("/dashboard/sim-and-esim")}

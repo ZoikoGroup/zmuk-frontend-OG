@@ -100,12 +100,15 @@ export default function BillsPaymentsCard({
     >
       {/* Card Header */}
       <div className="flex items-start justify-between pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center flex-shrink-0">
+        <div
+          onClick={onViewAllBills || (() => window.location.assign("/dashboard/bills-and-payments"))}
+          className="flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
             <Receipt className="w-5 h-5 text-[#E01C5B]" />
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-[#0D1935]">
+            <h3 className="text-base sm:text-lg font-bold text-[#0D1935] group-hover:text-[#E01C5B] transition-colors">
               Bills &amp; payments
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">

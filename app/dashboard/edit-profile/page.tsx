@@ -41,6 +41,12 @@ import DashboardTopNav from "../components/DashboardTopNav";
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import {
+  validateUkMobile,
+  validateEmail,
+  validatePassword,
+  validateName,
+} from "../../utils/validators";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const UPDATE_PROFILE_URL = `${API_BASE}/api/accounts/update-profile/`;
@@ -592,8 +598,14 @@ export default function EditProfilePage() {
   // Save Legal Name
   const handleSaveLegalName = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editLegalFirst.trim()) {
-      showToast("First name cannot be empty.");
+    const firstCheck = validateName(editLegalFirst, "First name");
+    if (!firstCheck.isValid) {
+      showToast(firstCheck.error || "First name is invalid.");
+      return;
+    }
+    const lastCheck = editLegalLast.trim() ? validateName(editLegalLast, "Last name") : { isValid: true, cleaned: "" };
+    if (!lastCheck.isValid) {
+      showToast(lastCheck.error || "Last name is invalid.");
       return;
     }
     setSavingLoading(true);
@@ -606,22 +618,22 @@ export default function EditProfilePage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            first_name: editLegalFirst.trim(),
-            last_name: editLegalLast.trim(),
+            first_name: firstCheck.cleaned,
+            last_name: lastCheck.cleaned,
           }),
         }).catch(() => {});
       }
 
-      setLegalFirstName(editLegalFirst.trim());
-      setLegalLastName(editLegalLast.trim());
+      setLegalFirstName(firstCheck.cleaned || "");
+      setLegalLastName(lastCheck.cleaned || "");
 
       const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
       localStorage.setItem(
         "zoiko_user",
         JSON.stringify({
           ...user,
-          first_name: editLegalFirst.trim(),
-          last_name: editLegalLast.trim(),
+          first_name: firstCheck.cleaned,
+          last_name: lastCheck.cleaned,
         })
       );
 
@@ -636,27 +648,31 @@ export default function EditProfilePage() {
   // Save Preferred Name
   const handleSavePreferredName = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editPrefName.trim()) {
-      showToast("Preferred name cannot be empty.");
+    const prefCheck = validateName(editPrefName, "Preferred name");
+    if (!prefCheck.isValid) {
+      showToast(prefCheck.error || "Preferred name is invalid.");
       return;
     }
-    setPreferredName(editPrefName.trim());
-    localStorage.setItem("zoiko_preferred_name", editPrefName.trim());
+    const cleanPref = prefCheck.cleaned || editPrefName.trim();
+    setPreferredName(cleanPref);
+    localStorage.setItem("zoiko_preferred_name", cleanPref);
     window.dispatchEvent(new Event("zoiko-auth"));
     setModal(null);
-    showToast(`We’ll call you ${editPrefName.trim()} across the site and emails.`);
+    showToast(`We’ll call you ${cleanPref} across the site and emails.`);
   };
 
   // Save Email
   const handleSaveEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editEmail.includes("@")) {
-      showToast("Please enter a valid email address.");
+    const emailCheck = validateEmail(editEmail);
+    if (!emailCheck.isValid) {
+      showToast(emailCheck.error || "Please enter a valid email address.");
       return;
     }
-    setEmail(editEmail.trim());
+    const cleanEmail = emailCheck.normalized || editEmail.trim();
+    setEmail(cleanEmail);
     const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, email: editEmail.trim() }));
+    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, email: cleanEmail }));
     setModal(null);
     showToast("Verification link sent to your updated email address.");
   };
@@ -664,13 +680,15 @@ export default function EditProfilePage() {
   // Save Mobile
   const handleSavePhone = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editPhone.trim().length < 8) {
-      showToast("Please enter a valid UK mobile number.");
+    const phoneCheck = validateUkMobile(editPhone);
+    if (!phoneCheck.isValid) {
+      showToast(phoneCheck.error || "Please enter a valid UK mobile number.");
       return;
     }
-    setContactMobile(editPhone.trim());
+    const cleanPhone = phoneCheck.formatted || editPhone.trim();
+    setContactMobile(cleanPhone);
     const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, phone: editPhone.trim() }));
+    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, phone: cleanPhone }));
     setModal(null);
     showToast("Contact mobile number updated.");
   };
@@ -678,7 +696,10 @@ export default function EditProfilePage() {
   // Save Billing Address
   const handleSaveBilling = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editBillingAddr.trim()) return;
+    if (!editBillingAddr.trim() || editBillingAddr.trim().length < 5) {
+      showToast("Please enter a valid address (at least 5 characters).");
+      return;
+    }
     setBillingAddress(editBillingAddr.trim());
     localStorage.setItem("zoiko_billing_address", editBillingAddr.trim());
     setModal(null);
@@ -688,7 +709,10 @@ export default function EditProfilePage() {
   // Save Delivery Address
   const handleSaveDelivery = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editDeliveryAddr.trim()) return;
+    if (!editDeliveryAddr.trim() || editDeliveryAddr.trim().length < 5) {
+      showToast("Please enter a valid address (at least 5 characters).");
+      return;
+    }
     setDeliveryAddress(editDeliveryAddr.trim());
     localStorage.setItem("zoiko_delivery_address", editDeliveryAddr.trim());
     setModal(null);
@@ -698,8 +722,9 @@ export default function EditProfilePage() {
   // Save Password
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 8) {
-      showToast("Password must be at least 8 characters.");
+    const passCheck = validatePassword(newPassword);
+    if (!passCheck.isValid) {
+      showToast(passCheck.error || "Password does not meet complexity requirements.");
       return;
     }
     if (newPassword !== confirmPassword) {

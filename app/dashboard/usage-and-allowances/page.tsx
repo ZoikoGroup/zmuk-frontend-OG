@@ -481,6 +481,124 @@ export default function UsageAndAllowancesPage() {
 
       let foundSubscriberId: string | number | null = userData?.subscriber_id || null;
 
+      // Dynamic collection for Django SIM park orders
+      const orderLines: UsageLineItem[] = [];
+      const orderMetricsMap: Record<string, LineAllowanceMetrics> = {};
+
+      if (email) {
+        try {
+          const simRes = await fetch(`${API_BASE}/api/v1/sims/orders/by-user/`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Token ${token}` } : {}),
+            },
+            body: JSON.stringify({ email, logged_user: email }),
+          });
+          if (simRes.ok) {
+            const simData = await simRes.json();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ordersList: any[] = Array.isArray(simData.orders)
+              ? simData.orders
+              : [];
+            if (!ordersList.length && simData.groups?.[email]) {
+              for (const [, entries] of Object.entries(simData.groups[email] as Record<string, any[]>)) {
+                if (entries?.[0]) ordersList.push(entries[0]);
+              }
+            }
+
+            for (const ord of ordersList) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const assignedSims: any[] = Array.isArray(ord.sims) ? ord.sims : [];
+              for (const sim of assignedSims) {
+                if (!sim.msisdn && !sim.iccid) continue;
+                const formattedNum = formatUkNumber(sim.msisdn || "");
+                const lineId = String(sim.iccid || sim.msisdn || Math.random());
+
+                const matchedCataloguePlan = cataloguePlans.find(
+                  (cp) =>
+                    (sim.transatelID && String(cp.transatelID) === String(sim.transatelID)) ||
+                    (sim.plan_name && cp.name?.toLowerCase() === sim.plan_name.toLowerCase())
+                );
+
+                const planName = matchedCataloguePlan?.name || sim.plan_name || "Zoiko Max 30GB";
+                const isUnlim = planName.toLowerCase().includes("unlimited");
+                const parsedGb = matchedCataloguePlan?.data_allowance
+                  ? parseFloat(String(matchedCataloguePlan.data_allowance))
+                  : 30;
+                const totalGb = !isNaN(parsedGb) ? parsedGb : 30;
+
+                const startAt = new Date(now.getFullYear(), now.getMonth(), 1);
+                const endAt = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+                orderMetricsMap[lineId] = {
+                  dataTotal: totalGb,
+                  dataUsed: 0,
+                  dataRemaining: totalGb,
+                  roamingDataUsed: 0,
+                  callsUnlimited: true,
+                  callsTotal: null,
+                  callsUsed: 0,
+                  callsRemaining: null,
+                  textsUnlimited: true,
+                  textsTotal: null,
+                  textsUsed: 0,
+                  textsRemaining: null,
+                  roamingTotal: Math.min(15, totalGb),
+                  roamingUsed: 0,
+                  roamingRemaining: Math.min(15, totalGb),
+                  activeBoostersCount: 0,
+                  activeBoostersGb: 0,
+                };
+
+                orderLines.push({
+                  id: lineId,
+                  number: formattedNum,
+                  planName,
+                  status:
+                    sim.provisioning_status === "ACTIVATED" || sim.activated_at
+                      ? "Active"
+                      : "Pending",
+                  isPrimary: false,
+                  isUnlimited: isUnlim,
+                  renewDate: endAt.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                  }),
+                  renewDateFull: endAt.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }),
+                  daysUntilRenew: Math.max(
+                    0,
+                    Math.ceil((endAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                  ),
+                  cycleStartLabel: startAt.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                  }),
+                  cycleEndLabel: endAt.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                  }),
+                  cycleEndWithYear: endAt.toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }),
+                  cycleTotalDays: 30,
+                  cycleCompletedDays: Math.max(1, now.getDate() - 1),
+                  cycleStartDate: startAt,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Could not query Django sims orders for usage:", e);
+        }
+      }
+
       // 1. Check Django bqorders for subscriber_id
       if (token && email && !foundSubscriberId) {
         try {
@@ -798,16 +916,35 @@ export default function UsageAndAllowancesPage() {
         }
       }
 
-      // If no BeQuick telecom lines were returned yet, check fallback
+      // Merge BeQuick lines, Django Transatel lines, and fallback
       setLines((current) => {
-        if (current.length === 0) {
-          const fallback = getFallbackUserLine(userData);
-          if (!fallback) {
-            setSelectedLineId("");
-            setMetricsByLine({});
-            setUnreadNotifications(0);
-            return [];
+        const combined = [...current];
+        for (const ol of orderLines) {
+          if (!combined.some((l) => l.number === ol.number || l.id === ol.id)) {
+            combined.push(ol);
           }
+        }
+
+        if (combined.length > 0) {
+          if (!combined.some((l) => l.isPrimary)) {
+            combined[0].isPrimary = true;
+          }
+          const primary = combined.find((l) => l.isPrimary) || combined[0];
+          setSelectedLineId((prev) =>
+            prev && combined.some((l) => l.id === prev) ? prev : primary.id
+          );
+          setMetricsByLine((prev) => ({ ...orderMetricsMap, ...prev }));
+          setUnreadNotifications(combined.length);
+          return combined;
+        }
+
+        const fallback = getFallbackUserLine(userData);
+        if (!fallback) {
+          setSelectedLineId("");
+          setMetricsByLine({});
+          setUnreadNotifications(0);
+          return [];
+        }
           const boosterInfo = getBoosterSummary(fallback.id);
           const baseGb = fallback.planGb;
           const storedRemaining =
@@ -885,8 +1022,6 @@ export default function UsageAndAllowancesPage() {
           setSelectedLineId(primaryLine.id);
           setUnreadNotifications(1);
           return [primaryLine];
-        }
-        return current;
       });
     } finally {
       setIsLoading(false);
@@ -948,6 +1083,30 @@ export default function UsageAndAllowancesPage() {
       cycleStartDate: startOfMonth,
     };
   }, [lines, selectedLineId]);
+
+  const hasActiveNumber = useMemo(() => {
+    return lines.length > 0 && Boolean(currentLine.id) && currentLine.number !== "No active number";
+  }, [lines, currentLine]);
+
+  const handleOpenBooster = useCallback(
+    (booster?: { gb: number; price: number }) => {
+      if (!hasActiveNumber) {
+        showToast(
+          "You must have an active mobile number to purchase a data booster. Redirecting to add a number...",
+          "info"
+        );
+        setTimeout(() => {
+          router.push("/dashboard/add-new-number");
+        }, 1200);
+        return;
+      }
+      if (booster) {
+        setPreselectedBooster(booster);
+      }
+      setBoosterOpen(true);
+    },
+    [hasActiveNumber, router]
+  );
 
   const currentMetrics: LineAllowanceMetrics = useMemo(() => {
     if (currentLine.id && metricsByLine[currentLine.id]) {
@@ -1165,7 +1324,7 @@ export default function UsageAndAllowancesPage() {
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
-            onOpenBoosterModal={() => setBoosterOpen(true)}
+            onOpenBoosterModal={() => handleOpenBooster()}
             onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
@@ -1188,7 +1347,7 @@ export default function UsageAndAllowancesPage() {
             activeLineId={currentLine.id}
             onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
-            onOpenBoosterModal={() => setBoosterOpen(true)}
+            onOpenBoosterModal={() => handleOpenBooster()}
             customTitle="Usage & allowances"
             customSubtitle="Check your data, calls and texts, see what your plan includes, and add more before you run out."
             hideDemoBadgeInHeader={true}
@@ -1431,11 +1590,11 @@ export default function UsageAndAllowancesPage() {
                   <div className="pt-1 flex items-center justify-between gap-2 flex-wrap relative z-10">
                     <button
                       type="button"
-                      onClick={() => setBoosterOpen(true)}
+                      onClick={() => handleOpenBooster()}
                       className="h-9 px-3.5 py-2 bg-white rounded-[10px] inline-flex items-center gap-2 text-[#B8144A] text-xs font-semibold hover:bg-white/95 transition cursor-pointer shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>Buy data booster</span>
+                      <span>{hasActiveNumber ? "Buy data booster" : "Add a number"}</span>
                     </button>
                     <div className="flex items-center gap-1.5 text-xs text-white/85">
                       <Clock className="w-3 h-3 text-white/85" />
@@ -2286,10 +2445,7 @@ export default function UsageAndAllowancesPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => {
-                              setPreselectedBooster({ gb: 2, price: 3 });
-                              setBoosterOpen(true);
-                            }}
+                            onClick={() => handleOpenBooster({ gb: 2, price: 3 })}
                             className="h-9 px-3.5 py-2 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c8164f] transition cursor-pointer"
                           >
                             Review
@@ -2318,10 +2474,7 @@ export default function UsageAndAllowancesPage() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => {
-                              setPreselectedBooster({ gb: 5, price: 5 });
-                              setBoosterOpen(true);
-                            }}
+                            onClick={() => handleOpenBooster({ gb: 5, price: 5 })}
                             className="h-9 px-3.5 py-2 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c8164f] transition cursor-pointer"
                           >
                             Review
@@ -2603,9 +2756,21 @@ export default function UsageAndAllowancesPage() {
                     <div className="mt-3 flex items-start gap-1.5 text-xs text-[#5E6E8C] leading-4">
                       <Mail className="w-3.5 h-3.5 text-[#5E6E8C] shrink-0 mt-0.5" />
                       <span>
-                        Sent by text to {currentLine.number} and email to
-                        <br />
-                        {maskEmail(accountEmail)}
+                        {hasActiveNumber ? (
+                          <>
+                            Sent by text to {currentLine.number} and email to
+                            <br />
+                            {maskEmail(accountEmail)}
+                          </>
+                        ) : (
+                          <>
+                            Sent by email to {maskEmail(accountEmail)}
+                            <br />
+                            <span className="text-[11px] text-[#E01C5B]">
+                              Add a mobile number to receive text alerts
+                            </span>
+                          </>
+                        )}
                       </span>
                     </div>
 

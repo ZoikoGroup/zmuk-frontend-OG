@@ -54,7 +54,7 @@ export default function DataUsageHistoryCard({
               Data usage
             </h3>
             <a
-              href={`/dashboard/plan-usages/${activeLineId || "1"}`}
+              href="/dashboard/usage-and-allowances"
               className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline"
             >
               <span>Full usage report</span>
@@ -119,7 +119,7 @@ export default function DataUsageHistoryCard({
             UK data and international roaming consumption will be tracked across your billing cycles once your SIM is active.
           </p>
           <a
-            href="/30-day-plan"
+            href="/dashboard/addons-and-boosters"
             className="mt-4 px-4 py-2 rounded-xl bg-[#E01C5B] text-white font-semibold text-xs hover:bg-[#c9144e] transition cursor-pointer shadow-xs"
           >
             Browse SIM Plans

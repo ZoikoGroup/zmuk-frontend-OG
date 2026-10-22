@@ -368,8 +368,12 @@ export default function SupportPage() {
   // Submit new request
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRequestSubject.trim() || !newRequestMessage.trim()) {
-      showToast("Please provide both a subject and details.");
+    if (newRequestSubject.trim().length < 4) {
+      showToast("Subject must be at least 4 characters.");
+      return;
+    }
+    if (newRequestMessage.trim().length < 10) {
+      showToast("Please describe your request with at least 10 characters.");
       return;
     }
 
@@ -414,8 +418,12 @@ export default function SupportPage() {
   // Submit formal complaint
   const handleCreateComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!complaintSubject.trim() || !complaintDetails.trim()) {
-      showToast("Please provide subject and complaint details.");
+    if (complaintSubject.trim().length < 4) {
+      showToast("Complaint subject must be at least 4 characters.");
+      return;
+    }
+    if (complaintDetails.trim().length < 15) {
+      showToast("Please provide at least 15 characters describing the complaint.");
       return;
     }
 

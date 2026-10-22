@@ -485,7 +485,10 @@ export default function ReferAndEarnPage() {
 
   const handleSubmitSupportCase = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supportMessage.trim()) return;
+    if (!supportMessage.trim() || supportMessage.trim().length < 10) {
+      showToast("Please provide at least 10 characters explaining your question.");
+      return;
+    }
     setSupportModalOpen(false);
     setSupportRefId("");
     setSupportMessage("");

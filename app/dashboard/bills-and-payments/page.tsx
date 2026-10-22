@@ -56,6 +56,7 @@ import {
   getBoosterSummary,
   recordBoosterPurchase,
 } from "../../utils/dashboardSync";
+import { validateSpendLimit, validateCardExpiry } from "../../utils/validators";
 
 export interface BillingLineItem {
   id: string;
@@ -341,6 +342,7 @@ export default function BillsAndPaymentsPage() {
 
       let foundSubscriberId: string | number | null = userData?.subscriber_id || null;
       const djangoInvoices: IssuedBillItem[] = [];
+      const orderBillingLines: BillingLineItem[] = [];
 
       // 1. Check Django bqorders for subscriber_id & real user orders
       if (token && email) {
@@ -400,7 +402,7 @@ export default function BillsAndPaymentsPage() {
           console.warn("Could not query Django bqorders:", e);
         }
 
-        // 1b. Also check Django sims/orders/by-user
+        // 1b. Check Django sims/orders/by-user for Transatel lines and orders
         try {
           const simRes = await fetch(`${API_BASE}/api/v1/sims/orders/by-user/`, {
             method: "POST",
@@ -408,46 +410,89 @@ export default function BillsAndPaymentsPage() {
               "Content-Type": "application/json",
               Authorization: `Token ${token}`,
             },
-            body: JSON.stringify({ logged_user: email }),
+            body: JSON.stringify({ email, logged_user: email }),
           });
           if (simRes.ok) {
             const simData = await simRes.json();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const groups = (simData.groups?.[email] || {}) as Record<string, any[]>;
-            for (const [orderKey, entries] of Object.entries(groups)) {
-              const entry = entries?.[0];
-              if (!entry) continue;
-              const amt = Number(entry.total || entry.amount || 0);
-              if (amt > 0 && djangoInvoices.length === 0) {
-                const createdObj = entry.created_at ? new Date(entry.created_at) : now;
-                const issuedDateStr = createdObj.toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                });
-                const dueShortStr = createdObj.toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "short",
-                });
-                const dueWeekdayStr = createdObj.toLocaleDateString("en-GB", {
-                  weekday: "long",
-                });
-                const monthShortStr = createdObj.toLocaleDateString("en-GB", {
-                  month: "short",
-                });
-                djangoInvoices.push({
-                  id: `sim-ord-${orderKey}`,
-                  reference: `INV-SIM-${orderKey}`,
-                  amount: Number(amt.toFixed(2)),
-                  issuedDate: issuedDateStr,
-                  dueDate: issuedDateStr,
-                  dueShort: dueShortStr,
-                  dueWeekday: dueWeekdayStr,
-                  periodLabel: issuedDateStr,
-                  monthShort: monthShortStr,
-                  status: "Paid",
+            const ordersList: any[] = Array.isArray(simData.orders)
+              ? simData.orders
+              : [];
+            if (!ordersList.length && simData.groups?.[email]) {
+              for (const [, entries] of Object.entries(simData.groups[email] as Record<string, any[]>)) {
+                if (entries?.[0]) ordersList.push(entries[0]);
+              }
+            }
+
+            for (const ord of ordersList) {
+              const orderRef = ord.order_reference || ord.order_id || ord.id || "ORD";
+              const amt = Number(ord.total || ord.amount || 0);
+              const createdObj = ord.created_at ? new Date(ord.created_at) : now;
+              const issuedDateStr = createdObj.toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              });
+              const dueShortStr = createdObj.toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+              });
+              const dueWeekdayStr = createdObj.toLocaleDateString("en-GB", {
+                weekday: "long",
+              });
+              const monthShortStr = createdObj.toLocaleDateString("en-GB", {
+                month: "short",
+              });
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const assignedSims: any[] = Array.isArray(ord.sims) ? ord.sims : [];
+              let orderPriceTotal = 0;
+              for (const sim of assignedSims) {
+                if (!sim.msisdn && !sim.iccid) continue;
+                const formattedNum = formatUkNumber(sim.msisdn || "");
+                const lineId = String(sim.iccid || sim.msisdn || Math.random());
+
+                const matchedCataloguePlan = cataloguePlans.find(
+                  (cp) =>
+                    (sim.transatelID && String(cp.transatelID) === String(sim.transatelID)) ||
+                    (sim.plan_name && cp.name?.toLowerCase() === sim.plan_name.toLowerCase())
+                );
+
+                const planName = matchedCataloguePlan?.name || sim.plan_name || "Zoiko Plan";
+                const monthlyPrice = Number(
+                  matchedCataloguePlan?.price_30 ||
+                    matchedCataloguePlan?.final_price ||
+                    matchedCataloguePlan?.price ||
+                    14.99
+                );
+                orderPriceTotal += monthlyPrice;
+
+                orderBillingLines.push({
+                  id: lineId,
+                  number: formattedNum,
+                  planName,
+                  monthlyPrice,
+                  status:
+                    sim.provisioning_status === "ACTIVATED" || sim.activated_at
+                      ? "Active"
+                      : "Pending",
+                  renewDate: "Monthly",
                 });
               }
+
+              const finalInvoiceAmt = amt > 0 ? amt : orderPriceTotal > 0 ? orderPriceTotal : 14.99;
+              djangoInvoices.push({
+                id: `sim-${orderRef}`,
+                reference: String(orderRef).startsWith("INV-") ? String(orderRef) : `INV-${orderRef}`,
+                amount: Number(finalInvoiceAmt.toFixed(2)),
+                issuedDate: issuedDateStr,
+                dueDate: issuedDateStr,
+                dueShort: dueShortStr,
+                dueWeekday: dueWeekdayStr,
+                periodLabel: issuedDateStr,
+                monthShort: monthShortStr,
+                status: "Paid",
+              });
             }
           }
         } catch (e) {
@@ -745,26 +790,34 @@ export default function BillsAndPaymentsPage() {
         setQueryChargeBillRef(djangoInvoices[0].reference);
       }
 
-      // If no BeQuick telecom lines were returned, check fallback
+      // Merge BeQuick lines, Django Transatel lines, and fallback
       setLines((current) => {
-        if (current.length === 0) {
-          const fallback = getFallbackUserLine(userData);
-          if (!fallback) {
-            setUnreadNotifications(0);
-            return [];
+        const combined = [...current];
+        for (const obl of orderBillingLines) {
+          if (!combined.some((l) => l.number === obl.number || l.id === obl.id)) {
+            combined.push(obl);
           }
-          const primaryLine: BillingLineItem = {
-            id: fallback.id,
-            number: fallback.number,
-            planName: fallback.planName,
-            monthlyPrice: 14.99,
-            status: "Active",
-            renewDate: "Monthly",
-          };
-          setUnreadNotifications(1);
-          return [primaryLine];
         }
-        return current;
+        if (combined.length > 0) {
+          setUnreadNotifications(combined.length);
+          return combined;
+        }
+
+        const fallback = getFallbackUserLine(userData);
+        if (!fallback) {
+          setUnreadNotifications(0);
+          return [];
+        }
+        const primaryLine: BillingLineItem = {
+          id: fallback.id,
+          number: fallback.number,
+          planName: fallback.planName,
+          monthlyPrice: 14.99,
+          status: "Active",
+          renewDate: "Monthly",
+        };
+        setUnreadNotifications(1);
+        return [primaryLine];
       });
     } catch (err) {
       console.error("Failed to load dynamic billing data:", err);
@@ -993,8 +1046,12 @@ export default function BillsAndPaymentsPage() {
 
   const handleSaveBillLimit = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(tempBillLimit);
-    if (isNaN(val) || val < 0) return;
+    const check = validateSpendLimit(tempBillLimit);
+    if (!check.isValid) {
+      showToast(check.error || "Please enter a valid limit.", "info");
+      return;
+    }
+    const val = check.amount ?? 0;
     setBillLimit(val);
     persistBillingSetting({ billLimit: val });
     setBillLimitModalOpen(false);
@@ -1003,17 +1060,19 @@ export default function BillsAndPaymentsPage() {
 
   const handleSaveDirectDebit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = tempBankLast2.replace(/\D/g, "").slice(-2);
-    if (cleaned) {
-      const val = cleaned.padStart(2, "0");
-      setBankLast2(val);
-      setMandateStatusLabel("Active");
-      if (typeof window !== "undefined") {
-        localStorage.setItem("zoiko_saved_bank", JSON.stringify({ last2: val }));
-        window.dispatchEvent(new Event("zoiko-auth"));
-      }
-      showToast(`Direct Debit mandate (••${val}) confirmed`, "success");
+    const digits = tempBankLast2.replace(/\D/g, "");
+    if (!digits || digits.length < 2) {
+      showToast("Please enter at least the last 2 digits of your bank account.", "info");
+      return;
     }
+    const val = digits.slice(-2);
+    setBankLast2(val);
+    setMandateStatusLabel("Active");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("zoiko_saved_bank", JSON.stringify({ last2: val }));
+      window.dispatchEvent(new Event("zoiko-auth"));
+    }
+    showToast(`Direct Debit mandate (••${val}) confirmed`, "success");
     setDdModalOpen(false);
   };
 
@@ -1031,7 +1090,17 @@ export default function BillsAndPaymentsPage() {
   const handleSaveCard = (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned4 = tempCardLast4.replace(/\D/g, "").slice(-4);
-    if (!cleaned4) return;
+    if (!cleaned4 || cleaned4.length !== 4) {
+      showToast("Please enter the 4-digit card ending.", "info");
+      return;
+    }
+    if (tempCardExpiry && tempCardExpiry.trim()) {
+      const expCheck = validateCardExpiry(tempCardExpiry);
+      if (!expCheck.isValid) {
+        showToast(expCheck.error || "Please enter a valid card expiry date (MM/YY).", "info");
+        return;
+      }
+    }
     const newCard: SavedCardMethod = {
       id: `pm-${Date.now()}`,
       brand: tempCardBrand || "Debit card",
@@ -1059,7 +1128,10 @@ export default function BillsAndPaymentsPage() {
 
   const handleSubmitChargeQuery = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryChargeReason.trim()) return;
+    if (!queryChargeReason.trim() || queryChargeReason.trim().length < 10) {
+      showToast("Please provide at least 10 characters explaining your query.", "info");
+      return;
+    }
     const caseRef = `ZM-${Math.floor(100000 + Math.random() * 900000)}`;
     setQueryChargeModalOpen(false);
     setQueryChargeReason("");

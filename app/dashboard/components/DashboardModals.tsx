@@ -23,6 +23,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { LineOption } from "./QuickStatusStrip";
+import { validateUkMobile } from "../../utils/validators";
 
 // ── 1. BUY DATA BOOSTER MODAL ──
 interface BoosterModalProps {
@@ -203,19 +204,15 @@ export function AddNumberModal({ isOpen, onClose, onAddNumber }: AddNumberModalP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanNum = number.replace(/\s+/g, "");
-    if (!cleanNum) {
-      setError("Please enter a valid UK mobile number.");
-      return;
-    }
-    if (cleanNum.length < 10) {
-      setError("Please enter a valid UK mobile number (minimum 10-11 digits).");
+    const phoneCheck = validateUkMobile(number);
+    if (!phoneCheck.isValid) {
+      setError(phoneCheck.error || "Please enter a valid UK mobile number.");
       return;
     }
 
     const selectedPlan = AVAILABLE_PLANS[planIndex];
     onAddNumber({
-      number,
+      number: phoneCheck.formatted || number.trim(),
       planName: selectedPlan.name,
       simType: simType === "eSIM" ? "eSIM" : "Physical SIM",
       planGb: selectedPlan.gb,
@@ -692,15 +689,20 @@ interface ReportModalProps {
 export function ReportActivityModal({ isOpen, onClose, onSubmit }: ReportModalProps) {
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!note.trim()) return;
+    if (!note.trim() || note.trim().length < 10) {
+      setError("Please provide at least 10 characters describing the issue.");
+      return;
+    }
+    setError("");
     setLoading(true);
     setTimeout(() => {
-      onSubmit(note);
+      onSubmit(note.trim());
       setLoading(false);
       setNote("");
       onClose();
@@ -734,11 +736,15 @@ export function ReportActivityModal({ isOpen, onClose, onSubmit }: ReportModalPr
           <textarea
             rows={4}
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={(e) => {
+              setNote(e.target.value);
+              if (error) setError("");
+            }}
             placeholder="Describe the issue (e.g. unfamiliar sign-in, unauthorized changes)..."
             className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-red-500 resize-none"
             required
           />
+          {error && <p className="text-red-600 text-[11px] font-medium">{error}</p>}
 
           <div className="flex gap-2.5">
             <button

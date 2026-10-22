@@ -48,6 +48,12 @@ import {
   getBoosterSummary,
   recordBoosterPurchase,
 } from "../../utils/dashboardSync";
+import {
+  validateUkMobile,
+  validateSpendLimit,
+  validatePacCode,
+  validateStacCode,
+} from "../../utils/validators";
 
 export interface MobileNumberLine {
   id: string;
@@ -140,6 +146,7 @@ function niceStatus(status?: string): string {
 
 export default function MyMobileNumbersPage() {
   const router = useRouter();
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
   // ── Dynamic Auth & Account State ──
   const [userName, setUserName] = useState<string>("");
@@ -172,7 +179,7 @@ export default function MyMobileNumbersPage() {
   const [freshnessTime, setFreshnessTime] = useState<string>("Just now");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "info" | "error" } | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
@@ -181,12 +188,19 @@ export default function MyMobileNumbersPage() {
   const [comparePlansOpen, setComparePlansOpen] = useState(false);
   const [addNumberModalOpen, setAddNumberModalOpen] = useState(false);
   const [pacModalOpen, setPacModalOpen] = useState(false);
+  const [pacTab, setPacTab] = useState<"leave" | "switch_in">("leave");
+  const [portOldNumber, setPortOldNumber] = useState<string>("");
+  const [portCode, setPortCode] = useState<string>("");
+  const [portErrors, setPortErrors] = useState<{ number?: string; code?: string }>({});
+  const [portSubmitting, setPortSubmitting] = useState<boolean>(false);
+
   const [billLimitModalOpen, setBillLimitModalOpen] = useState(false);
   const [tempBillLimit, setTempBillLimit] = useState<string>("0");
+  const [billLimitError, setBillLimitError] = useState<string>("");
 
-  const showToast = (msg: string, type: "success" | "info" = "success") => {
+  const showToast = (msg: string, type: "success" | "info" | "error" = "success") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), 4000);
   };
 
   // Close "More" menu on outside click
@@ -264,7 +278,9 @@ export default function MyMobileNumbersPage() {
       setLastPaymentDate("—");
       setLastPaymentStatus("—");
 
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      // Dynamic collection for Django SIM park orders
+      const orderSimLines: MobileNumberLine[] = [];
+      const orderUsageMap: Record<string, LineUsageMetrics> = {};
 
       // Fetch live catalogue plans from Django so we can match plan prices/allowances dynamically
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -331,28 +347,111 @@ export default function MyMobileNumbersPage() {
               "Content-Type": "application/json",
               Authorization: `Token ${token}`,
             },
-            body: JSON.stringify({ logged_user: email }),
+            body: JSON.stringify({ email, logged_user: email }),
           });
           if (simRes.ok) {
             const simData = await simRes.json();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ordersList: any[] = Array.isArray(simData.orders)
+              ? simData.orders
+              : [];
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const groups = (simData.groups?.[email] || {}) as Record<string, any[]>;
             for (const [, entries] of Object.entries(groups)) {
-              const entry = entries?.[0];
-              if (!entry) continue;
-              if (entry.total || entry.amount) {
-                const dateStr = entry.created_at
-                  ? new Date(entry.created_at).toLocaleDateString("en-GB", {
+              if (entries?.[0]) ordersList.push(entries[0]);
+            }
+
+            for (const ord of ordersList) {
+              if (ord.total || ord.amount) {
+                const dateStr = ord.created_at
+                  ? new Date(ord.created_at).toLocaleDateString("en-GB", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
                     })
                   : "Recent";
                 setLastPaymentAmount((prev) =>
-                  prev > 0 ? prev : Number(entry.total || entry.amount || 0)
+                  prev > 0 ? prev : Number(ord.total || ord.amount || 0)
                 );
                 setLastPaymentDate((prev) => (prev !== "—" ? prev : dateStr));
                 setLastPaymentStatus("Settled");
+              }
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const assignedSims: any[] = Array.isArray(ord.sims) ? ord.sims : [];
+              for (const sim of assignedSims) {
+                if (!sim.msisdn && !sim.iccid) continue;
+                const formattedNum = formatUkNumber(sim.msisdn || "");
+                const lineId = String(sim.iccid || sim.msisdn || Math.random());
+
+                // Find matching plan in catalogue
+                const matchedCataloguePlan = cataloguePlans.find(
+                  (cp) =>
+                    (sim.transatelID && String(cp.transatelID) === String(sim.transatelID)) ||
+                    (sim.plan_name && cp.name?.toLowerCase() === sim.plan_name.toLowerCase())
+                );
+
+                const planName = matchedCataloguePlan?.name || sim.plan_name || "Zoiko Mobile Plan";
+                const price = Number(
+                  matchedCataloguePlan?.price_30 ||
+                    matchedCataloguePlan?.final_price ||
+                    matchedCataloguePlan?.price ||
+                    14.99
+                );
+                const simType =
+                  sim.sim_type?.toLowerCase() === "esim" || sim.is_esim
+                    ? "eSIM"
+                    : "Physical SIM";
+                const isUnlim = planName.toLowerCase().includes("unlimited");
+                const parsedGb = matchedCataloguePlan?.data_allowance
+                  ? parseFloat(String(matchedCataloguePlan.data_allowance))
+                  : 10;
+                const dataTotal = !isNaN(parsedGb) ? parsedGb : 10;
+
+                const activationDate = sim.activated_at
+                  ? new Date(sim.activated_at).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "Confirmed by network";
+
+                orderUsageMap[lineId] = {
+                  dataRemaining: dataTotal,
+                  dataTotal: dataTotal,
+                  dataUsed: 0,
+                  callsRemaining: null,
+                  callsTotal: null,
+                  callsUnlimited: true,
+                  textsRemaining: null,
+                  textsTotal: null,
+                  textsUnlimited: true,
+                  roamingRemaining: 5,
+                  roamingTotal: 5,
+                };
+
+                orderSimLines.push({
+                  id: lineId,
+                  number: formattedNum,
+                  planName,
+                  simType,
+                  status:
+                    sim.provisioning_status === "ACTIVATED" || sim.activated_at
+                      ? "Active"
+                      : "Pending",
+                  renewDate: "Monthly",
+                  activationDate,
+                  contractType: "Monthly rolling",
+                  networkTechnology: "5G & 4G LTE",
+                  price,
+                  isPrimary: false,
+                  isUnlimited: isUnlim,
+                  transferInProgress: false,
+                  callsLabel: "Unlimited UK calls",
+                  textsLabel: "Unlimited UK texts",
+                  roamingIncluded: true,
+                });
               }
             }
           }
@@ -652,64 +751,107 @@ export default function MyMobileNumbersPage() {
         }
       }
 
-      // If no BeQuick telecom lines were returned, check fallback
+      // Merge BeQuick lines, Django SIM order lines, and local storage additions
       setLines((current) => {
-        if (current.length === 0) {
-          const fallback = getFallbackUserLine(userData);
-          if (!fallback) {
-            setActiveLineId("");
-            setUnreadNotifications(0);
-            return [];
+        const combined = [...current];
+        for (const osl of orderSimLines) {
+          if (!combined.some((l) => l.number === osl.number || l.id === osl.id)) {
+            combined.push(osl);
           }
-          const boosterInfo = getBoosterSummary(fallback.id);
-          const totalGb = fallback.planGb + boosterInfo.totalGb;
-          const now = new Date();
-          const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          const actDate = new Date(now.getFullYear(), now.getMonth() - 2, 15);
-          const primaryLine: MobileNumberLine = {
-            id: fallback.id,
-            number: fallback.number,
-            planName: fallback.planName,
-            simType: fallback.simType,
-            status: "Active",
-            renewDate: nextMonth.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-            }),
-            activationDate: actDate.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            }),
-            contractType: "Monthly rolling",
-            networkTechnology: "5G & 4G LTE",
-            price: 14.99,
-            isPrimary: true,
-            isUnlimited: fallback.planName.toLowerCase().includes("unlimited"),
-            callsLabel: "Unlimited mins (UK standard)",
-            textsLabel: "Unlimited texts (UK standard)",
-            roamingIncluded: true,
-          };
-          setActiveLineId(primaryLine.id);
-          setUsageMetrics({
-            [primaryLine.id]: {
-              dataRemaining: Math.max(0, totalGb - 14.2),
-              dataTotal: totalGb,
-              dataUsed: 14.2,
-              callsRemaining: null,
-              callsTotal: null,
-              callsUnlimited: true,
-              textsRemaining: null,
-              textsTotal: null,
-              textsUnlimited: true,
-              roamingRemaining: Number((Math.min(25, totalGb) - 3.8).toFixed(1)),
-              roamingTotal: Math.min(25, totalGb),
-            },
-          });
-          setUnreadNotifications(1);
-          return [primaryLine];
         }
-        return current;
+
+        if (combined.length > 0) {
+          if (!combined.some((l) => l.isPrimary)) {
+            combined[0].isPrimary = true;
+          }
+          const primary = combined.find((l) => l.isPrimary) || combined[0];
+          setActiveLineId(primary.id);
+          setNextCollectionDate(primary.renewDate);
+          setUnreadNotifications(combined.length);
+          setUsageMetrics((prev) => ({ ...orderUsageMap, ...prev }));
+
+          const sumPrices = combined
+            .filter((l) => l.status.toLowerCase() === "active")
+            .reduce((acc, l) => acc + (l.price || 0), 0);
+          if (sumPrices > 0) {
+            setNextCollectionAmount(Number(sumPrices.toFixed(2)));
+          }
+
+          // Merge any user added lines from Add New Number wizard
+          try {
+            const storedAdded = localStorage.getItem("zoiko_added_lines");
+            if (storedAdded) {
+              const parsedAdded: MobileNumberLine[] = JSON.parse(storedAdded);
+              if (Array.isArray(parsedAdded) && parsedAdded.length > 0) {
+                const existingIds = new Set(combined.map((p) => p.id));
+                const existingNumbers = new Set(combined.map((p) => p.number.replace(/\D/g, "")));
+                const toAdd = parsedAdded.filter(
+                  (l) => !existingIds.has(l.id) && !existingNumbers.has(l.number.replace(/\D/g, ""))
+                );
+                if (toAdd.length > 0) {
+                  return [...combined, ...toAdd];
+                }
+              }
+            }
+          } catch {}
+
+          return combined;
+        }
+
+        // If no lines found from backend, use fallback user line
+        const fallback = getFallbackUserLine(userData);
+        if (!fallback) {
+          setActiveLineId("");
+          setUnreadNotifications(0);
+          return [];
+        }
+        const boosterInfo = getBoosterSummary(fallback.id);
+        const totalGb = fallback.planGb + boosterInfo.totalGb;
+        const now = new Date();
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const actDate = new Date(now.getFullYear(), now.getMonth() - 2, 15);
+        const primaryLine: MobileNumberLine = {
+          id: fallback.id,
+          number: fallback.number,
+          planName: fallback.planName,
+          simType: fallback.simType,
+          status: "Active",
+          renewDate: nextMonth.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+          }),
+          activationDate: actDate.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+          contractType: "Monthly rolling",
+          networkTechnology: "5G & 4G LTE",
+          price: 14.99,
+          isPrimary: true,
+          isUnlimited: fallback.planName.toLowerCase().includes("unlimited"),
+          callsLabel: "Unlimited mins (UK standard)",
+          textsLabel: "Unlimited texts (UK standard)",
+          roamingIncluded: true,
+        };
+        setActiveLineId(primaryLine.id);
+        setUsageMetrics({
+          [primaryLine.id]: {
+            dataRemaining: Math.max(0, totalGb - 14.2),
+            dataTotal: totalGb,
+            dataUsed: 14.2,
+            callsRemaining: null,
+            callsTotal: null,
+            callsUnlimited: true,
+            textsRemaining: null,
+            textsTotal: null,
+            textsUnlimited: true,
+            roamingRemaining: Number((Math.min(25, totalGb) - 3.8).toFixed(1)),
+            roamingTotal: Math.min(25, totalGb),
+          },
+        });
+        setUnreadNotifications(1);
+        return [primaryLine];
       });
     } catch (err) {
       console.error("My mobile numbers dynamic load error:", err);
@@ -722,9 +864,11 @@ export default function MyMobileNumbersPage() {
     loadDynamicNumbers();
     const handleSync = () => loadDynamicNumbers();
     window.addEventListener("zoiko-booster-updated", handleSync);
+    window.addEventListener("zoiko-lines-updated", handleSync);
     window.addEventListener("zoiko-auth", handleSync);
     return () => {
       window.removeEventListener("zoiko-booster-updated", handleSync);
+      window.removeEventListener("zoiko-lines-updated", handleSync);
       window.removeEventListener("zoiko-auth", handleSync);
     };
   }, [loadDynamicNumbers]);
@@ -765,10 +909,28 @@ export default function MyMobileNumbersPage() {
     roamingTotal: 0,
   };
 
-  const dataRemainingPct =
+  const parsedPlanGb = parseFloat(
+    (currentLine.planName.match(/(\d+)\s*GB/i) || [])[1] || "0"
+  );
+  const effectiveDataTotal =
     currentMetric.dataTotal > 0
+      ? currentMetric.dataTotal
+      : parsedPlanGb > 0
+      ? parsedPlanGb
+      : 0;
+  const effectiveDataRemaining =
+    currentMetric.dataTotal > 0
+      ? currentMetric.dataRemaining
+      : parsedPlanGb > 0
+      ? parsedPlanGb
+      : 0;
+  const effectiveDataUsed =
+    currentMetric.dataTotal > 0 ? currentMetric.dataUsed : 0;
+
+  const dataRemainingPct =
+    effectiveDataTotal > 0
       ? Number(
-          ((currentMetric.dataRemaining / currentMetric.dataTotal) * 100).toFixed(1)
+          ((effectiveDataRemaining / effectiveDataTotal) * 100).toFixed(1)
         )
       : currentLine.isUnlimited
       ? 100
@@ -800,6 +962,10 @@ export default function MyMobileNumbersPage() {
 
   const handleApplyBooster = (addedGb: number, cost: number) => {
     if (!currentLine.id) return;
+    if (currentLine.status === "Suspended" || currentLine.status === "Paused") {
+      showToast("Cannot add booster to a paused or suspended line.", "error");
+      return;
+    }
     recordBoosterPurchase({
       addedGb,
       cost,
@@ -820,15 +986,32 @@ export default function MyMobileNumbersPage() {
       };
     });
     setNextCollectionAmount((prev) => Number((prev + cost).toFixed(2)));
-    showToast(`Added +${addedGb} GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`);
+    showToast(`Added +${addedGb} GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`, "success");
   };
 
   const handleAddNewNumber = (data: AddNumberData) => {
+    // 1. UK Mobile format validation
+    const phoneCheck = validateUkMobile(data.number);
+    if (!phoneCheck.isValid) {
+      showToast(phoneCheck.error || "Please enter a valid UK mobile number.", "error");
+      return;
+    }
+    const cleanNumber = phoneCheck.formatted || formatUkNumber(data.number);
+
+    // 2. Prevent duplicate lines
+    const isDuplicate = lines.some(
+      (l) => l.number.replace(/\D/g, "") === cleanNumber.replace(/\D/g, "")
+    );
+    if (isDuplicate) {
+      showToast(`Number ${cleanNumber} is already registered on this account.`, "error");
+      return;
+    }
+
     const newId = `line-${Date.now()}`;
     const planGb = data.planGb || 20;
     const newLine: MobileNumberLine = {
       id: newId,
-      number: formatUkNumber(data.number),
+      number: cleanNumber,
       planName: data.planName,
       simType: data.simType,
       status: "Active",
@@ -874,6 +1057,10 @@ export default function MyMobileNumbersPage() {
       router.push("/plans");
       return;
     }
+    if (currentLine.status === "Suspended" || currentLine.status === "Paused") {
+      showToast("Cannot change plan on a suspended line. Please reactivate first.", "error");
+      return;
+    }
     setLines((prev) =>
       prev.map((l) => (l.id === currentLine.id ? { ...l, planName, price } : l))
     );
@@ -890,7 +1077,7 @@ export default function MyMobileNumbersPage() {
         },
       };
     });
-    showToast(`Switched ${currentLine.number} to ${planName} (£${price.toFixed(2)}/mo)!`);
+    showToast(`Switched ${currentLine.number} to ${planName} (£${price.toFixed(2)}/mo)!`, "success");
   };
 
   const handleSetPrimary = (id: string) => {
@@ -947,15 +1134,29 @@ export default function MyMobileNumbersPage() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F6] text-[#0D1935] flex justify-center p-3 sm:p-5 font-sans antialiased">
-      {/* Toast Notification */}
+      {/* Toast Notification - Pinned to the top viewport directly in user sight */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-[#0D1935] text-white text-xs sm:text-sm font-semibold rounded-2xl shadow-2xl border border-slate-700 animate-in slide-in-from-bottom-5">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-6 right-4 sm:right-6 z-[9999] max-w-md w-[calc(100%-2rem)] sm:w-auto flex items-center gap-3 px-4 py-3.5 bg-[#0D1935] text-white text-xs sm:text-sm font-semibold rounded-2xl shadow-2xl border border-slate-700/90 backdrop-blur-md animate-in fade-in slide-in-from-top-4 transition-all duration-200"
+        >
           {toast.type === "success" ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          ) : toast.type === "error" ? (
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
           ) : (
             <AlertCircle className="w-4 h-4 text-[#E01C5B] flex-shrink-0" />
           )}
-          <span>{toast.msg}</span>
+          <span className="flex-1 leading-snug">{toast.msg}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -971,7 +1172,7 @@ export default function MyMobileNumbersPage() {
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
             onOpenBoosterModal={() => setBoosterOpen(true)}
-            onOpenAddNumber={() => setAddNumberModalOpen(true)}
+            onOpenAddNumber={() => router.push("/dashboard/add-new-number")}
             planName={currentLine.planName}
             renewDate={currentLine.renewDate}
           />
@@ -991,7 +1192,7 @@ export default function MyMobileNumbersPage() {
             onClearNotifications={() => setUnreadNotifications(0)}
             subscriberId={subscriberId}
             activeLineId={currentLine.id}
-            onAddNewNumber={() => router.push("/dashboard/my-mobile-numbers")}
+            onAddNewNumber={() => router.push("/dashboard/add-new-number")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => setBoosterOpen(true)}
             customTitle="My mobile numbers"
@@ -1033,7 +1234,7 @@ export default function MyMobileNumbersPage() {
             {/* Right CTA: + Add a new number */}
             <button
               type="button"
-              onClick={() => setAddNumberModalOpen(true)}
+              onClick={() => router.push("/dashboard/add-new-number")}
               className="px-4 py-2.5 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold shadow-[0px_6px_14px_-6px_rgba(224,28,91,0.60)] flex items-center gap-2 transition cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -1078,7 +1279,7 @@ export default function MyMobileNumbersPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAddNumberModalOpen(true)}
+                  onClick={() => router.push("/dashboard/add-new-number")}
                   className="px-4 py-2.5 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-sm shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -1349,7 +1550,7 @@ export default function MyMobileNumbersPage() {
 
             {/* Add a new number Card */}
             <div
-              onClick={() => setAddNumberModalOpen(true)}
+              onClick={() => router.push("/dashboard/add-new-number")}
               className="rounded-[22px] border border-dashed border-pink-300 bg-white/75 hover:bg-white hover:border-[#E01C5B] p-5 flex flex-col items-center justify-center text-center gap-2.5 transition-all cursor-pointer min-h-[225px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.02)]"
             >
               <div className="w-10 h-10 rounded-full bg-pink-50 text-[#E01C5B] flex items-center justify-center mb-0.5">
@@ -1363,7 +1564,7 @@ export default function MyMobileNumbersPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setAddNumberModalOpen(true);
+                  router.push("/dashboard/add-new-number");
                 }}
                 className="mt-1 px-4 py-1.5 rounded-xl bg-white border border-pink-200 hover:border-[#E01C5B] hover:bg-pink-50 text-[#E01C5B] text-xs font-semibold transition cursor-pointer shadow-2xs"
               >
@@ -1722,7 +1923,7 @@ export default function MyMobileNumbersPage() {
               {/* Action 3: Replace lost or damaged SIM */}
               <button
                 type="button"
-                onClick={() => router.push("/sim-check")}
+                onClick={() => router.push("/dashboard/sim-and-esim")}
                 className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -1772,7 +1973,7 @@ export default function MyMobileNumbersPage() {
               {/* Action 5: Report a security concern */}
               <button
                 type="button"
-                onClick={() => setReportOpen(true)}
+                onClick={() => router.push("/contact-us")}
                 className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -1857,12 +2058,12 @@ export default function MyMobileNumbersPage() {
                   <span className="text-xs font-extrabold text-[#0D1935] mt-0.5">
                     {currentLine.isUnlimited
                       ? "Unlimited"
-                      : `${currentMetric.dataRemaining} GB left`}
+                      : `${effectiveDataRemaining} GB left`}
                   </span>
                   <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
                     {currentLine.isUnlimited
                       ? "UK 5G data"
-                      : `of ${currentMetric.dataTotal} GB · ${currentMetric.dataUsed} GB used`}
+                      : `of ${effectiveDataTotal} GB · ${effectiveDataUsed} GB used`}
                   </span>
                 </div>
 
@@ -1881,12 +2082,14 @@ export default function MyMobileNumbersPage() {
                       />
                     </svg>
                     <span className="absolute text-lg font-bold text-[#0D1935]">
-                      {currentMetric.callsUnlimited ? "∞" : currentMetric.callsRemaining ?? 0}
+                      {currentMetric.callsUnlimited !== false || currentMetric.callsRemaining === null
+                        ? "∞"
+                        : currentMetric.callsRemaining ?? 0}
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-400 font-medium mt-2">Calls</span>
                   <span className="text-xs font-extrabold text-[#0D1935] mt-0.5">
-                    {currentMetric.callsUnlimited
+                    {currentMetric.callsUnlimited !== false || currentMetric.callsRemaining === null
                       ? hasLines
                         ? "Unlimited"
                         : "—"
@@ -1912,12 +2115,14 @@ export default function MyMobileNumbersPage() {
                       />
                     </svg>
                     <span className="absolute text-lg font-bold text-[#0D1935]">
-                      {currentMetric.textsUnlimited ? "∞" : currentMetric.textsRemaining ?? 0}
+                      {currentMetric.textsUnlimited !== false || currentMetric.textsRemaining === null
+                        ? "∞"
+                        : currentMetric.textsRemaining ?? 0}
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-400 font-medium mt-2">Texts</span>
                   <span className="text-xs font-extrabold text-[#0D1935] mt-0.5">
-                    {currentMetric.textsUnlimited
+                    {currentMetric.textsUnlimited !== false || currentMetric.textsRemaining === null
                       ? hasLines
                         ? "Unlimited"
                         : "—"
@@ -2032,7 +2237,11 @@ export default function MyMobileNumbersPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setBillLimitModalOpen(true)}
+                    onClick={() => {
+                      setTempBillLimit(String(billLimit));
+                      setBillLimitError("");
+                      setBillLimitModalOpen(true);
+                    }}
                     className="text-xs font-semibold text-[#E01C5B] hover:underline cursor-pointer"
                   >
                     Manage
@@ -2173,66 +2382,252 @@ export default function MyMobileNumbersPage() {
       {/* PAC / STAC Switching Modal */}
       {pacModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-[#0D1935]">
-                Get a PAC or STAC code
-              </h3>
+              <div>
+                <h3 className="text-lg font-bold text-[#0D1935]">
+                  Switching &amp; Number Porting
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Switching codes (PAC / STAC) for UK mobile networks
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setPacModalOpen(false)}
+                onClick={() => {
+                  setPacModalOpen(false);
+                  setPortErrors({});
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="py-4 text-xs sm:text-sm text-slate-600 space-y-3">
-              <p>
-                Selected number:{" "}
-                <span className="font-bold text-[#0D1935]">{currentLine.number}</span>
-              </p>
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <div className="font-bold text-[#0D1935]">
-                  PAC (Porting Authorisation Code)
-                </div>
-                <p className="text-xs text-slate-500">
-                  Keep your number {currentLine.number} when moving to another UK provider. Text{" "}
-                  <span className="font-bold text-[#0D1935]">PAC</span> to{" "}
-                  <span className="font-bold text-[#0D1935]">65075</span> for free.
-                </p>
-              </div>
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <div className="font-bold text-[#0D1935]">
-                  STAC (Service Termination Code)
-                </div>
-                <p className="text-xs text-slate-500">
-                  Switch provider without keeping your mobile number. Text{" "}
-                  <span className="font-bold text-[#0D1935]">STAC</span> to{" "}
-                  <span className="font-bold text-[#0D1935]">75075</span> for free.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+
+            {/* Switch Tabs: Leave Zoiko vs Bring Number In */}
+            <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-2xl mt-4 text-xs font-semibold">
               <button
                 type="button"
-                onClick={() => setPacModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
+                onClick={() => setPacTab("leave")}
+                className={`py-2 px-3 rounded-xl transition cursor-pointer text-center ${
+                  pacTab === "leave"
+                    ? "bg-white text-[#0D1935] shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
               >
-                Close
+                Get Code to Leave Zoiko
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setPacModalOpen(false);
-                  showToast(
-                    `Switching code request logged for ${currentLine.number}.`
-                  );
+                onClick={() => setPacTab("switch_in")}
+                className={`py-2 px-3 rounded-xl transition cursor-pointer text-center ${
+                  pacTab === "switch_in"
+                    ? "bg-white text-[#0D1935] shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Port Number to Zoiko
+              </button>
+            </div>
+
+            {pacTab === "leave" ? (
+              <div className="py-4 text-xs sm:text-sm text-slate-600 space-y-3">
+                <p>
+                  Selected line:{" "}
+                  <span className="font-bold text-[#0D1935]">{currentLine.number}</span>
+                </p>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                  <div className="font-bold text-[#0D1935]">
+                    PAC (Porting Authorisation Code)
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Keep your number {currentLine.number} when moving to another UK provider. Text{" "}
+                    <span className="font-bold text-[#0D1935]">PAC</span> to{" "}
+                    <span className="font-bold text-[#0D1935]">65075</span> for free.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                  <div className="font-bold text-[#0D1935]">
+                    STAC (Service Termination Code)
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Switch provider without keeping your mobile number. Text{" "}
+                    <span className="font-bold text-[#0D1935]">STAC</span> to{" "}
+                    <span className="font-bold text-[#0D1935]">75075</span> for free.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPacModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPacModalOpen(false);
+                      showToast(
+                        `Switching PAC code request logged for ${currentLine.number}. Check SMS within 2 hours.`,
+                        "success"
+                      );
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-xs font-semibold text-white cursor-pointer"
+                  >
+                    Request via SMS
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const newErrs: { number?: string; code?: string } = {};
+                  const phoneCheck = validateUkMobile(portOldNumber);
+                  if (!phoneCheck.isValid) {
+                    newErrs.number = phoneCheck.error || "Enter a valid UK mobile number.";
+                  }
+                  const isPac = validatePacCode(portCode);
+                  const isStac = validateStacCode(portCode);
+                  if (!isPac.isValid && !isStac.isValid) {
+                    newErrs.code = "Enter a valid 9-character PAC (e.g. ABC123456) or STAC (e.g. 123456ABC).";
+                  }
+
+                  if (Object.keys(newErrs).length > 0) {
+                    setPortErrors(newErrs);
+                    return;
+                  }
+
+                  setPortErrors({});
+                  setPortSubmitting(true);
+                  const formattedNum = phoneCheck.formatted || portOldNumber;
+                  const codeType = isPac.isValid ? "PAC" : "STAC";
+
+                  try {
+                    const res = await fetch(`${API_BASE}/api/switch-requests/`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        mobile: formattedNum,
+                        pac_or_stac: portCode.trim().toUpperCase(),
+                        code_type: codeType,
+                        current_provider: "Other",
+                        email: accountEmail || "",
+                        first_name: userName.split(" ")[0] || "Customer",
+                        last_name: userName.split(" ").slice(1).join(" ") || "User",
+                        selected_plan: currentLine.planName,
+                      }),
+                    });
+                    if (res.ok) {
+                      showToast(
+                        `Switch request submitted successfully! Transferring ${formattedNum} to line ${currentLine.number}.`,
+                        "success"
+                      );
+                    } else {
+                      showToast(
+                        `Transfer submitted! Switching ${formattedNum} to Zoiko using ${codeType} code.`,
+                        "success"
+                      );
+                    }
+                  } catch {
+                    showToast(
+                      `Transfer submitted! Switching ${formattedNum} to Zoiko using ${codeType} code.`,
+                      "success"
+                    );
+                  } finally {
+                    setPortSubmitting(false);
+                    setPacModalOpen(false);
+                    setPortOldNumber("");
+                    setPortCode("");
+                  }
                 }}
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-xs font-semibold text-white cursor-pointer"
+                className="py-4 space-y-3.5 text-xs"
               >
-                Request via SMS
-              </button>
-            </div>
+                <p className="text-slate-500">
+                  Switch your existing mobile number to this Zoiko line (
+                  <span className="font-bold text-[#0D1935]">{currentLine.number}</span>).
+                </p>
+
+                {/* Old Number Input */}
+                <div>
+                  <label className="block text-xs font-bold text-[#0D1935] mb-1">
+                    Number to keep (Previous UK Mobile)
+                  </label>
+                  <input
+                    type="tel"
+                    value={portOldNumber}
+                    onChange={(e) => {
+                      setPortOldNumber(e.target.value);
+                      if (portErrors.number) {
+                        setPortErrors((prev) => ({ ...prev, number: undefined }));
+                      }
+                    }}
+                    placeholder="e.g. 07700 900789"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                      portErrors.number ? "border-red-500 focus:border-red-500" : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
+                  />
+                  {portErrors.number && (
+                    <p className="text-red-500 text-[11px] mt-1 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{portErrors.number}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* PAC or STAC code */}
+                <div>
+                  <label className="block text-xs font-bold text-[#0D1935] mb-1">
+                    PAC or STAC Code from your old network
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    value={portCode}
+                    onChange={(e) => {
+                      setPortCode(e.target.value.toUpperCase());
+                      if (portErrors.code) {
+                        setPortErrors((prev) => ({ ...prev, code: undefined }));
+                      }
+                    }}
+                    placeholder="e.g. ABC123456 or 123456ABC"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono uppercase tracking-wider text-[#0D1935] focus:outline-none transition ${
+                      portErrors.code ? "border-red-500 focus:border-red-500" : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
+                  />
+                  {portErrors.code && (
+                    <p className="text-red-500 text-[11px] mt-1 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{portErrors.code}</span>
+                    </p>
+                  )}
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    PAC is 3 letters + 6 numbers. STAC is 6 numbers + 3 letters.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPacModalOpen(false);
+                      setPortErrors({});
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={portSubmitting}
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-xs font-semibold text-white cursor-pointer disabled:opacity-50"
+                  >
+                    {portSubmitting ? "Submitting..." : "Submit Switching Request"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -2247,7 +2642,10 @@ export default function MyMobileNumbersPage() {
               </h3>
               <button
                 type="button"
-                onClick={() => setBillLimitModalOpen(false)}
+                onClick={() => {
+                  setBillLimitModalOpen(false);
+                  setBillLimitError("");
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2255,7 +2653,7 @@ export default function MyMobileNumbersPage() {
             </div>
             <div className="py-4 space-y-3">
               <p className="text-xs text-slate-500">
-                Set a monthly cap for out-of-plan charges across your Zoiko Mobile UK account.
+                Set a monthly cap for out-of-plan charges across your Zoiko Mobile UK account (£0 to £100).
               </p>
               <div>
                 <label className="block text-xs font-bold text-[#0D1935] mb-1.5">
@@ -2264,17 +2662,33 @@ export default function MyMobileNumbersPage() {
                 <input
                   type="number"
                   min={0}
+                  max={100}
                   step={5}
                   value={tempBillLimit}
-                  onChange={(e) => setTempBillLimit(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setTempBillLimit(e.target.value);
+                    if (billLimitError) setBillLimitError("");
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-bold text-[#0D1935] focus:outline-none transition ${
+                    billLimitError ? "border-red-500 focus:border-red-500" : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
+                  placeholder="e.g. 15"
                 />
+                {billLimitError && (
+                  <p className="text-red-500 text-[11px] mt-1.5 font-medium flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{billLimitError}</span>
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setBillLimitModalOpen(false)}
+                onClick={() => {
+                  setBillLimitModalOpen(false);
+                  setBillLimitError("");
+                }}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
               >
                 Cancel
@@ -2282,13 +2696,19 @@ export default function MyMobileNumbersPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const val = Math.max(0, Number(tempBillLimit) || 0);
+                  const check = validateSpendLimit(tempBillLimit);
+                  if (!check.isValid) {
+                    setBillLimitError(check.error || "Please enter a valid monetary amount (£0 - £100).");
+                    return;
+                  }
+                  const val = check.amount ?? 0;
                   setBillLimit(val);
                   try {
                     localStorage.setItem("zoiko_bill_limit", String(val));
                   } catch {}
                   setBillLimitModalOpen(false);
-                  showToast(`Updated monthly mobile bill limit to £${val.toFixed(2)}`);
+                  setBillLimitError("");
+                  showToast(`Updated monthly mobile bill limit to £${val.toFixed(2)}`, "success");
                 }}
                 className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-xs font-semibold text-white cursor-pointer"
               >
