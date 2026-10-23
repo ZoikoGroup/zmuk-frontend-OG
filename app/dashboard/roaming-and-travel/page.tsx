@@ -642,8 +642,8 @@ export default function RoamingAndTravelPage() {
                 let euFairUseLimitGb = 0;
                 let euFairUseRemainingGb = 0;
                 let euUsedGb = 0;
-                let roamingCallsMins = 0;
-                let roamingTextsCount = 0;
+                const roamingCallsMins = 0;
+                const roamingTextsCount = 0;
 
                 try {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any

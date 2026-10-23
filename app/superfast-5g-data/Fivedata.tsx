@@ -62,8 +62,8 @@ export default function Fivedata() {
           {/* Body */}
           <div className="px-6 py-10 sm:px-10">
             <p className="max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-              Get ready to supercharge your mobile experience with our ultra-fast 5G speed! It's not just fast; it's
-              instant. Stream, game, download, and browse at speeds that keep up with your lifestyle. Whether you're
+              Get ready to supercharge your mobile experience with our ultra-fast 5G speed! It&apos;s not just fast; it&apos;s
+              instant. Stream, game, download, and browse at speeds that keep up with your lifestyle. Whether you&apos;re
               streaming your favourite series in ultra-HD, battling it out in the latest online game, or downloading big
               files in a flash, our 5G has you covered.
             </p>
@@ -81,11 +81,11 @@ export default function Fivedata() {
             <p className="mt-8 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-400">
               Not only does it enhance your day-to-day mobile interactions, but 5G also opens up new possibilities for
               advanced mobile technologies like augmented reality and next-generation IoT devices. This is more than just
-              speed; it's a gateway to future tech, right in your pocket!
+              speed; it&apos;s a gateway to future tech, right in your pocket!
             </p>
 
             <p className="mt-6 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-              Embrace the fast lane with 5G and never look back. It's not just an upgrade; it's a transformation to the
+              Embrace the fast lane with 5G and never look back. It&apos;s not just an upgrade; it&apos;s a transformation to the
               way you connect, create, and explore online. Stay ahead of the curve —{" "}
               <span className="font-bold text-[#0e8f74] dark:text-[#34d39e]">join the 5G revolution today!</span>
             </p>

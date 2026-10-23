@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
@@ -156,7 +157,7 @@ export default function TermsAndConditions() {
       {/* ─── Hero ─── */}
       <section className="bg-gradient-to-r from-[#17a06a] to-[#0e8f74] px-4 py-14 text-center text-white sm:px-6 md:px-8">
         <p className="text-xs text-white/80">
-          <a href="/" className="hover:text-white">Home</a> / Terms and Conditions
+          <Link href="/" className="hover:text-white">Home</Link> / Terms and Conditions
         </p>
         <h1 className="mt-3 font-extrabold text-[clamp(1.9rem,5vw,2.75rem)]">Terms and Conditions</h1>
         <p className="mt-2 text-sm text-white/80">Last updated: October 2025</p>

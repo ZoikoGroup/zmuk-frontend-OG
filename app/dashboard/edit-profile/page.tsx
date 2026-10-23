@@ -415,7 +415,7 @@ export default function EditProfilePage() {
       }
 
       // 2. Query BeQuick / Django orders for real numbers, plans, and next collection
-      let fetchedNumbers: NumberItem[] = [];
+      const fetchedNumbers: NumberItem[] = [];
       let calculatedNext = 0;
 
       if (userEmail) {
