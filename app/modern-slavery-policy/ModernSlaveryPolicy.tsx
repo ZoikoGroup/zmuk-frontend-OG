@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
 const navItems = [
@@ -70,7 +72,7 @@ export default function modern() {
       {/* ─── Hero ─── */}
       <section className="bg-gradient-to-r from-[#17a06a] to-[#0e8f74] px-4 py-14 text-center text-white sm:px-6 md:px-8">
         <p className="text-xs text-white/80">
-          <a href="/" className="hover:text-white">Home</a> / Modern Slavery Policy
+          <Link href="/" className="hover:text-white">Home</Link> / Modern Slavery Policy
         </p>
         <h1 className="mt-3 font-extrabold text-[clamp(1.9rem,5vw,2.75rem)]">Modern Slavery Policy</h1>
         <p className="mt-2 text-sm text-white/80">Our commitment to ethical business practices</p>
