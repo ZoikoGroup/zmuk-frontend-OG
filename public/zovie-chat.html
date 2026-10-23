@@ -11,35 +11,34 @@
 ═══════════════════════════════════════════════════ */
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --p1:#7c3aed;--p2:#9333ea;--p3:#6d28d9;
-  --bg:#f4f5f7;--card:#fff;--border:#e5e7eb;
+  --p1:#E5125A;--p2:#F0346F;--p3:#B80D47;
+  --tint:#FDECF2;--tint2:#FFF5F8;
+  --bg:#f4f5f7;--card:#fff;--border:#eceef2;
   --txt:#111827;--sub:#6b7280;--font:'Inter',Segoe UI,sans-serif;
+  /* topic tile colours */
+  --t-plans:#E5125A;--t-sim:#F7781F;--t-num:#1FA34A;--t-bill:#7B3FE4;
+  --t-net:#1E6FE0;--t-roam:#E5254B;--t-disc:#F7781F;--t-biz:#17A34A;--t-other:#9ca3af;
 }
-body{font-family:var(--font);background:var(--bg)}
+body{font-family:var(--font);background:var(--bg);color:var(--txt)}
+button{font-family:var(--font)}
 
 /* ═══════════════════════════════════════════════════
-   FAB TOGGLE BUTTON
+   FAB TOGGLE BUTTON (standalone page only)
 ═══════════════════════════════════════════════════ */
 #chat-toggle{
   position:fixed;bottom:26px;right:26px;
   width:66px;height:66px;border-radius:50%;
-  background:linear-gradient(135deg,var(--p1),var(--p2));
+  background:var(--p1);
   color:#fff;border:none;font-size:28px;cursor:pointer;
-  box-shadow:0 10px 32px rgba(124,58,237,.55);
+  box-shadow:0 10px 32px rgba(229,18,90,.45);
   display:flex;align-items:center;justify-content:center;
   z-index:9990;transition:transform .2s,box-shadow .2s;
 }
-#chat-toggle:hover{transform:scale(1.1)}
-#chat-toggle::before{
-  content:'';position:absolute;inset:-9px;border-radius:50%;
-  border:3px solid rgba(124,58,237,.28);
-  animation:fabR 2.4s ease-out infinite;
-}
-@keyframes fabR{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.75);opacity:0}}
+#chat-toggle:hover{transform:scale(1.08)}
 #fab-dot{
   position:absolute;top:-3px;right:-3px;
   width:22px;height:22px;border-radius:50%;
-  background:#ff3b30;color:#fff;font-size:12px;font-weight:700;
+  background:#111827;color:#fff;font-size:12px;font-weight:700;
   display:flex;align-items:center;justify-content:center;
   border:2.5px solid #fff;
 }
@@ -49,12 +48,13 @@ body{font-family:var(--font);background:var(--bg)}
 ═══════════════════════════════════════════════════ */
 #chatbot{
   position:fixed;bottom:108px;right:26px;
-  width:420px;
-  border-radius:20px;display:none;flex-direction:column;
-  box-shadow:0 24px 80px rgba(0,0,0,.3);
+  width:440px;height:680px;
+  border-radius:24px;display:none;flex-direction:column;
+  background:#fff;
+  box-shadow:0 24px 80px rgba(17,24,39,.25);
   z-index:9991;overflow:hidden;
-  transform:scale(.88) translateY(28px);opacity:0;
-  transition:transform .32s cubic-bezier(.34,1.56,.64,1),opacity .26s ease;
+  transform:scale(.92) translateY(24px);opacity:0;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1),opacity .24s ease;
   max-height:calc(100vh - 128px);
 }
 #chatbot.open{display:flex}
@@ -64,169 +64,237 @@ body{font-family:var(--font);background:var(--bg)}
    HEADER
 ═══════════════════════════════════════════════════ */
 #header{
-  background:linear-gradient(135deg,var(--p1),var(--p2));
-  padding:13px 16px;
+  background:var(--p1);
+  padding:16px 14px 16px 18px;
   display:flex;justify-content:space-between;align-items:center;
-  flex-shrink:0;
+  flex-shrink:0;position:relative;
 }
-.header-left{display:flex;gap:12px;align-items:center}
+.header-left{display:flex;gap:14px;align-items:center;min-width:0}
 .header-av{
-  width:46px;height:46px;border-radius:50%;
-  background:#fff;overflow:hidden;
+  width:52px;height:52px;border-radius:50%;
+  background:#fff;overflow:hidden;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 0 2.5px rgba(255,255,255,.4);
-  position:relative;flex-shrink:0;
+  font-size:24px;font-weight:900;color:var(--p1);
 }
-.header-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-.header-av-fb{
-  width:46px;height:46px;border-radius:50%;
-  background:rgba(255,255,255,.25);
-  display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:900;color:#fff;
-  box-shadow:0 0 0 2.5px rgba(255,255,255,.4);
-  flex-shrink:0;
+.header-av img{width:100%;height:100%;object-fit:contain;padding:6px}
+.header-info{min-width:0}
+.hname{color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;gap:6px;line-height:1.15}
+.hname .spark{color:#FFD84D;font-size:16px}
+.hsub{color:rgba(255,255,255,.88);font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.online-pill{
+  display:none;align-items:center;gap:6px;
+  background:#E8F7EE;color:#15803d;font-size:13px;font-weight:600;
+  padding:6px 12px;border-radius:999px;white-space:nowrap;
 }
-.hav-dot{
-  position:absolute;bottom:1px;right:1px;
-  width:13px;height:13px;border-radius:50%;
-  background:#4ade80;border:2.5px solid var(--p2);
-  animation:dp 2s ease-in-out infinite;
-}
-@keyframes dp{0%,100%{opacity:1}50%{opacity:.3}}
-.header-info .hname{color:#fff;font-size:15.5px;font-weight:700}
-.header-info .hsub{color:rgba(255,255,255,.75);font-size:11.5px;margin-top:1px}
-.header-actions{display:flex;gap:4px}
+.online-pill::before{content:'';width:8px;height:8px;border-radius:50%;background:#16a34a}
+.header-actions{display:flex;gap:2px;align-items:center;flex-shrink:0}
 .hbtn{
   background:none;border:none;cursor:pointer;
-  color:rgba(255,255,255,.85);
+  color:#fff;
   width:38px;height:38px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:16px;transition:background .15s;
+  transition:background .15s;
 }
 .hbtn:hover{background:rgba(255,255,255,.18)}
-.hbtn svg{width:21px;height:21px;fill:currentColor}
-/* Mute button active state */
-#mute-btn.muted{background:rgba(255,59,48,.35);}
-#mute-btn.muted svg{fill:#fff}
-#mute-btn .mute-line{display:none}
-#mute-btn.muted .mute-line{display:block}
+.hbtn:focus-visible{outline:2px solid #fff;outline-offset:1px}
+.hbtn svg{width:22px;height:22px}
+
+/* ── "…" dropdown ── */
+#menu-pop{
+  position:absolute;top:72px;right:14px;z-index:20;
+  background:#fff;border-radius:14px;min-width:200px;padding:6px;
+  box-shadow:0 12px 36px rgba(17,24,39,.18);
+  display:none;
+}
+#menu-pop.show{display:block}
+#menu-pop button{
+  display:flex;align-items:center;gap:10px;width:100%;
+  background:none;border:none;cursor:pointer;text-align:left;
+  padding:10px 12px;border-radius:10px;font-size:14px;color:var(--txt);
+}
+#menu-pop button:hover{background:var(--tint2)}
+#menu-pop svg{width:18px;height:18px;color:var(--p1);flex-shrink:0}
 
 /* ═══════════════════════════════════════════════════
    MESSAGES AREA
 ═══════════════════════════════════════════════════ */
 #messages{
   flex:1;overflow-y:auto;overflow-x:hidden;
-  padding:16px 14px 12px;
-  background:#f9fafb;
-  min-height:380px;
+  padding:18px 16px 12px;
+  background:#fff;
+  min-height:0;
   scroll-behavior:smooth;
 }
 #messages::-webkit-scrollbar{width:4px}
-#messages::-webkit-scrollbar-thumb{background:rgba(124,58,237,.2);border-radius:4px}
-
-.zdate{text-align:center;margin:4px 0 14px}
-.zdate span{
-  background:rgba(124,58,237,.1);color:var(--p1);
-  font-size:11.5px;font-weight:600;padding:4px 18px;border-radius:8px;
-}
+#messages::-webkit-scrollbar-thumb{background:rgba(229,18,90,.2);border-radius:4px}
 
 /* ═══════════════════════════════════════════════════
    BOT ROW & BUBBLES
 ═══════════════════════════════════════════════════ */
 .bot-row{
-  display:flex;gap:9px;margin-bottom:4px;
+  display:flex;gap:10px;margin-bottom:2px;
   animation:mi .2s ease;
 }
 @keyframes mi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.bot-row+.user-bubble,.user-bubble+.bot-row{margin-top:6px}
 
 .ba{/* bot avatar */
-  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
   overflow:hidden;background:#fff;
   display:flex;align-items:center;justify-content:center;
-  align-self:flex-end;
-  box-shadow:0 2px 8px rgba(0,0,0,.15);
+  align-self:flex-start;
+  box-shadow:0 1px 6px rgba(17,24,39,.12);
+  font-size:18px;font-weight:900;color:var(--p1);
 }
-.ba img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-.ba-fb{
-  width:32px;height:32px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--p1),var(--p2));
-  display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:900;color:#fff;
-  align-self:flex-end;
-}
+.ba img{width:100%;height:100%;object-fit:contain;padding:5px}
 
 .bot-bubble{
-  background:#fff;padding:11px 14px;
-  border-radius:4px 14px 14px 14px;
-  max-width:88%;font-size:14px;line-height:1.58;
+  background:var(--tint);padding:13px 16px;
+  border-radius:4px 16px 16px 16px;
+  max-width:calc(100% - 50px);font-size:14.5px;line-height:1.55;
   color:var(--txt);word-break:break-word;
-  box-shadow:0 2px 10px rgba(0,0,0,.08);
-  white-space:pre-line;
+}
+.bot-bubble strong.hello{display:block;font-size:16.5px;margin-bottom:2px}
+.bot-bubble a{color:var(--p1);font-weight:600}
+
+/* numbered steps inside a bot bubble */
+.steps{
+  list-style:none;background:#fff;border-radius:12px;
+  padding:6px 12px;margin:10px 0;
+}
+.steps li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:13.5px;line-height:1.45}
+.steps li+li{border-top:1px solid #f6f0f3}
+.steps .n{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  background:var(--p1);color:#fff;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
 }
 
+.ts{font-size:11.5px;color:#9ca3af;margin:4px 0 12px 50px}
+.ts.right{text-align:right;margin:4px 2px 12px 0}
+.ts .tick{color:var(--p1);margin-left:4px;font-weight:700;letter-spacing:-3px}
+
 .user-bubble{
-  background:linear-gradient(135deg,var(--p1),var(--p2));
-  color:#fff;padding:11px 14px;
-  border-radius:14px 4px 14px 14px;
-  margin-left:auto;margin-bottom:4px;
-  max-width:80%;font-size:14px;word-break:break-word;
-  box-shadow:0 2px 10px rgba(124,58,237,.35);
+  background:var(--p1);
+  color:#fff;padding:11px 18px;
+  border-radius:16px 4px 16px 16px;
+  margin-left:auto;width:fit-content;
+  max-width:80%;font-size:14.5px;font-weight:500;word-break:break-word;
   animation:mi .2s ease;
 }
 
 /* ═══════════════════════════════════════════════════
-   QUICK REPLY CHIPS
+   ACTION BUTTONS (quick replies)
 ═══════════════════════════════════════════════════ */
 .quick{
-  display:flex;flex-wrap:wrap;gap:7px;
-  margin-top:10px;padding-top:9px;
-  border-top:1px solid rgba(124,58,237,.1);
+  display:flex;flex-wrap:wrap;gap:8px;
+  margin:2px 0 12px 50px;
 }
 .qbtn{
-  border:1.5px solid rgba(124,58,237,.35);
-  background:#faf5ff;color:var(--p1);
-  padding:7px 14px;border-radius:20px;
-  cursor:pointer;font-size:12.5px;font-family:var(--font);
-  font-weight:600;transition:all .15s ease;white-space:nowrap;
+  border:1.5px solid var(--p1);
+  background:#fff;color:var(--p1);
+  padding:9px 16px;border-radius:10px;
+  cursor:pointer;font-size:13.5px;
+  font-weight:600;transition:all .15s ease;
+  flex:1 1 auto;text-align:center;
 }
-.qbtn:hover{background:var(--p1);color:#fff;border-color:var(--p1);transform:translateY(-1px);box-shadow:0 4px 12px rgba(124,58,237,.3)}
-.qbtn:active{transform:translateY(0)}
-.qbtn:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.qbtn.cta-btn{
-  background:linear-gradient(135deg,var(--p1),var(--p2));
-  color:#fff;border-color:transparent;
-  box-shadow:0 3px 12px rgba(124,58,237,.4);
+.qbtn:hover{background:var(--p1);color:#fff}
+.qbtn:disabled{opacity:.4;cursor:not-allowed;background:#fff;color:var(--p1)}
+.qbtn.cta-btn{background:var(--p1);color:#fff}
+.qbtn.cta-btn:hover{background:var(--p3);border-color:var(--p3)}
+.qbtn.link::after{content:' ›';font-weight:700}
+
+/* ═══════════════════════════════════════════════════
+   HOME: TOPIC GRID
+═══════════════════════════════════════════════════ */
+.topics{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  margin:14px 0 12px;animation:mi .2s ease;
 }
-.qbtn.cta-btn:hover{opacity:.88;box-shadow:0 5px 16px rgba(124,58,237,.5)}
+.topic{
+  display:flex;align-items:center;gap:10px;
+  background:#fff;border:1px solid var(--border);border-radius:14px;
+  padding:12px 10px;cursor:pointer;text-align:left;
+  box-shadow:0 1px 3px rgba(17,24,39,.04);
+  transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.topic:hover{border-color:rgba(229,18,90,.4);box-shadow:0 4px 14px rgba(229,18,90,.1);transform:translateY(-1px)}
+.topic:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
+.t-ico{
+  width:42px;height:42px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.t-ico svg{width:24px;height:24px}
+.t-txt{flex:1;min-width:0}
+.t-lbl{display:block;font-size:13.5px;font-weight:600;color:var(--txt);line-height:1.3}
+.t-desc{display:block;font-size:12px;color:var(--sub);line-height:1.35;margin-top:2px}
+.t-arrow{color:var(--p1);font-size:20px;flex-shrink:0;line-height:1}
+.topic.other{display:none}
+
+/* ── Popular questions (mobile) ── */
+.popular{display:none;margin:4px 0 14px;animation:mi .2s ease}
+.pop-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.pop-head h3{font-size:15px;font-weight:700}
+.pop-head button{background:none;border:none;color:var(--p1);font-size:13px;font-weight:600;cursor:pointer}
+.pop-q{
+  display:flex;justify-content:space-between;align-items:center;width:100%;
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  padding:11px 14px;margin-bottom:6px;cursor:pointer;
+  font-size:13.5px;color:#374151;text-align:left;
+}
+.pop-q::after{content:'›';color:var(--p1);font-size:18px;font-weight:600}
+.pop-q:hover{border-color:rgba(229,18,90,.4)}
+
+/* ── Speak to a human ── */
+.human{
+  display:flex;align-items:center;gap:14px;width:100%;
+  background:#fff;border:1.5px solid var(--p1);border-radius:14px;
+  padding:12px 16px;cursor:pointer;text-align:left;margin-bottom:6px;
+  animation:mi .2s ease;transition:background .15s;
+}
+.human:hover{background:var(--tint2)}
+.human .h-ico{color:var(--p1);flex-shrink:0}
+.human .h-ico svg{width:30px;height:30px}
+.human .h-txt{flex:1;text-align:center}
+.human .h-lbl{display:block;color:var(--p1);font-size:15px;font-weight:600}
+.human .h-hrs{display:block;color:var(--sub);font-size:11.5px;margin-top:2px}
+.human .t-arrow{font-size:22px}
+
+/* ── "Still need help?" handover card ── */
+.handover{
+  display:flex;align-items:center;gap:12px;width:100%;
+  background:#fff;border:1px solid var(--border);border-radius:14px;
+  padding:12px 14px;margin:4px 0 12px;cursor:pointer;text-align:left;
+  box-shadow:0 2px 10px rgba(17,24,39,.06);animation:mi .2s ease;
+}
+.handover:hover{border-color:rgba(229,18,90,.4)}
+.handover .t-ico{background:var(--t-sim);width:40px;height:40px}
+.handover .ho-lbl{display:block;font-size:14px;font-weight:600;color:var(--txt)}
+.handover .ho-sub{display:block;font-size:12.5px;color:#374151;margin-top:1px}
 
 /* ═══════════════════════════════════════════════════
    3-OPTION CHOICE CARD
 ═══════════════════════════════════════════════════ */
 .choice-card{
-  background:#fff;border-radius:16px;
-  box-shadow:0 4px 20px rgba(0,0,0,.1);
-  overflow:hidden;width:100%;margin:6px 0 6px 41px;
-  max-width:calc(100% - 41px);
+  background:#fff;border-radius:16px;border:1px solid var(--border);
+  box-shadow:0 2px 12px rgba(17,24,39,.06);
+  overflow:hidden;margin:6px 0 12px 50px;
+  max-width:calc(100% - 50px);
   animation:mi .2s ease;
 }
 .choice-btn{
   display:flex;align-items:center;gap:13px;
   width:100%;padding:14px 16px;
   border:none;border-bottom:1px solid #f3f4f6;
-  background:#fff;cursor:pointer;font-family:var(--font);
+  background:#fff;cursor:pointer;
   transition:background .15s ease;text-align:left;
 }
 .choice-btn:last-child{border-bottom:none}
-.choice-btn:hover{background:#faf5ff}
-.choice-btn.cta{
-  background:linear-gradient(135deg,var(--p1),var(--p2));
-  border-bottom:none;
-}
-.choice-btn.cta:hover{opacity:.88}
+.choice-btn:hover{background:var(--tint2)}
+.choice-btn.cta{background:var(--p1);border-bottom:none}
+.choice-btn.cta:hover{background:var(--p3)}
 .choice-ico{
   width:42px;height:42px;border-radius:12px;
-  background:rgba(124,58,237,.1);
+  background:var(--tint);
   display:flex;align-items:center;justify-content:center;
   font-size:19px;flex-shrink:0;
 }
@@ -234,10 +302,10 @@ body{font-family:var(--font);background:var(--bg)}
 .choice-txt{flex:1;min-width:0}
 .choice-lbl{font-size:14px;font-weight:700;color:var(--txt);display:block;margin-bottom:2px}
 .choice-desc{font-size:11.5px;color:var(--sub);display:block;line-height:1.4}
-.choice-btn.cta .choice-lbl,.choice-btn.cta .choice-desc{color:#fff}
-.choice-btn.cta .choice-desc{color:rgba(255,255,255,.8)}
+.choice-btn.cta .choice-lbl{color:#fff}
+.choice-btn.cta .choice-desc{color:rgba(255,255,255,.85)}
 .choice-arrow{font-size:16px;color:#d1d5db;flex-shrink:0}
-.choice-btn.cta .choice-arrow{color:rgba(255,255,255,.7)}
+.choice-btn.cta .choice-arrow{color:rgba(255,255,255,.8)}
 .choice-btn:hover .choice-arrow{color:var(--p1)}
 .choice-btn.cta:hover .choice-arrow{color:#fff}
 
@@ -246,20 +314,20 @@ body{font-family:var(--font);background:var(--bg)}
 ═══════════════════════════════════════════════════ */
 .plan-stack{
   display:flex;flex-direction:column;gap:12px;
-  margin:6px 0 6px 41px;
-  max-width:calc(100% - 41px);
+  margin:6px 0 12px 50px;
+  max-width:calc(100% - 50px);
 }
 .plan-card{
   background:#fff;border-radius:16px;
-  box-shadow:0 3px 16px rgba(0,0,0,.1);
-  overflow:hidden;border:2px solid transparent;
+  box-shadow:0 2px 12px rgba(17,24,39,.07);
+  overflow:hidden;border:1.5px solid var(--border);
   transition:border-color .2s,transform .15s,box-shadow .2s;
   width:100%;
 }
-.plan-card:hover{border-color:var(--p2);transform:translateY(-2px);box-shadow:0 6px 24px rgba(124,58,237,.2)}
+.plan-card:hover{border-color:var(--p2);transform:translateY(-2px);box-shadow:0 6px 24px rgba(229,18,90,.15)}
 .plan-card.popular{border-color:var(--p1)}
 .plan-badge{
-  background:linear-gradient(90deg,var(--p1),var(--p2));
+  background:var(--p1);
   color:#fff;font-size:12.5px;font-weight:700;
   padding:7px 16px;display:flex;align-items:center;gap:6px;
 }
@@ -268,7 +336,7 @@ body{font-family:var(--font);background:var(--bg)}
 .plan-name{font-size:15.5px;font-weight:800;color:var(--txt)}
 .plan-data{
   font-size:12px;font-weight:700;padding:4px 12px;border-radius:18px;
-  background:#ede9fe;color:var(--p3);
+  background:var(--tint);color:var(--p3);
 }
 .plan-data.unl{background:#e0f2fe;color:#0369a1}
 .plan-price{font-size:30px;font-weight:900;color:var(--txt);margin-bottom:12px;line-height:1.05}
@@ -279,35 +347,34 @@ body{font-family:var(--font);background:var(--bg)}
 .plan-feats li .fi{font-size:13px;flex-shrink:0;margin-top:1px}
 .plan-buy{
   display:block;width:100%;padding:13px;
-  background:linear-gradient(135deg,var(--p1),var(--p2));
+  background:var(--p1);
   color:#fff;border:none;border-radius:10px;
   font-size:14.5px;font-weight:700;cursor:pointer;
-  font-family:var(--font);text-align:center;text-decoration:none;
-  transition:opacity .2s,transform .15s;letter-spacing:.2px;
+  text-align:center;text-decoration:none;
+  transition:background .2s,transform .15s;
 }
-.plan-buy:hover{opacity:.88;transform:translateY(-1px)}
+.plan-buy:hover{background:var(--p3);transform:translateY(-1px)}
 
 /* ═══════════════════════════════════════════════════
    REVIEW SECTION
 ═══════════════════════════════════════════════════ */
 .kpi-grid{
   display:grid;grid-template-columns:1fr 1fr;gap:9px;
-  margin:6px 0 6px 41px;max-width:calc(100% - 41px);
+  margin:6px 0 12px 50px;max-width:calc(100% - 50px);
 }
 .kpi-card{
-  background:#fff;border-radius:12px;padding:14px;
-  box-shadow:0 2px 10px rgba(0,0,0,.08);text-align:center;
+  background:#fff;border-radius:12px;padding:14px;border:1px solid var(--border);
+  text-align:center;
 }
 .kpi-num{font-size:24px;font-weight:900;color:var(--p1);display:block;line-height:1.1}
 .kpi-lbl{font-size:11px;color:var(--sub);font-weight:600;margin-top:4px;line-height:1.3}
 
 .review-stack{
   display:flex;flex-direction:column;gap:9px;
-  margin:6px 0 6px 41px;max-width:calc(100% - 41px);
+  margin:6px 0 12px 50px;max-width:calc(100% - 50px);
 }
 .review-card{
-  background:#fff;border-radius:14px;padding:14px 16px;
-  box-shadow:0 2px 12px rgba(0,0,0,.08);width:100%;
+  background:#fff;border-radius:14px;padding:14px 16px;border:1px solid var(--border);width:100%;
 }
 .rv-stars{color:#f59e0b;font-size:17px;margin-bottom:7px;letter-spacing:1px}
 .rv-text{font-size:13px;color:#374151;line-height:1.55;margin-bottom:8px;font-style:italic}
@@ -317,73 +384,77 @@ body{font-family:var(--font);background:var(--bg)}
 /* ═══════════════════════════════════════════════════
    TYPING DOTS
 ═══════════════════════════════════════════════════ */
-#typing{display:none;align-items:flex-end;gap:9px;margin-bottom:4px}
+#typing{display:none;align-items:flex-start;gap:10px;margin-bottom:12px}
 .typing-bub{
-  background:#fff;border-radius:4px 14px 14px 14px;
-  padding:12px 16px;box-shadow:0 2px 10px rgba(0,0,0,.08);
+  background:var(--tint);border-radius:4px 16px 16px 16px;
+  padding:14px 16px;
   display:flex;gap:5px;align-items:center;
 }
-.typing-bub .d{width:8px;height:8px;background:#c4b5fd;border-radius:50%;animation:td 1.35s infinite}
+.typing-bub .d{width:8px;height:8px;background:var(--p2);border-radius:50%;animation:td 1.35s infinite}
 .typing-bub .d:nth-child(2){animation-delay:.18s}
 .typing-bub .d:nth-child(3){animation-delay:.36s}
-@keyframes td{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+@keyframes td{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-6px);opacity:1}}
 
 /* ═══════════════════════════════════════════════════
    MIC STATUS
 ═══════════════════════════════════════════════════ */
 #mic-status{
   font-size:11.5px;color:var(--p1);text-align:center;
-  padding:3px 12px;min-height:20px;background:#f9fafb;
-  font-weight:600;font-style:italic;
-  border-top:1px solid var(--border);
+  padding:0 12px;min-height:0;background:#fff;
+  font-weight:600;
 }
+#mic-status:not(:empty){padding:4px 12px}
 
 /* ═══════════════════════════════════════════════════
    INPUT AREA
 ═══════════════════════════════════════════════════ */
 #input-area{
-  display:flex;gap:8px;padding:10px 12px 12px;
+  display:flex;gap:10px;padding:12px 16px 8px;
   border-top:1px solid var(--border);background:#fff;flex-shrink:0;
-  align-items:flex-end;
+  align-items:center;
 }
 .input-wrap{
-  flex:1;background:#f3f4f6;border-radius:24px;
+  flex:1;background:#fff;border-radius:26px;
   display:flex;align-items:center;
-  border:1.5px solid transparent;transition:border-color .2s;
-  overflow:hidden;
+  border:1px solid #e5e7eb;transition:border-color .2s;
+  overflow:hidden;min-height:50px;
 }
-.input-wrap:focus-within{border-color:rgba(124,58,237,.45);background:#faf5ff}
+.input-wrap:focus-within{border-color:rgba(229,18,90,.5)}
 #user-input{
-  flex:1;padding:10px 14px;border:none;background:transparent;
-  font-size:14.5px;outline:none;font-family:var(--font);color:var(--txt);
+  flex:1;padding:13px 18px;border:none;background:transparent;
+  font-size:15px;outline:none;color:var(--txt);font-family:var(--font);
   resize:none;max-height:100px;line-height:1.5;
 }
-#user-input::placeholder{color:#9ca3af}
+#user-input::placeholder{color:#6b7280}
 #user-input:disabled{opacity:.55}
 .ib{/* icon button */
-  width:46px;height:46px;border-radius:50%;border:none;cursor:pointer;
+  width:50px;height:50px;border-radius:50%;cursor:pointer;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  transition:all .18s ease;font-size:18px;
+  transition:all .18s ease;
 }
-.ib:hover{transform:scale(1.09)}
 .ib:active{transform:scale(.93)}
-#mic{background:#f3f4f6;color:var(--sub)}
-#mic svg{width:22px;height:22px;fill:currentColor}
-#mic.listening{background:var(--p1)}
-#mic.listening svg{fill:#fff}
-#send{background:linear-gradient(135deg,var(--p1),var(--p2));box-shadow:0 4px 14px rgba(124,58,237,.4)}
-#send svg{width:21px;height:21px;fill:#fff}
-.zpow{
-  text-align:center;font-size:10.5px;color:#9ca3af;
-  padding:3px 0 7px;background:#fff;font-style:italic;
+#mic{background:#fff;border:1px solid #e5e7eb;color:#6b7280}
+#mic:hover{color:var(--p1);border-color:rgba(229,18,90,.5)}
+#mic svg{width:22px;height:22px}
+#mic.listening{background:var(--p1);border-color:var(--p1);color:#fff}
+#send{background:var(--p1);border:none;color:#fff;box-shadow:0 4px 14px rgba(229,18,90,.35)}
+#send:hover{background:var(--p3)}
+#send:disabled{opacity:.6;cursor:not-allowed}
+#send svg{width:24px;height:24px}
+.zsafe{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:12px;color:#4b5563;
+  padding:2px 12px 12px;background:#fff;flex-shrink:0;text-align:center;
 }
+.zsafe svg{width:15px;height:15px;flex-shrink:0;color:#4b5563}
+.zsafe a{color:#111827;text-decoration:underline;cursor:pointer}
 
 /* ═══════════════════════════════════════════════════
    MUTE TOAST
 ═══════════════════════════════════════════════════ */
 #mute-toast{
-  position:absolute;top:70px;right:14px;
-  background:rgba(0,0,0,.72);color:#fff;
+  position:absolute;top:96px;left:50%;transform:translateX(-50%);
+  background:rgba(17,24,39,.8);color:#fff;
   font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;
   opacity:0;transition:opacity .25s;pointer-events:none;z-index:10;
 }
@@ -393,9 +464,9 @@ body{font-family:var(--font);background:var(--bg)}
    RATING WIDGET
 ═══════════════════════════════════════════════════ */
 .rating-wrap{
-  background:#fff;border-radius:16px;padding:18px 20px;
-  box-shadow:0 3px 16px rgba(0,0,0,.1);
-  margin:6px 0 6px 41px;max-width:calc(100% - 41px);
+  background:#fff;border-radius:16px;padding:18px 20px;border:1px solid var(--border);
+  box-shadow:0 2px 12px rgba(17,24,39,.06);
+  margin:6px 0 12px 50px;max-width:calc(100% - 50px);
   animation:mi .2s ease;
 }
 .rating-wrap .rt{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:3px}
@@ -417,21 +488,52 @@ body{font-family:var(--font);background:var(--bg)}
 .fi-inp:focus{border-color:var(--p1)}
 .fi-submit{
   width:100%;padding:11px;
-  background:linear-gradient(135deg,var(--p1),var(--p2));
+  background:var(--p1);
   color:#fff;border:none;border-radius:10px;
   font-size:14px;font-weight:700;cursor:pointer;
-  font-family:var(--font);transition:opacity .2s;
+  transition:background .2s;
 }
-.fi-submit:hover{opacity:.88}
+.fi-submit:hover{background:var(--p3)}
 .fi-submit:disabled{opacity:.55;cursor:not-allowed}
 
 /* ═══════════════════════════════════════════════════
-   MOBILE
+   MOBILE — white header with "Online" pill and compact
+   3-column topic tiles (matches the phone design)
 ═══════════════════════════════════════════════════ */
-@media(max-width:480px){
-  #chatbot{width:calc(100vw - 12px);right:6px;bottom:88px;max-height:calc(100svh - 108px);border-radius:16px}
-  .plan-stack,.review-stack,.kpi-grid,.choice-card,.rating-wrap{margin-left:41px;max-width:calc(100% - 41px)}
+@media(max-width:439px){
+  #chatbot{width:calc(100vw - 12px);right:6px;bottom:88px;max-height:calc(100svh - 108px);border-radius:18px}
+  #header{background:#fff;border-bottom:1px solid var(--border);padding:12px 10px 12px 14px}
+  .header-av{width:46px;height:46px;box-shadow:0 1px 6px rgba(17,24,39,.14)}
+  .hname{color:var(--txt);font-size:19px}
+  .hname .spark{color:#F5B800}
+  .hsub{color:#4b5563}
+  .hsub .brand{display:none}
+  .online-pill{display:inline-flex}
+  .header-actions .hbtn{color:#374151}
+  .header-actions .hbtn:hover{background:#f3f4f6}
+  #min-btn{display:none}
+  #menu-pop{top:66px}
+
+  .topics{grid-template-columns:repeat(3,1fr);gap:8px}
+  .topic{flex-direction:column;justify-content:flex-start;gap:8px;padding:12px 6px;text-align:center}
+  .topic .t-ico{width:40px;height:40px}
+  .t-lbl{font-size:12px;font-weight:500}
+  .t-desc,.topic .t-arrow{display:none}
+  .topic.other{display:flex}
+  .lbl-long{display:none}
+  .popular{display:block}
+  .human{display:none}
+
+  .ba{width:36px;height:36px}
+  .ts{margin-left:46px}
+  .quick,.plan-stack,.review-stack,.kpi-grid,.choice-card,.rating-wrap{margin-left:46px;max-width:calc(100% - 46px)}
+  .bot-bubble{max-width:calc(100% - 46px);font-size:14px}
+  #input-area{padding:10px 12px 6px}
+  .ib{width:46px;height:46px}
+  .input-wrap{min-height:46px}
+  .zsafe{font-size:11px}
 }
+@media(min-width:440px){ .lbl-short{display:none} }
 
 /* ═══════════════════════════════════════════════════
    EMBED MODE
@@ -440,18 +542,13 @@ body{font-family:var(--font);background:var(--bg)}
    and let the chat fill the panel.
 ═══════════════════════════════════════════════════ */
 html,body{height:100%}
-body.embed{background:transparent}
+body.embed{background:#fff}
 body.embed #chat-toggle{display:none!important}
-body.embed #header{display:none!important}
 body.embed #chatbot{
   position:static;inset:auto;width:100%;height:100%;
   max-height:none;min-height:0;border-radius:0;box-shadow:none;
   transform:none;opacity:1;display:flex;
 }
-body.embed #messages{min-height:0}
-body.embed #mute-toast{top:12px}
-body.embed .plan-stack,body.embed .review-stack,body.embed .kpi-grid,
-body.embed .choice-card,body.embed .rating-wrap{margin-left:41px;max-width:calc(100% - 41px)}
 </style>
 </head>
 <body>
@@ -463,31 +560,43 @@ body.embed .choice-card,body.embed .rating-wrap{margin-left:41px;max-width:calc(
 </button>
 
 <!-- ══ CHAT WINDOW ══ -->
-<div id="chatbot">
+<div id="chatbot" role="region" aria-label="Zovie chat">
 
   <!-- Header -->
   <div id="header">
     <div class="header-left">
-      <div id="hav-wrap"></div>
+      <div class="header-av" id="hav-wrap"></div>
       <div class="header-info">
-        <div class="hname">Zovie &middot; Zoiko Mobile</div>
-        <div class="hsub" id="hsub">Online &middot; AI assistant</div>
+        <div class="hname">Zovie <span class="spark" aria-hidden="true">✦</span></div>
+        <div class="hsub" id="hsub"><span class="brand">Zoiko Mobile UK &middot; </span>24/7 AI assistant</div>
       </div>
     </div>
     <div class="header-actions">
-      <!-- MUTE BUTTON (NEW) -->
-      <button class="hbtn" id="mute-btn" title="Mute / Unmute voice">
-        <!-- Speaker icon (unmuted) -->
-        <svg id="icon-unmuted" viewBox="0 0 24 24">
-          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-          <line class="mute-line" x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
+      <span class="online-pill">Online</span>
+      <button class="hbtn" id="more-btn" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
       </button>
-      <button class="hbtn" title="Call us" onclick="window.open('tel:+441234567890')">
-        <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+      <button class="hbtn" id="min-btn" title="Minimise" aria-label="Minimise chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 13h12"/></svg>
       </button>
-      <button class="hbtn" id="close-btn" title="Close">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      <button class="hbtn" id="close-btn" title="Close" aria-label="Close chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <!-- "…" menu -->
+    <div id="menu-pop" role="menu">
+      <button role="menuitem" id="mute-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg>
+        <span id="mute-lbl">Mute voice</span>
+      </button>
+      <button role="menuitem" id="restart-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/></svg>
+        Start a new chat
+      </button>
+      <button role="menuitem" id="rate-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
+        Rate this chat
       </button>
     </div>
   </div>
@@ -496,7 +605,7 @@ body.embed .choice-card,body.embed .rating-wrap{margin-left:41px;max-width:calc(
   <div id="mute-toast">🔇 Voice muted</div>
 
   <!-- Messages -->
-  <div id="messages">
+  <div id="messages" aria-live="polite">
     <div id="typing">
       <div id="t-av"></div>
       <div class="typing-bub">
@@ -509,27 +618,30 @@ body.embed .choice-card,body.embed .rating-wrap{margin-left:41px;max-width:calc(
 
   <!-- Input -->
   <div id="input-area">
-    <button class="ib" id="mic" title="Voice input">
-      <svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 014 4v6a4 4 0 01-8 0V5a4 4 0 014-4zm0 2a2 2 0 00-2 2v6a2 2 0 004 0V5a2 2 0 00-2-2zm-1 14.93V20H9v2h6v-2h-2v-2.07A7 7 0 0019 11h-2a5 5 0 01-10 0H5a7 7 0 006 6.93z"/></svg>
+    <button class="ib" id="mic" title="Voice input" aria-label="Voice input">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 17v4M8 21h8"/></svg>
     </button>
     <div class="input-wrap">
-      <textarea id="user-input" rows="1" placeholder="Ask Zovie anything..." autocomplete="off"></textarea>
+      <textarea id="user-input" rows="1" placeholder="Type your message..." autocomplete="off" aria-label="Type your message"></textarea>
     </div>
-    <button class="ib" id="send" title="Send">
-      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    <button class="ib" id="send" title="Send" aria-label="Send message">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a.99.99 0 00-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg>
     </button>
   </div>
-  <div class="zpow">Powered by Zovie AI &middot; Zoiko Mobile UK</div>
+  <div class="zsafe">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+    <span>Please don't share passwords or one-time codes. <a id="learn-more" href="/privacy-policy">Learn more</a></span>
+  </div>
 </div>
 
 <script>
 /* ════════════════════════════════════════════════════════════
-   ZOVIE CHATBOT v3.1
-   FIXES:
-   ✅ Mute / Unmute TTS voice button in header
-   ✅ GPT properly called for ALL free-text questions
-   ✅ Context-aware: separate question always gets fresh GPT answer
-   ✅ All original features preserved
+   ZOVIE CHATBOT v4.0
+   ✅ New Zoiko pink design (header, topic grid, human handover)
+   ✅ Guided flows: eSIM/SIM activation, keep my number, billing,
+      network, roaming, discounts
+   ✅ Timestamps, numbered-step cards, "Still need help?" card
+   ✅ GPT for all free-text, voice in/out with mute (in "…" menu)
 ════════════════════════════════════════════════════════════ */
 
 const msgs    = document.getElementById('messages')
@@ -541,11 +653,16 @@ const typEl   = document.getElementById('typing')
 const fab     = document.getElementById('chat-toggle')
 const dot     = document.getElementById('fab-dot')
 const closeB  = document.getElementById('close-btn')
-const hSub    = document.getElementById('hsub')
+const minB    = document.getElementById('min-btn')
+const moreB   = document.getElementById('more-btn')
+const menuPop = document.getElementById('menu-pop')
 const muteBtn = document.getElementById('mute-btn')
+const muteLbl = document.getElementById('mute-lbl')
 const muteToast = document.getElementById('mute-toast')
 
 const LOGO = '/zovie-logo.png'
+const SUPPORT_HOURS = 'Available Mon-Sat 8:30am-8:30pm · Sun 10am-6pm'
+const CONTACT_URL = '/contact-us'
 
 /* ══════════════════════════════════════════════════════
    EMBED MODE + NAVIGATION
@@ -560,9 +677,8 @@ function openUrl(url){
   if (EMBED && window.parent !== window) {
     try {
       const u = new URL(url, location.origin)
-      const path = u.hostname.endsWith('zoikomobile.co.uk')
-        ? u.pathname + u.search + u.hash
-        : u.href
+      const internal = u.origin === location.origin || u.hostname.endsWith('zoikomobile.co.uk')
+      const path = internal ? u.pathname + u.search + u.hash : u.href
       window.parent.postMessage({ type:'zovie:navigate', url:path }, '*')
       return
     } catch(e){}
@@ -570,31 +686,44 @@ function openUrl(url){
   window.open(url, '_blank')
 }
 
+/* ── Tell the parent website to hide the panel ── */
+function hidePanel() {
+  if (EMBED && window.parent !== window) {
+    speechSynthesis.cancel()
+    if (recog && isListening) recog.stop()
+    window.parent.postMessage({ type:'zovie:close' }, '*')
+  } else {
+    closeChat()
+  }
+}
+
 /* ══════════════════════════════════════════════════════
-   MUTE STATE  (FIX #2 — voice mute toggle)
+   "…" MENU + MUTE
 ══════════════════════════════════════════════════════ */
 let isMuted = false
 let muteToastTimer = null
 
+function toggleMenu(show) {
+  const v = show !== undefined ? show : !menuPop.classList.contains('show')
+  menuPop.classList.toggle('show', v)
+  moreB.setAttribute('aria-expanded', String(v))
+}
+moreB.addEventListener('click', e => { e.stopPropagation(); toggleMenu() })
+document.addEventListener('click', e => { if (!menuPop.contains(e.target)) toggleMenu(false) })
+
 function toggleMute() {
   isMuted = !isMuted
-  muteBtn.classList.toggle('muted', isMuted)
-  muteBtn.title = isMuted ? 'Unmute voice' : 'Mute voice'
-
-  // Update the SVG line (strikethrough indicator)
-  const line = muteBtn.querySelector('.mute-line')
-  if (line) line.style.display = isMuted ? 'block' : 'none'
-
-  // Show toast
+  muteLbl.textContent = isMuted ? 'Unmute voice' : 'Mute voice'
   muteToast.textContent = isMuted ? '🔇 Voice muted' : '🔊 Voice on'
   muteToast.classList.add('show')
   clearTimeout(muteToastTimer)
   muteToastTimer = setTimeout(() => muteToast.classList.remove('show'), 2200)
-
   if (isMuted) speechSynthesis.cancel()
 }
-
-muteBtn.addEventListener('click', toggleMute)
+muteBtn.addEventListener('click', () => { toggleMenu(false); toggleMute() })
+document.getElementById('restart-btn').addEventListener('click', () => { toggleMenu(false); history = []; mainMenu() })
+document.getElementById('rate-btn').addEventListener('click', () => { toggleMenu(false); showRating(false) })
+document.getElementById('learn-more').addEventListener('click', e => { e.preventDefault(); openUrl('/privacy-policy') })
 
 /* ══════════════════════════════════════════════════════
    PLAN DATA — update cartId to your WooCommerce IDs
@@ -693,12 +822,48 @@ const REVIEWS = [
   {stars:5, text:'Best UK MVNO by far. Unlimited data for less than what I paid for 10GB before!', author:'Priya S.', date:'February 2026'},
 ]
 
+/* ══════════════════════════════════════════════════════
+   HOME SCREEN TOPICS
+══════════════════════════════════════════════════════ */
+const ICONS = {
+  plans:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  sim:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+  num:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2a1 1 0 011-.24 11.4 11.4 0 003.6.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1z"/></svg>',
+  bill:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg>',
+  net:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="1.6"/><path d="M8.5 5.5a5 5 0 000 7M15.5 5.5a5 5 0 010 7M5.6 2.6a9 9 0 000 12.8M18.4 2.6a9 9 0 010 12.8M12 11l-4 10M12 11l4 10M9.5 17h5"/></svg>',
+  roam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>',
+  disc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z"/></svg>',
+  biz:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 13h18M11 13v2h2v-2"/></svg>',
+  other:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  headset:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0118 0v2"/><path d="M21 15a2 2 0 01-2 2h-1v-6h1a2 2 0 012 2zM3 15a2 2 0 002 2h1v-6H5a2 2 0 00-2 2z"/><path d="M19 17v1a3 3 0 01-3 3h-3"/></svg>',
+}
+
+const TOPICS = [
+  {key:'plans', color:'--t-plans', label:'Explore plans',          short:'Explore plans',          desc:'SIM only, eSIM and offers'},
+  {key:'sim',   color:'--t-sim',   label:'Activate SIM or eSIM',   short:'Activate SIM or eSIM',   desc:'Set up and get started'},
+  {key:'num',   color:'--t-num',   label:'Keep my number',         short:'Keep my number',         desc:'Transfer using my existing number'},
+  {key:'bill',  color:'--t-bill',  label:'Billing & payments',     short:'Billing & payments',     desc:'Bills, payments and account help'},
+  {key:'net',   color:'--t-net',   label:'Network & coverage',     short:'Network & coverage',     desc:'Signal, outages and device settings'},
+  {key:'roam',  color:'--t-roam',  label:'Roaming & international',short:'Roaming & international',desc:'Travel, data and international calls'},
+  {key:'disc',  color:'--t-disc',  label:'Student, Essential Workers & Social Tariff', short:'Student & essential workers', desc:'Discounts and eligibility'},
+  {key:'biz',   color:'--t-biz',   label:'Business plans',         short:'Business plans',         desc:'Business SIMs and support'},
+  {key:'other', color:'--t-other', label:'Other support',          short:'Other support',          desc:'Devices, top up and more', other:true},
+]
+
+const POPULAR = [
+  'What plans are available?',
+  'How do I activate my eSIM?',
+  'How do I transfer my number (PAC)?',
+  'How do I top up my SIM?',
+  'Can I use my phone abroad?',
+]
+
 /* ── Menus ── */
 const MAIN_MENU = [
   'Zoiko Plans','Business Deals','Devices','Animals & Music','About Us',
-  'Activate SIM','Top Up','Switch & Save','Contact Us','Support','International Calls','Rate & Exit'
+  'Activate SIM','Top Up','Switch & Save','Contact Us','Support','International Calls','Customer Reviews','Rate & Exit'
 ]
-const PLAN_TYPES = ['Student Plans','Essential Plans','Social Tariff','Data Only Plans','30 Day Plans','⬅️ Back']
+const PLAN_TYPES = ['Student Plans','Essential Plans','Social Tariff','Data Only Plans','30 Day Plans','Zoiko Plans (all)','🏠 Main Menu']
 const RESET_WORDS = new Set(['hi','hello','hey','start','menu','main menu','home','restart','back to start','hiya','0'])
 
 /* ══════════════════════════════════════════════════════
@@ -713,6 +878,12 @@ const csrf = () => (document.cookie.match(/(^|;)\s*csrftoken=([^;]+)/) || [])[2]
 /* ── Scroll ── */
 const scroll = () => requestAnimationFrame(() => { msgs.scrollTop = msgs.scrollHeight })
 
+/* ── Time stamp (e.g. 9:41) ── */
+const now = () => new Date().toLocaleTimeString('en-GB', { hour:'numeric', minute:'2-digit' })
+
+/* ── Insert any node above the typing indicator ── */
+const put = el => { msgs.insertBefore(el, typEl); return el }
+
 /* ══════════════════════════════════════════════════════
    AVATAR helpers
 ══════════════════════════════════════════════════════ */
@@ -720,25 +891,18 @@ function makeAvatar() {
   const wrap = document.createElement('div')
   wrap.className = 'ba'
   const img = document.createElement('img')
-  img.src = LOGO; img.alt = 'Z'
-  img.onerror = function() { wrap.className = 'ba-fb'; wrap.textContent = 'Z'; this.remove() }
+  img.src = LOGO; img.alt = ''
+  img.onerror = function() { wrap.textContent = 'Z'; this.remove() }
   wrap.appendChild(img)
   return wrap
 }
 
 /* ── Build header avatar ── */
 ;(function(){
-  const wrap = document.getElementById('hav-wrap')
-  const el = document.createElement('div'); el.className = 'header-av'
-  const img = document.createElement('img'); img.src = LOGO; img.alt = 'Zoiko'
-  img.onerror = function() {
-    el.className = 'header-av-fb'; el.textContent = 'Z'
-    const d = document.createElement('div'); d.className = 'hav-dot'; el.appendChild(d)
-    this.remove()
-  }
+  const el = document.getElementById('hav-wrap')
+  const img = document.createElement('img'); img.src = LOGO; img.alt = 'Zoiko Mobile'
+  img.onerror = function() { el.textContent = 'Z'; this.remove() }
   el.appendChild(img)
-  const d = document.createElement('div'); d.className = 'hav-dot'; el.appendChild(d)
-  wrap.appendChild(el)
 })()
 
 document.getElementById('t-av').appendChild(makeAvatar())
@@ -768,7 +932,7 @@ if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschang
 loadVoice()
 
 function speak(text) {
-  if (isMuted) return          // ← MUTE CHECK
+  if (isMuted) return
   speechSynthesis.cancel()
   const clean = text.replace(/<[^>]+>/g,' ').replace(/https?:\/\/\S+/g,' ').replace(/[^\w\s',.!?£\-]/g,' ').replace(/\s{2,}/g,' ').trim()
   if (!clean) return
@@ -780,7 +944,6 @@ function speak(text) {
 /* ── Busy state ── */
 function setBusy(v) {
   isBusy = v; inp.disabled = v; sendBtn.disabled = v
-  hSub.textContent = v ? 'Zovie is typing…' : 'Online · AI assistant'
 }
 
 /* ── Typing indicator ── */
@@ -791,14 +954,42 @@ function hideTyping() { typEl.style.display = 'none' }
 function disChips(cs) { cs.querySelectorAll('.qbtn').forEach(b => b.disabled = true) }
 
 /* ══════════════════════════════════════════════════════
-   BOT BUBBLE + CHIPS
+   TEXT FORMATTING
+   Lines starting "1." / "2)" become a numbered step card.
+══════════════════════════════════════════════════════ */
+function formatText(text) {
+  const lines = text.split('\n')
+  let html = '', steps = []
+  const flush = () => {
+    if (!steps.length) return
+    html += '<ol class="steps">' + steps.map((s, i) => `<li><span class="n">${i + 1}</span><span>${s}</span></li>`).join('') + '</ol>'
+    steps = []
+  }
+  lines.forEach((line, i) => {
+    const m = line.match(/^\s*\d+[.)]\s+(.*)$/)
+    if (m) { steps.push(m[1]); return }
+    if (steps.length && !line.trim()) return
+    flush()
+    html += line + (i < lines.length - 1 ? '<br>' : '')
+  })
+  flush()
+  return html.replace(/(<br>){3,}/g, '<br><br>')
+}
+
+/* ══════════════════════════════════════════════════════
+   BOT BUBBLE + ACTION BUTTONS
+   chips: strings (handled in-chat) or {text,url} links
 ══════════════════════════════════════════════════════ */
 function bot(text, chips = [], isCta = []) {
   hideTyping()
   const row = document.createElement('div'); row.className = 'bot-row'
   row.appendChild(makeAvatar())
   const bub = document.createElement('div'); bub.className = 'bot-bubble'
-  bub.innerHTML = text.replace(/\n/g, '<br>')
+  bub.innerHTML = formatText(text)
+  row.appendChild(bub); put(row)
+
+  const ts = document.createElement('div'); ts.className = 'ts'; ts.textContent = now()
+  put(ts)
 
   if (chips.length) {
     const cs = document.createElement('div'); cs.className = 'quick'
@@ -806,77 +997,197 @@ function bot(text, chips = [], isCta = []) {
       const btn = document.createElement('button'); btn.className = 'qbtn'
       if (isCta.includes(i)) btn.classList.add('cta-btn')
       if (typeof c === 'object') {
-        btn.textContent = c.text
+        btn.textContent = c.text; btn.classList.add('link')
         btn.onclick = () => openUrl(c.url)
       } else {
         btn.textContent = c
-        btn.onclick = () => { disChips(cs); userBubble(c); handleChip(c) }
+        btn.onclick = () => { disChips(cs); userBubble(c); route(c) }
       }
       cs.appendChild(btn)
     })
-    bub.appendChild(cs)
+    put(cs)
   }
-
-  row.appendChild(bub); msgs.insertBefore(row, typEl); scroll(); speak(text)
+  scroll(); speak(text)
 }
 
 /* ══════════════════════════════════════════════════════
-   USER BUBBLE
+   USER BUBBLE (with time + read ticks)
 ══════════════════════════════════════════════════════ */
 function userBubble(text) {
   const div = document.createElement('div'); div.className = 'user-bubble'; div.textContent = text
-  msgs.insertBefore(div, typEl); scroll()
+  put(div)
+  const ts = document.createElement('div'); ts.className = 'ts right'
+  ts.innerHTML = `${now()}<span class="tick" aria-label="Delivered">✓✓</span>`
+  put(ts); scroll()
 }
 
 /* ══════════════════════════════════════════════════════
-   MAIN MENU
+   HUMAN HANDOVER
+══════════════════════════════════════════════════════ */
+function humanCard() {
+  msgs.querySelectorAll('.handover').forEach(el => el.remove())
+  const b = document.createElement('button'); b.className = 'handover'
+  b.innerHTML = `<span class="t-ico">${ICONS.headset}</span>
+    <span class="t-txt"><span class="ho-lbl">Still need help?</span><span class="ho-sub">I can connect you to a human adviser.</span></span>
+    <span class="t-arrow">›</span>`
+  b.onclick = () => { userBubble('Speak to a human adviser'); showHuman() }
+  put(b); scroll()
+}
+
+function showHuman() {
+  bot(`Of course — our UK advisers are happy to help. 😊\n\n${SUPPORT_HOURS}.\n\nYou can message or call the team from our contact page.`,
+    [{text:'Contact an adviser', url:CONTACT_URL}, {text:'Help & support', url:'/help-support'}, '🏠 Main Menu'], [0])
+}
+
+/* ══════════════════════════════════════════════════════
+   MAIN MENU (home screen)
 ══════════════════════════════════════════════════════ */
 function mainMenu() {
   hideTyping()
   Array.from(msgs.children).forEach(el => { if (el !== typEl) el.remove() })
-  const dd = document.createElement('div'); dd.className = 'zdate'; dd.innerHTML = '<span>Today</span>'
-  msgs.insertBefore(dd, typEl); msgs.appendChild(typEl)
-  bot("Hello! 👋 I'm Zovie, your Zoiko Mobile assistant.\n\nHow can I help you today?", MAIN_MENU, [0,1])
+  msgs.appendChild(typEl)
+
+  const row = document.createElement('div'); row.className = 'bot-row'
+  row.appendChild(makeAvatar())
+  const bub = document.createElement('div'); bub.className = 'bot-bubble'
+  bub.innerHTML = `<strong class="hello">Hello, I'm Zovie 👋</strong>Your Zoiko Mobile AI assistant.<br><br>I can help with plans, SIM or eSIM, number transfer, billing, roaming, and more.<br>What would you like to do today?`
+  row.appendChild(bub); put(row)
+
+  const grid = document.createElement('div'); grid.className = 'topics'
+  TOPICS.forEach(t => {
+    const b = document.createElement('button')
+    b.className = 'topic' + (t.other ? ' other' : '')
+    b.innerHTML = `<span class="t-ico" style="background:var(${t.color})">${ICONS[t.key]}</span>
+      <span class="t-txt"><span class="t-lbl"><span class="lbl-long">${t.label}</span><span class="lbl-short">${t.short}</span></span><span class="t-desc">${t.desc}</span></span>
+      <span class="t-arrow" aria-hidden="true">›</span>`
+    b.onclick = () => { userBubble(t.label); topic(t.key) }
+    grid.appendChild(b)
+  })
+  put(grid)
+
+  const pop = document.createElement('div'); pop.className = 'popular'
+  pop.innerHTML = '<div class="pop-head"><h3>Popular questions</h3><button type="button">View all ›</button></div>'
+  const list = document.createElement('div')
+  const renderQs = n => {
+    list.innerHTML = ''
+    POPULAR.slice(0, n).forEach(q => {
+      const b = document.createElement('button'); b.className = 'pop-q'; b.textContent = q
+      b.onclick = () => sendMessage(q)
+      list.appendChild(b)
+    })
+  }
+  renderQs(3)
+  pop.querySelector('.pop-head button').onclick = function() { renderQs(POPULAR.length); this.remove() }
+  pop.appendChild(list); put(pop)
+
+  const human = document.createElement('button'); human.className = 'human'
+  human.innerHTML = `<span class="h-ico">${ICONS.headset}</span>
+    <span class="h-txt"><span class="h-lbl">Speak to a human adviser</span><span class="h-hrs">${SUPPORT_HOURS}</span></span>
+    <span class="t-arrow" aria-hidden="true">›</span>`
+  human.onclick = () => { userBubble('Speak to a human adviser'); showHuman() }
+  put(human)
+
+  msgs.scrollTop = 0
+  speak("Hello, I'm Zovie, your Zoiko Mobile AI assistant. What would you like to do today?")
+}
+
+/* ══════════════════════════════════════════════════════
+   TOPIC FLOWS
+══════════════════════════════════════════════════════ */
+function topic(key) {
+  switch (key) {
+    case 'plans': showPlanTypes(); break
+    case 'sim':   showActivate(); break
+    case 'num':
+      bot("Yes — you can keep your existing number when you join Zoiko. 📲\n\n1. Text PAC to 65075 from your current phone (it's free)\n2. You'll get your PAC code by text straight away\n3. Order your Zoiko SIM or eSIM and enter your PAC code\n4. Your number moves over, usually within 1 working day\n\nYour old contract will end automatically when the switch completes.",
+        [{text:'Switch & Save', url:'/switch-and-save'}, 'Zoiko Plans', '🏠 Main Menu'], [0])
+      humanCard(); break
+    case 'bill':
+      bot("I can help with billing and payments. 💳\n\nYou can view bills, update your payment card and manage your plan in My Account, or top up anytime online.\n\nWhat would you like to do?",
+        [{text:'My Account', url:'/dashboard'}, {text:'Top up', url:'/recharge'}, {text:'Out-of-bundle rates', url:'/out-of-bundle-rates'}, '🏠 Main Menu'], [0])
+      humanCard(); break
+    case 'net':
+      bot("Let's get you a great signal. 📶\n\nIf you're having trouble, try these first:\n1. Turn Airplane mode on and off again\n2. Restart your phone\n3. Check Mobile Data and Data Roaming settings are correct\n4. Make sure your phone software is up to date\n\nYou can also check coverage for your area.",
+        [{text:'Check coverage', url:'/roaming-and-coverage'}, {text:'5G data', url:'/superfast-5g-data'}, '🏠 Main Menu'], [0])
+      humanCard(); break
+    case 'roam':
+      bot("Travelling or calling abroad? 🌍\n\nZoiko plans include EU roaming allowances, and you can call 80+ countries at low rates — some plans include free international calls.",
+        [{text:'Roaming & coverage', url:'/roaming-and-coverage'}, {text:'International calling', url:'/international-calling'}, 'Zoiko Plans', '🏠 Main Menu'], [0])
+      humanCard(); break
+    case 'disc':
+      bot("We offer special discounts for students, essential and public sector workers, and people on eligible benefits. 💖\n\nWhich would you like to see?",
+        ['Student Plans', 'Social Tariff', {text:'Public sector offer', url:'/public-sector-offer'}, {text:'Student discount', url:'/student-deals'}, '🏠 Main Menu'])
+      break
+    case 'biz':   showBusinessChoice(); break
+    case 'other':
+      bot('No problem — here are some other things I can help with:', MAIN_MENU.filter(c => c !== 'Zoiko Plans' && c !== 'Business Deals').concat('🏠 Main Menu'))
+      break
+  }
+}
+
+/* ── SIM / eSIM activation flow ── */
+function showActivate() {
+  bot('Of course! I can help you activate your SIM or eSIM. It only takes a few minutes.\n\nAre you activating an eSIM on an iPhone or an Android device, or a physical SIM card?',
+    ['I have an iPhone', 'I have an Android', 'Physical SIM card'])
+}
+
+const ESIM_ACTIONS = [{text:'Send new QR code', url:'/dashboard'}, {text:'Check eSIM status', url:'/dashboard'}]
+
+function activateSteps(device) {
+  if (device === 'iphone') {
+    bot('Great! Here is a simple step-by-step guide to activate your Zoiko Mobile eSIM on an iPhone.\n\n1. Go to Settings > Mobile Data\n2. Tap Add eSIM\n3. Scan the QR code we sent to your email\n4. Follow the on-screen instructions\n\nNeed me to send a new QR code or check the status of your eSIM?', ESIM_ACTIONS)
+  } else if (device === 'android') {
+    bot('Great! Here is a simple step-by-step guide to activate your Zoiko Mobile eSIM on Android.\n\n1. Go to Settings > Connections (or Network & internet)\n2. Tap SIM manager > Add eSIM\n3. Scan the QR code we sent to your email\n4. Follow the on-screen instructions\n\nNeed me to send a new QR code or check the status of your eSIM?', ESIM_ACTIONS)
+  } else {
+    bot('Great! Here is how to activate your Zoiko Mobile SIM card.\n\n1. Pop the SIM out of its card and insert it into your phone\n2. Restart your phone\n3. Complete activation on our website using the SIM number\n4. Wait for the confirmation — usually just a few minutes\n\nWould you like to activate it now?',
+      [{text:'Activate my SIM', url:'/activate-your-sim'}, {text:'Activation guide', url:'/how-to-activate-sim-cards'}], [0])
+  }
+  humanCard()
 }
 
 /* ══════════════════════════════════════════════════════
    PLAN TYPE MENU
 ══════════════════════════════════════════════════════ */
 function showPlanTypes() {
-  bot('📱 Great! We have plans to suit every need.\n\nWhich type of plan are you looking for?', PLAN_TYPES)
+  bot('📱 Great! We have plans to suit every need — SIM only, eSIM and special offers.\n\nWhich type of plan are you looking for?', PLAN_TYPES)
 }
 
 /* ══════════════════════════════════════════════════════
    3-OPTION CHOICE CARD
 ══════════════════════════════════════════════════════ */
-function showPlanChoice(planKey) {
+function choiceCard(rows) {
+  const card = document.createElement('div'); card.className = 'choice-card'
+  rows.forEach(r => {
+    const b = document.createElement('button'); b.className = 'choice-btn' + (r.cta ? ' cta' : '')
+    b.innerHTML = `<div class="choice-ico">${r.ico}</div><div class="choice-txt"><span class="choice-lbl">${r.lbl}</span><span class="choice-desc">${r.desc}</span></div><span class="choice-arrow">→</span>`
+    b.onclick = r.onclick
+    card.appendChild(b)
+  })
+  put(card)
+}
+
+function textRow(text) {
   hideTyping()
+  const row = document.createElement('div'); row.className = 'bot-row'
+  row.appendChild(makeAvatar())
+  const bub = document.createElement('div'); bub.className = 'bot-bubble'
+  bub.innerHTML = formatText(text)
+  row.appendChild(bub); put(row)
+  const ts = document.createElement('div'); ts.className = 'ts'; ts.textContent = now(); put(ts)
+}
+
+function showPlanChoice(planKey) {
   const label   = PLAN_LABELS[planKey] || 'Plans'
   const planArr = PLANS[planKey] || []
   const popular = planArr.find(p => p.popular) || planArr[0]
 
-  const row1 = document.createElement('div'); row1.className = 'bot-row'
-  row1.appendChild(makeAvatar())
-  const bub1 = document.createElement('div'); bub1.className = 'bot-bubble'
-  bub1.textContent = `You've selected ${label}! 🎉\n\nWhat would you like to do?`
-  row1.appendChild(bub1); msgs.insertBefore(row1, typEl)
-
-  const card = document.createElement('div'); card.className = 'choice-card'
-
-  const b1 = document.createElement('button'); b1.className = 'choice-btn cta'
-  b1.innerHTML = `<div class="choice-ico">🛒</div><div class="choice-txt"><span class="choice-lbl">Go to Checkout</span><span class="choice-desc">Most popular: ${popular ? popular.name + ' — ' + popular.price + '/mo' : label}</span></div><span class="choice-arrow">→</span>`
-  b1.onclick = () => { if(popular) openUrl(`https://zoikomobile.co.uk/checkout/?add-to-cart=${popular.cartId}`) }
-
-  const b2 = document.createElement('button'); b2.className = 'choice-btn'
-  b2.innerHTML = `<div class="choice-ico">📋</div><div class="choice-txt"><span class="choice-lbl">View All ${label}</span><span class="choice-desc">Browse all plans with full details, features & pricing</span></div><span class="choice-arrow">→</span>`
-  b2.onclick = () => showPlanCards(planKey)
-
-  const b3 = document.createElement('button'); b3.className = 'choice-btn'
-  b3.innerHTML = `<div class="choice-ico">🏠</div><div class="choice-txt"><span class="choice-lbl">Back to Main Menu</span><span class="choice-desc">Explore other options or ask Zovie anything</span></div><span class="choice-arrow">→</span>`
-  b3.onclick = () => { history = []; mainMenu() }
-
-  card.appendChild(b1); card.appendChild(b2); card.appendChild(b3)
-  msgs.insertBefore(card, typEl)
+  textRow(`You've selected ${label}! 🎉\n\nWhat would you like to do?`)
+  choiceCard([
+    {cta:true, ico:'🛒', lbl:'Go to Checkout', desc:`Most popular: ${popular ? popular.name + ' — ' + popular.price + '/mo' : label}`,
+     onclick:() => { if (popular) openUrl(`https://zoikomobile.co.uk/checkout/?add-to-cart=${popular.cartId}`) }},
+    {ico:'📋', lbl:`View All ${label}`, desc:'Browse all plans with full details, features & pricing', onclick:() => showPlanCards(planKey)},
+    {ico:'🏠', lbl:'Back to Main Menu', desc:'Explore other options or ask Zovie anything', onclick:() => { history = []; mainMenu() }},
+  ])
   scroll()
   speak(`You've selected ${label}. Go to checkout, view all plans, or go back to the main menu.`)
 }
@@ -885,21 +1196,10 @@ function showPlanChoice(planKey) {
    VERTICAL PLAN CARDS
 ══════════════════════════════════════════════════════ */
 function showPlanCards(planKey) {
-  hideTyping()
   const plans = PLANS[planKey] || []
   const label = PLAN_LABELS[planKey] || 'Plans'
 
-  const row1 = document.createElement('div'); row1.className = 'bot-row'
-  row1.appendChild(makeAvatar())
-  const bub = document.createElement('div'); bub.className = 'bot-bubble'
-  bub.innerHTML = `Here are all our <strong>${label}</strong>! 👇<br><small style="color:#6b7280">Tap "Buy this plan →" on any card to go straight to checkout.</small>`
-  const cs = document.createElement('div'); cs.className = 'quick'
-  const bb1 = document.createElement('button'); bb1.className = 'qbtn'; bb1.textContent = '⬅️ Back to Plan Types'
-  bb1.onclick = () => { disChips(cs); userBubble('⬅️ Back to Plan Types'); showPlanTypes() }
-  const bb2 = document.createElement('button'); bb2.className = 'qbtn'; bb2.textContent = '🏠 Main Menu'
-  bb2.onclick = () => { disChips(cs); userBubble('🏠 Main Menu'); history = []; mainMenu() }
-  cs.appendChild(bb1); cs.appendChild(bb2); bub.appendChild(cs)
-  row1.appendChild(bub); msgs.insertBefore(row1, typEl)
+  textRow(`Here are all our <strong>${label}</strong>! 👇\n<small style="color:#6b7280">Tap "Buy this plan →" on any card to go straight to checkout.</small>`)
 
   const stack = document.createElement('div'); stack.className = 'plan-stack'
   plans.forEach(plan => {
@@ -920,23 +1220,10 @@ function showPlanCards(planKey) {
     </div>`
     card.innerHTML = html; stack.appendChild(card)
   })
-  msgs.insertBefore(stack, typEl)
+  put(stack)
 
-  const rowB = document.createElement('div'); rowB.className = 'bot-row'
-  rowB.appendChild(makeAvatar())
-  const bubB = document.createElement('div'); bubB.className = 'bot-bubble'
-  bubB.textContent = `That's all our ${label}! 😊\nWant to explore more?`
-  const csB = document.createElement('div'); csB.className = 'quick'
-  const bk = document.createElement('button'); bk.className = 'qbtn'; bk.textContent = '⬅️ Back to Plan Types'
-  bk.onclick = () => { disChips(csB); userBubble('⬅️ Back to Plan Types'); showPlanTypes() }
-  const hm = document.createElement('button'); hm.className = 'qbtn'; hm.textContent = '🏠 Main Menu'
-  hm.onclick = () => { disChips(csB); userBubble('🏠 Main Menu'); history = []; mainMenu() }
-  const bd = document.createElement('button'); bd.className = 'qbtn'; bd.textContent = '💼 Business Deals'
-  bd.onclick = () => { disChips(csB); userBubble('💼 Business Deals'); showBusinessChoice() }
-  csB.appendChild(bk); csB.appendChild(hm); csB.appendChild(bd)
-  bubB.appendChild(csB); rowB.appendChild(bubB); msgs.insertBefore(rowB, typEl)
-
-  scroll()
+  bot(`That's all our ${label}! 😊\nWant to explore more?`,
+    planKey === 'business' ? ['⬅️ Back to Plan Types', '🏠 Main Menu'] : ['⬅️ Back to Plan Types', '🏠 Main Menu', '💼 Business Deals'])
   speak(`Here are all our ${label}. Tap buy this plan on any card to go straight to checkout.`)
 }
 
@@ -944,41 +1231,23 @@ function showPlanCards(planKey) {
    BUSINESS DEALS
 ══════════════════════════════════════════════════════ */
 function showBusinessChoice() {
-  hideTyping()
   const popular = PLANS.business.find(p => p.popular) || PLANS.business[0]
-
-  const row1 = document.createElement('div'); row1.className = 'bot-row'
-  row1.appendChild(makeAvatar())
-  const bub1 = document.createElement('div'); bub1.className = 'bot-bubble'
-  bub1.textContent = '💼 Zoiko Business Deals\n\nFlexible SIM plans for businesses of all sizes. All include a dedicated account manager & priority support.\n\nWhat would you like to do?'
-  row1.appendChild(bub1); msgs.insertBefore(row1, typEl)
-
-  const card = document.createElement('div'); card.className = 'choice-card'
-  const b1 = document.createElement('button'); b1.className = 'choice-btn cta'
-  b1.innerHTML = `<div class="choice-ico">🛒</div><div class="choice-txt"><span class="choice-lbl">Go to Checkout</span><span class="choice-desc">Most popular: ${popular.name} — ${popular.price}/mo</span></div><span class="choice-arrow">→</span>`
-  b1.onclick = () => openUrl(`https://zoikomobile.co.uk/checkout/?add-to-cart=${popular.cartId}`)
-  const b2 = document.createElement('button'); b2.className = 'choice-btn'
-  b2.innerHTML = `<div class="choice-ico">📋</div><div class="choice-txt"><span class="choice-lbl">View All Business Plans</span><span class="choice-desc">See Starter, Pro & Unlimited with full details</span></div><span class="choice-arrow">→</span>`
-  b2.onclick = () => showPlanCards('business')
-  const b3 = document.createElement('button'); b3.className = 'choice-btn'
-  b3.innerHTML = `<div class="choice-ico">🏠</div><div class="choice-txt"><span class="choice-lbl">Back to Main Menu</span><span class="choice-desc">Explore other options</span></div><span class="choice-arrow">→</span>`
-  b3.onclick = () => { history = []; mainMenu() }
-  card.appendChild(b1); card.appendChild(b2); card.appendChild(b3)
-  msgs.insertBefore(card, typEl)
+  textRow('💼 Zoiko Business Plans\n\nFlexible business SIMs for teams of all sizes. All include a dedicated account manager & priority support.\n\nWhat would you like to do?')
+  choiceCard([
+    {cta:true, ico:'🛒', lbl:'Go to Checkout', desc:`Most popular: ${popular.name} — ${popular.price}/mo`,
+     onclick:() => openUrl(`https://zoikomobile.co.uk/checkout/?add-to-cart=${popular.cartId}`)},
+    {ico:'📋', lbl:'View All Business Plans', desc:'See Starter, Pro & Unlimited with full details', onclick:() => showPlanCards('business')},
+    {ico:'🏠', lbl:'Back to Main Menu', desc:'Explore other options', onclick:() => { history = []; mainMenu() }},
+  ])
   scroll()
-  speak('We have great business deals. Go to checkout, view all plans, or go back to the main menu.')
+  speak('We have great business plans. Go to checkout, view all plans, or go back to the main menu.')
 }
 
 /* ══════════════════════════════════════════════════════
    CUSTOMER REVIEWS
 ══════════════════════════════════════════════════════ */
 function showReviews() {
-  hideTyping()
-  const row1 = document.createElement('div'); row1.className = 'bot-row'
-  row1.appendChild(makeAvatar())
-  const b1 = document.createElement('div'); b1.className = 'bot-bubble'
-  b1.textContent = '⭐ Zoiko Mobile Customer Reviews\n\nDon\'t just take our word for it — see what our customers say!'
-  row1.appendChild(b1); msgs.insertBefore(row1, typEl)
+  textRow('⭐ Zoiko Mobile Customer Reviews\n\nDon\'t just take our word for it — see what our customers say!')
 
   const grid = document.createElement('div'); grid.className = 'kpi-grid'
   ;[{num:'4.8★',lbl:'Average Rating'},{num:'2,400+',lbl:'Happy Customers'},{num:'98%',lbl:'Satisfaction Rate'},{num:'24/7',lbl:'Support Available'}].forEach(k=>{
@@ -986,7 +1255,7 @@ function showReviews() {
     c.innerHTML=`<span class="kpi-num">${k.num}</span><div class="kpi-lbl">${k.lbl}</div>`
     grid.appendChild(c)
   })
-  msgs.insertBefore(grid, typEl)
+  put(grid)
 
   const stack = document.createElement('div'); stack.className = 'review-stack'
   REVIEWS.forEach(r => {
@@ -994,19 +1263,25 @@ function showReviews() {
     c.innerHTML = `<div class="rv-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div><div class="rv-text">"${r.text}"</div><div class="rv-author">${r.author}</div><div class="rv-date">${r.date}</div>`
     stack.appendChild(c)
   })
-  msgs.insertBefore(stack, typEl)
+  put(stack)
 
   bot('Ready to join thousands of happy Zoiko customers? 😊', ['📋 Zoiko Plans','🏠 Main Menu'])
-  scroll()
   speak('Here are our customer reviews. We have over 2400 happy customers with a 4.8 star average rating.')
 }
 
 /* ══════════════════════════════════════════════════════
    CHIP / MENU ROUTER
+   Returns false for anything unknown → GPT answers it.
 ══════════════════════════════════════════════════════ */
+function route(c) {
+  const handled = handleChip(c)
+  if (!handled) askGPT(c)
+}
+
 function handleChip(c) {
   switch(c) {
     case 'Zoiko Plans':        showPlanTypes(); return true
+    case 'Zoiko Plans (all)':  showPlanChoice('zoiko'); return true
     case 'Business Deals':     showBusinessChoice(); return true
     case 'Student Plans':      showPlanChoice('student'); return true
     case 'Essential Plans':    showPlanChoice('essential'); return true
@@ -1022,50 +1297,54 @@ function handleChip(c) {
     case 'Customer Reviews':   showReviews(); return true
     case 'Rate & Exit':        showRating(true); return true
 
+    /* guided flows */
+    case 'I have an iPhone':   activateSteps('iphone'); return true
+    case 'I have an Android':  activateSteps('android'); return true
+    case 'Physical SIM card':  activateSteps('sim'); return true
+    case 'Speak to a human adviser': showHuman(); return true
+    case 'What plans are available?': showPlanTypes(); return true
+    case 'How do I activate my eSIM?': showActivate(); return true
+    case 'How do I transfer my number (PAC)?': topic('num'); return true
+
     case 'Devices':
       bot('Zoiko offers modern smartphones and compatible devices designed to work seamlessly with our mobile network.',
-        [{text:'View Devices',url:'https://zoikomobile.co.uk/devices/'},'🏠 Main Menu']); return true
+        [{text:'View Devices',url:'/devices'},'🏠 Main Menu']); return true
 
     case 'Animals & Music':
       bot('Animals & Music is a unique Zoiko experience designed to entertain and promote creative digital engagement.',
-        [{text:'Explore Animals & Music',url:'https://zoikomobile.co.uk/animals-and-music/'},'🏠 Main Menu']); return true
+        [{text:'Explore Animals & Music',url:'/animals-and-music'},'🏠 Main Menu']); return true
 
     case 'About Us':
       bot('Zoiko Mobile UK is part of the Zoiko Communications Group — affordable SIM-only plans, 5G, EU roaming, and reliable customer support.',
-        [{text:'Read About Zoiko',url:'https://zoikomobile.co.uk/about-us/'},'🏠 Main Menu']); return true
+        [{text:'Read About Zoiko',url:'/about-us'},'🏠 Main Menu']); return true
 
-    case 'Activate SIM':
-      bot('Activating your Zoiko SIM is quick and simple. Follow the steps online to start your plan immediately.',
-        [{text:'Activate SIM',url:'https://zoikomobile.co.uk/activate-your-sim/'},'🏠 Main Menu']); return true
+    case 'Activate SIM':       showActivate(); return true
 
     case 'Top Up':
       bot('Recharge your Zoiko SIM easily via the online top-up portal — pick your plan and pay to continue uninterrupted.',
-        [{text:'Top Up Now',url:'https://zoikomobile.co.uk/recharge/'},'🏠 Main Menu']); return true
+        [{text:'Top Up Now',url:'/recharge'},'🏠 Main Menu'], [0]); return true
 
     case 'Switch & Save':
       bot('Switch to Zoiko and enjoy affordable plans, reliable coverage, and seamless connectivity while saving money monthly.',
-        [{text:'Switch to Zoiko',url:'https://zoikomobile.co.uk/switch-and-save/'},'🏠 Main Menu']); return true
+        [{text:'Switch to Zoiko',url:'/switch-and-save'},'🏠 Main Menu'], [0]); return true
 
-    case 'Contact Us':
-      bot('Need help? Reach our support team through the contact page anytime.',
-        [{text:'Contact Zoiko',url:'https://zoikomobile.co.uk/contact-us/'},'🏠 Main Menu']); return true
+    case 'Contact Us':         showHuman(); return true
 
     case 'Support':
       bot('Zoiko Support helps with billing, SIM activation, network issues, and general enquiries.',
-        [{text:'Visit Support',url:'https://zoikomobile.co.uk/support/'},'🏠 Main Menu']); return true
+        [{text:'Visit Support',url:'/help-support'},{text:'FAQs',url:'/faqs'},'🏠 Main Menu']); return true
 
     case 'International Calls':
       bot('Zoiko offers international calling to 80+ countries — stay connected worldwide without high costs.',
-        [{text:'International Calling Details',url:'https://zoikomobile.co.uk/international-calling/'},'🏠 Main Menu']); return true
+        [{text:'International Calling Details',url:'/international-calling'},'🏠 Main Menu']); return true
 
     default:
-      return false   // ← not a known chip → falls through to GPT
+      return false
   }
 }
 
 /* ══════════════════════════════════════════════════════
-   GPT CALL → /chat/
-   FIX: always called for ANY free-text not in KNOWN_CHIPS
+   GPT CALL → /api/chat
 ══════════════════════════════════════════════════════ */
 async function askGPT(text) {
   if (isBusy) return
@@ -1085,6 +1364,7 @@ async function askGPT(text) {
       const chips = Array.isArray(d.items) ? [...d.items] : []
       if (!chips.some(c => (typeof c === 'string' ? c : c.text || '').includes('Main Menu'))) chips.push('🏠 Main Menu')
       bot(d.reply, chips)
+      humanCard()
     }
   } catch(e) {
     console.error('[Zovie]', e)
@@ -1095,8 +1375,6 @@ async function askGPT(text) {
 
 /* ══════════════════════════════════════════════════════
    SEND — unified handler
-   FIX: handleChip returns true/false — only calls GPT
-        when the text is NOT a known menu option
 ══════════════════════════════════════════════════════ */
 function sendMessage(override) {
   if (isBusy) return
@@ -1105,15 +1383,11 @@ function sendMessage(override) {
   inp.value = ''; inp.style.height = 'auto'
 
   if (RESET_WORDS.has(text.toLowerCase().trim())) {
-    history = []; userBubble(text); mainMenu(); return
+    history = []; mainMenu(); return
   }
 
   userBubble(text)
-
-  // handleChip returns true if it matched a menu item
-  // returns false for free-text → send to GPT
-  const handled = handleChip(text)
-  if (!handled) askGPT(text)
+  route(text)
 }
 
 sendBtn.onclick = () => sendMessage()
@@ -1133,11 +1407,11 @@ function showRating(closeAfter = false) {
       <div class="rt">Rate your experience</div>
       <div class="rs">Tap a star to rate Zovie</div>
       <div class="star-row">
-        <button class="star" data-i="1">★</button>
-        <button class="star" data-i="2">★</button>
-        <button class="star" data-i="3">★</button>
-        <button class="star" data-i="4">★</button>
-        <button class="star" data-i="5">★</button>
+        <button class="star" data-i="1" aria-label="1 star">★</button>
+        <button class="star" data-i="2" aria-label="2 stars">★</button>
+        <button class="star" data-i="3" aria-label="3 stars">★</button>
+        <button class="star" data-i="4" aria-label="4 stars">★</button>
+        <button class="star" data-i="5" aria-label="5 stars">★</button>
       </div>
       <div class="feedback-form" id="zrf">
         <div class="fi-lbl">Tell us more</div>
@@ -1147,7 +1421,7 @@ function showRating(closeAfter = false) {
         <textarea class="fi-inp" id="zrm" rows="3" placeholder="Tell us how we can improve…"></textarea>
         <button class="fi-submit" id="zrb">Send Feedback</button>
       </div>`
-    msgs.insertBefore(wrap, typEl); scroll()
+    put(wrap); scroll()
 
     document.getElementById('zrb').onclick = () => submitRating(closeAfter)
     wrap.querySelectorAll('.star').forEach(btn => {
@@ -1156,7 +1430,7 @@ function showRating(closeAfter = false) {
         wrap.querySelectorAll('.star').forEach((s, i) => s.classList.toggle('active', i < selectedRating))
         if (selectedRating >= 4) {
           bot('Brilliant — thank you so much! ⭐ Have a wonderful day! 👋')
-          if (closeAfter) setTimeout(() => closeChat(), 2800)
+          if (closeAfter) setTimeout(() => hidePanel(), 2800)
         } else {
           document.getElementById('zrf').style.display = 'block'; scroll()
         }
@@ -1182,7 +1456,7 @@ async function submitRating(closeAfter = false) {
     })
   } catch(e) { console.error(e) }
   bot('Thank you! 🙏 A member of our team will be in touch shortly.')
-  if (closeAfter) setTimeout(() => closeChat(), 2800)
+  if (closeAfter) setTimeout(() => hidePanel(), 2800)
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1192,9 +1466,9 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition
   recog = new SR()
   recog.lang = 'en-GB'; recog.continuous = false; recog.interimResults = false; recog.maxAlternatives = 1
-  recog.onstart  = () => { isListening=true;  micBtn.classList.add('listening');    hSub.textContent='Listening…'; micSt.textContent='🎙️ Listening… speak now' }
-  recog.onend    = () => { isListening=false; micBtn.classList.remove('listening'); hSub.textContent='Online · AI assistant'; setTimeout(()=>micSt.textContent='',3000) }
-  recog.onerror  = e  => { isListening=false; micBtn.classList.remove('listening'); hSub.textContent='Online · AI assistant'; micSt.textContent=e.error==='no-speech'?'No speech detected.':'Mic error: '+e.error; setTimeout(()=>micSt.textContent='',3500) }
+  recog.onstart  = () => { isListening=true;  micBtn.classList.add('listening');    micSt.textContent='🎙️ Listening… speak now' }
+  recog.onend    = () => { isListening=false; micBtn.classList.remove('listening'); setTimeout(()=>micSt.textContent='',3000) }
+  recog.onerror  = e  => { isListening=false; micBtn.classList.remove('listening'); micSt.textContent=e.error==='no-speech'?'No speech detected.':'Mic error: '+e.error; setTimeout(()=>micSt.textContent='',3500) }
   recog.onresult = e  => { const t=e.results[0][0].transcript.trim(); micSt.textContent=`✅ Heard: "${t}"`; sendMessage(t) }
 }
 micBtn.onclick = () => {
@@ -1223,11 +1497,12 @@ function closeChat() {
 }
 
 fab.onclick = () => isOpen ? closeChat() : openChat()
-closeB.onclick = () => closeChat()
+/* Minimise keeps the conversation; close also starts a fresh chat next time. */
+minB.onclick = () => hidePanel()
+closeB.onclick = () => { hidePanel(); history = []; setTimeout(mainMenu, 350) }
 document.addEventListener('click', e => {
-  if (isOpen && !document.getElementById('chatbot').contains(e.target) && !fab.contains(e.target)) closeChat()
+  if (!EMBED && isOpen && !document.getElementById('chatbot').contains(e.target) && !fab.contains(e.target)) closeChat()
 })
-document.getElementById('chatbot').addEventListener('click', e => e.stopPropagation())
 fab.addEventListener('click', e => e.stopPropagation())
 
 /* ── Plan "Buy this plan" links respect embed navigation ── */
