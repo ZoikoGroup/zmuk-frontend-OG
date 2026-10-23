@@ -29,7 +29,10 @@ import {
   X,
   XCircle,
   ShieldCheck,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { recordBoosterPurchase } from "../../utils/dashboardSync";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -114,6 +117,9 @@ export default function LatestOffersPage() {
     null
   );
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState("");
+  const [isClaiming, setIsClaiming] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -327,6 +333,14 @@ export default function LatestOffersPage() {
       }
     );
   }, [lines, selectedLineId]);
+
+  const hasActiveLine = useMemo(() => {
+    return Boolean(
+      lines.length > 0 &&
+      currentLine.id &&
+      currentLine.number !== "Pending activation"
+    );
+  }, [lines, currentLine]);
 
   // Build dynamic offers tailored to the selected line & Django plans catalogue
   const allOffers: OfferItem[] = useMemo(() => {
@@ -591,17 +605,132 @@ export default function LatestOffersPage() {
     );
   };
 
-  const handleClaimExclusive = (offerId: string, title: string) => {
+  const handleClaimExclusive = async (offerId: string, title: string) => {
+    if (!hasActiveLine) {
+      showToast("Please activate a SIM line before claiming account exclusives.");
+      return;
+    }
     if (claimedExclusives.includes(offerId)) {
       showToast(`${title} is already claimed on ${currentLine.number}.`);
       return;
     }
-    const updated = [...claimedExclusives, offerId];
-    setClaimedExclusives(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("zmuk_claimed_exclusives", JSON.stringify(updated));
+
+    setIsClaiming(true);
+    try {
+      recordBoosterPurchase({
+        addedGb: 5,
+        cost: 0,
+        lineId: currentLine.id,
+        lineNumber: currentLine.number,
+        boosterName: "Thank-you 5 GB Booster",
+      });
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "general",
+            subject: `Account Exclusive Claimed: ${title}`,
+            message: `Customer claimed exclusive reward "${title}" for line ${currentLine.number} (ID: ${currentLine.id}).`,
+          }),
+        }).catch(() => {});
+      }
+
+      const updated = [...claimedExclusives, offerId];
+      setClaimedExclusives(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("zmuk_claimed_exclusives", JSON.stringify(updated));
+      }
+      showToast(`+5 GB Thank-you booster applied to ${currentLine.number} at £0.00!`);
+    } catch {
+      showToast("Could not claim exclusive. Please try again or contact support.");
+    } finally {
+      setIsClaiming(false);
     }
-    showToast(`${title} claimed for ${currentLine.number}!`);
+  };
+
+  const handleConfirmUpgrade = async () => {
+    if (!hasActiveLine) {
+      setUpgradeError("You need an active SIM line to schedule an upgrade.");
+      return;
+    }
+
+    if (String(currentLine.planName || "").toLowerCase().includes("unlimited")) {
+      setUpgradeError(`Your line ${currentLine.number} is already on an Unlimited plan.`);
+      return;
+    }
+
+    setIsUpgrading(true);
+    setUpgradeError("");
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "plan_change",
+            subject: `Plan Upgrade to Zoiko Unlimited for ${currentLine.number}`,
+            message: `User requested plan upgrade from ${currentLine.planName} to Zoiko Unlimited (£19.99/mo promo for 3 months) effective next renewal ${currentLine.renewDate}.\nLine: ${currentLine.number} (ID: ${currentLine.id}).`,
+          }),
+        }).catch(() => {});
+      }
+
+      setUpgradeModalOpen(false);
+      showToast(
+        `Zoiko Unlimited scheduled for ${currentLine.number} starting ${currentLine.renewDate}.`
+      );
+    } catch {
+      setUpgradeError("Failed to schedule upgrade. Please contact support.");
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
+  const handleAddonOffer = async (offer: OfferItem) => {
+    if (!hasActiveLine) {
+      showToast("Please activate a SIM line before purchasing add-ons.");
+      return;
+    }
+
+    let addedGb = 0;
+    const match = offer.title.match(/(\d+)\s*GB/i);
+    if (match) addedGb = Number(match[1]);
+
+    recordBoosterPurchase({
+      addedGb: addedGb || 5,
+      cost: offer.numericPrice,
+      lineId: currentLine.id,
+      lineNumber: currentLine.number,
+      boosterName: offer.title,
+    });
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+    if (token) {
+      await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          category: "billing",
+          subject: `Add-on Purchase: ${offer.title} for ${currentLine.number}`,
+          message: `User accepted offer: ${offer.title} (£${offer.numericPrice.toFixed(2)}) for line ${currentLine.number}.`,
+        }),
+      }).catch(() => {});
+    }
+
+    showToast(`${offer.title} added for ${currentLine.number}!`);
   };
 
   const renderBannerGraphic = (type: OfferItem["bannerGraphic"]) => {
@@ -1725,7 +1854,15 @@ export default function LatestOffersPage() {
               <div>
                 <button
                   type="button"
-                  onClick={() => setUpgradeModalOpen(true)}
+                  onClick={() => {
+                    if (!hasActiveLine) {
+                      showToast(
+                        "No active SIM line found to upgrade. Please activate a SIM first."
+                      );
+                      return;
+                    }
+                    setUpgradeModalOpen(true);
+                  }}
                   className="py-2 px-4 bg-[#E01C5B] hover:bg-[#C81650] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Compare and continue
@@ -1824,30 +1961,45 @@ export default function LatestOffersPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={isClaiming}
                   onClick={() => {
                     const offer = selectedOfferModal;
-                    setSelectedOfferModal(null);
                     if (offer.category === "Account exclusives") {
+                      setSelectedOfferModal(null);
                       handleClaimExclusive(offer.id, offer.title);
                     } else if (offer.category === "Refer & earn") {
+                      setSelectedOfferModal(null);
                       router.push("/dashboard/refer-and-earn");
                     } else if (offer.category === "Plan upgrades") {
+                      setSelectedOfferModal(null);
+                      if (!hasActiveLine) {
+                        showToast(
+                          "No active SIM line found to upgrade. Please activate a SIM first."
+                        );
+                        return;
+                      }
                       setUpgradeModalOpen(true);
                     } else {
-                      showToast(
-                        `${offer.title} added for ${currentLine.number}!`
-                      );
+                      setSelectedOfferModal(null);
+                      handleAddonOffer(offer);
                     }
                   }}
-                  className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#C81650] text-white text-xs font-bold cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#C81650] text-white text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {selectedOfferModal.category === "Account exclusives"
-                    ? "Claim free booster"
-                    : selectedOfferModal.category === "Plan upgrades"
-                    ? "Review plan upgrade"
-                    : selectedOfferModal.category === "Refer & earn"
-                    ? "Go to Refer & earn"
-                    : `Get offer on ${currentLine.number}`}
+                  {isClaiming ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : selectedOfferModal.category === "Account exclusives" ? (
+                    "Claim free booster"
+                  ) : selectedOfferModal.category === "Plan upgrades" ? (
+                    "Review plan upgrade"
+                  ) : selectedOfferModal.category === "Refer & earn" ? (
+                    "Go to Refer & earn"
+                  ) : (
+                    `Get offer on ${currentLine.number}`
+                  )}
                 </button>
               </div>
             </div>
@@ -1881,6 +2033,13 @@ export default function LatestOffersPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {upgradeError && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                <span>{upgradeError}</span>
+              </div>
+            )}
 
             <div className="p-3.5 bg-[#F8F9FB] rounded-2xl text-xs text-[#101828] flex flex-col gap-2">
               <div className="flex justify-between">
@@ -1919,15 +2078,18 @@ export default function LatestOffersPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setUpgradeModalOpen(false);
-                  showToast(
-                    `Zoiko Unlimited scheduled for ${currentLine.number} starting ${currentLine.renewDate}.`
-                  );
-                }}
-                className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#C81650] text-white text-xs font-bold cursor-pointer"
+                disabled={isUpgrading}
+                onClick={handleConfirmUpgrade}
+                className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#C81650] text-white text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
-                Confirm upgrade
+                {isUpgrading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Scheduling upgrade...</span>
+                  </>
+                ) : (
+                  "Confirm upgrade"
+                )}
               </button>
             </div>
           </div>

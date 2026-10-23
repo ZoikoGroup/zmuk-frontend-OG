@@ -36,6 +36,8 @@ import {
   CheckCircle2,
   User,
   Plus,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 type ReferralStatusType =
@@ -135,14 +137,23 @@ export default function ReferAndEarnPage() {
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [reviewCreditModalOpen, setReviewCreditModalOpen] = useState(false);
+  const [isApplyingCredit, setIsApplyingCredit] = useState(false);
+  const [creditApplyError, setCreditApplyError] = useState("");
+
   const [selectedReferralDetail, setSelectedReferralDetail] =
     useState<ReferralRecord | null>(null);
+
   const [supportModalOpen, setSupportModalOpen] = useState(false);
   const [supportRefId, setSupportRefId] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
+  const [supportError, setSupportError] = useState("");
+  const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
+
   const [trackReferralModalOpen, setTrackReferralModalOpen] = useState(false);
   const [newRefSuffix, setNewRefSuffix] = useState("");
   const [newRefPlanTier, setNewRefPlanTier] = useState<"lite" | "max">("max");
+  const [trackError, setTrackError] = useState("");
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -426,75 +437,176 @@ export default function ReferAndEarnPage() {
 
   const storageKeySuffix = userEmail || "default";
 
-  const handleApplyCredit = () => {
-    if (availableCredit < 5 || selectedCreditStep > availableCredit) return;
-    const nextUsed = usedCredit + selectedCreditStep;
-    setUsedCredit(nextUsed);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        `zoiko_used_referral_credit_${storageKeySuffix}`,
-        String(nextUsed)
-      );
-    }
-    setReviewCreditModalOpen(false);
-    showToast(
-      `£${selectedCreditStep.toFixed(2)} bill credit scheduled for your next bill.`
-    );
-  };
-
-  const handleRegisterReferralCheck = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanSuffix =
-      newRefSuffix
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "")
-        .slice(-3) ||
-      Math.random().toString(36).substring(2, 5).toUpperCase();
-
-    const todayStr = new Date().toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-
-    const newItem: ReferralRecord = {
-      id: `ref-${Date.now()}`,
-      refCodeMasked: `REF-•••${cleanSuffix}`,
-      subtitle: "Someone you referred",
-      dateUsed: todayStr,
-      status: "In review",
-      rewardAmount: 0,
-      potentialAmount: newRefPlanTier === "max" ? 10.0 : 5.0,
-      notes:
-        "Submitted for 30-day qualification check after first bill payment.",
-    };
-
-    const updated = [newItem, ...referrals];
-    setReferrals(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        `zoiko_referrals_${storageKeySuffix}`,
-        JSON.stringify(updated)
-      );
-    }
-    setNewRefSuffix("");
-    setTrackReferralModalOpen(false);
-    showToast(`Referral ${newItem.refCodeMasked} logged for verification.`);
-  };
-
-  const handleSubmitSupportCase = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supportMessage.trim() || supportMessage.trim().length < 10) {
-      showToast("Please provide at least 10 characters explaining your question.");
+  const handleApplyCredit = async () => {
+    if (availableCredit < 5) {
+      setCreditApplyError("You need at least £5.00 in available credit to apply toward your bill.");
       return;
     }
-    setSupportModalOpen(false);
-    setSupportRefId("");
-    setSupportMessage("");
-    showToast(
-      "Support case opened. Our team will update you within 1–2 working days."
-    );
+    if (selectedCreditStep > availableCredit) {
+      setCreditApplyError("Selected credit cannot exceed your available credit balance.");
+      return;
+    }
+    if (numbersCount === 0) {
+      setCreditApplyError("You need an active SIM line to apply bill credit towards.");
+      return;
+    }
+
+    setIsApplyingCredit(true);
+    setCreditApplyError("");
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: `Referral Credit Redemption: £${selectedCreditStep.toFixed(2)}`,
+            message: `User (${userEmail || "Account"}) redeemed £${selectedCreditStep.toFixed(2)} referral credit toward next monthly bill.\nReferral code: ${referralCode}`,
+          }),
+        }).catch(() => {});
+      }
+
+      const nextUsed = usedCredit + selectedCreditStep;
+      setUsedCredit(nextUsed);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `zoiko_used_referral_credit_${storageKeySuffix}`,
+          String(nextUsed)
+        );
+      }
+      setReviewCreditModalOpen(false);
+      showToast(
+        `£${selectedCreditStep.toFixed(2)} bill credit scheduled for your next bill.`
+      );
+    } catch {
+      setCreditApplyError("Could not apply credit. Please try again or contact support.");
+    } finally {
+      setIsApplyingCredit(false);
+    }
+  };
+
+  const handleRegisterReferralCheck = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const inputVal = newRefSuffix.trim();
+    if (!inputVal) {
+      setTrackError("Please enter your friend's order reference, SIM serial, or mobile number.");
+      return;
+    }
+    if (inputVal.length < 3) {
+      setTrackError("Please enter at least 3 characters.");
+      return;
+    }
+
+    setIsTrackLoading(true);
+    setTrackError("");
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: `Referral Verification Check: ${referralCode}`,
+            message: `Referrer (${userEmail || "Account"}) requested verification for friend reference: ${inputVal}.\nExpected Tier: ${newRefPlanTier}\nReferrer Code: ${referralCode}`,
+          }),
+        }).catch(() => {});
+      }
+
+      const cleanSuffix =
+        inputVal
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(-3) || "NEW";
+
+      const todayStr = new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+
+      const newItem: ReferralRecord = {
+        id: `ref-${Date.now()}`,
+        refCodeMasked: `REF-•••${cleanSuffix}`,
+        subtitle: `Friend's order (${inputVal})`,
+        dateUsed: todayStr,
+        status: "In review",
+        rewardAmount: 0,
+        potentialAmount: newRefPlanTier === "max" ? 10.0 : 5.0,
+        notes:
+          "Submitted for 30-day qualification check after first bill payment.",
+      };
+
+      const updated = [newItem, ...referrals];
+      setReferrals(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `zoiko_referrals_${storageKeySuffix}`,
+          JSON.stringify(updated)
+        );
+      }
+      setNewRefSuffix("");
+      setTrackReferralModalOpen(false);
+      showToast(`Referral ${newItem.refCodeMasked} logged for verification.`);
+    } catch {
+      setTrackError("Unable to submit referral check. Please try again.");
+    } finally {
+      setIsTrackLoading(false);
+    }
+  };
+
+  const handleSubmitSupportCase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const msg = supportMessage.trim();
+    if (!msg || msg.length < 10) {
+      setSupportError("Please provide at least 10 characters explaining your question.");
+      return;
+    }
+    if (msg.length > 1000) {
+      setSupportError("Message cannot exceed 1000 characters.");
+      return;
+    }
+
+    setIsSubmittingSupport(true);
+    setSupportError("");
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: `Referral Inquiry for code ${referralCode}${supportRefId ? ` (${supportRefId})` : ""}`,
+            message: `User referral inquiry:\nReferral Code: ${referralCode}\nSpecific Ref ID: ${supportRefId || "General"}\n\n${msg}`,
+          }),
+        }).catch(() => {});
+      }
+
+      setSupportModalOpen(false);
+      setSupportRefId("");
+      setSupportMessage("");
+      showToast(
+        "Support case opened. Our team will update you within 1–2 working days."
+      );
+    } catch {
+      setSupportError("Could not submit support case. Please try again or email support@zoikomobile.co.uk.");
+    } finally {
+      setIsSubmittingSupport(false);
+    }
   };
 
   const creditSteps: number[] = [];
@@ -1694,20 +1806,38 @@ export default function ReferAndEarnPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5">
+            {creditApplyError && (
+              <div className="p-3 bg-red-50 border border-red-200/80 rounded-xl flex items-start gap-2 text-xs text-red-700 leading-snug">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{creditApplyError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setReviewCreditModalOpen(false)}
+                onClick={() => {
+                  setReviewCreditModalOpen(false);
+                  setCreditApplyError("");
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isApplyingCredit}
                 onClick={handleApplyCredit}
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                Confirm £{selectedCreditStep.toFixed(2)} credit
+                {isApplyingCredit ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Applying credit...</span>
+                  </>
+                ) : (
+                  <span>Confirm £{selectedCreditStep.toFixed(2)} credit</span>
+                )}
               </button>
             </div>
           </div>
@@ -1806,7 +1936,10 @@ export default function ReferAndEarnPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setTrackReferralModalOpen(false)}
+                onClick={() => {
+                  setTrackReferralModalOpen(false);
+                  setTrackError("");
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1816,16 +1949,29 @@ export default function ReferAndEarnPage() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-[#0D1935]">
-                  Last 3 characters of their order/reference (optional)
+                  Friend&apos;s order reference, SIM serial, or mobile <span className="text-[#E01C5B]">*</span>
                 </label>
                 <input
                   type="text"
-                  maxLength={4}
+                  required
                   value={newRefSuffix}
-                  onChange={(e) => setNewRefSuffix(e.target.value)}
-                  placeholder="e.g. 3W1"
-                  className="w-full h-10 px-3 rounded-xl border border-[#121B34]/15 text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setNewRefSuffix(e.target.value);
+                    if (trackError) setTrackError("");
+                  }}
+                  placeholder="e.g. ZM-ORD-104412 or 07123..."
+                  className={`w-full h-10 px-3 rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                    trackError
+                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                      : "border-[#121B34]/15 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {trackError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{trackError}</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1">
@@ -1845,19 +1991,30 @@ export default function ReferAndEarnPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-1">
+            <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setTrackReferralModalOpen(false)}
+                onClick={() => {
+                  setTrackReferralModalOpen(false);
+                  setTrackError("");
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold cursor-pointer"
+                disabled={isTrackLoading}
+                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                Add to review list
+                {isTrackLoading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <span>Add to review list</span>
+                )}
               </button>
             </div>
           </form>
@@ -1883,7 +2040,10 @@ export default function ReferAndEarnPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSupportModalOpen(false)}
+                onClick={() => {
+                  setSupportModalOpen(false);
+                  setSupportError("");
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1905,33 +2065,63 @@ export default function ReferAndEarnPage() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-[#0D1935]">
-                  How can we help?
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#0D1935]">
+                    How can we help? <span className="text-[#E01C5B]">*</span>
+                  </label>
+                  <span className="text-[11px] text-[#4C566A]">
+                    {supportMessage.length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
                   required
+                  maxLength={1000}
                   value={supportMessage}
-                  onChange={(e) => setSupportMessage(e.target.value)}
+                  onChange={(e) => {
+                    setSupportMessage(e.target.value);
+                    if (supportError) setSupportError("");
+                  }}
                   placeholder="Tell us what happened with your referral or reward credit…"
-                  className="w-full p-3 rounded-xl border border-[#121B34]/15 text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  className={`w-full p-3 rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                    supportError
+                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                      : "border-[#121B34]/15 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {supportError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{supportError}</span>
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-1">
+            <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setSupportModalOpen(false)}
+                onClick={() => {
+                  setSupportModalOpen(false);
+                  setSupportError("");
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold cursor-pointer"
+                disabled={isSubmittingSupport}
+                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                Submit support case
+                {isSubmittingSupport ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <span>Submit support case</span>
+                )}
               </button>
             </div>
           </form>

@@ -4,12 +4,14 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
+  Loader2,
   Clock,
   ChevronDown,
   ChevronRight,
   Smartphone,
   Globe,
   CheckCircle2,
+  AlertCircle,
   Info,
   Plane,
   Search,
@@ -421,6 +423,7 @@ export default function RoamingAndTravelPage() {
     dt.setDate(dt.getDate() + 1);
     return dt.toISOString().split("T")[0];
   });
+  const [travelDateError, setTravelDateError] = useState<string>("");
 
   // ── Roaming Usage & Passes State ──
   const [usageRange, setUsageRange] = useState<"7d" | "30d">("7d");
@@ -435,6 +438,7 @@ export default function RoamingAndTravelPage() {
   const [billLimit, setBillLimit] = useState<number>(100);
   const [billLimitModalOpen, setBillLimitModalOpen] = useState<boolean>(false);
   const [tempBillLimit, setTempBillLimit] = useState<string>("100.00");
+  const [billLimitError, setBillLimitError] = useState<string>("");
 
   const [alertsModalOpen, setAlertsModalOpen] = useState<boolean>(false);
   const [extraSmsAlertAt80, setExtraSmsAlertAt80] = useState<boolean>(true);
@@ -458,9 +462,13 @@ export default function RoamingAndTravelPage() {
     price: number;
     priceUnit: string;
   } | null>(null);
+  const [passPurchaseError, setPassPurchaseError] = useState<string>("");
+  const [isBuyingPass, setIsBuyingPass] = useState<boolean>(false);
 
   const [queryRoamingModalOpen, setQueryRoamingModalOpen] = useState<boolean>(false);
   const [queryRoamingNote, setQueryRoamingNote] = useState<string>("");
+  const [queryError, setQueryError] = useState<string>("");
+  const [isSubmittingQuery, setIsSubmittingQuery] = useState<boolean>(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
 
@@ -908,6 +916,15 @@ export default function RoamingAndTravelPage() {
     );
   }, [currentLine.euFairUseRemainingGb, currentLine.euFairUseLimitGb]);
 
+  const hasActiveLine = useMemo(() => {
+    return Boolean(
+      currentLine.id &&
+      currentLine.id !== "none" &&
+      currentLine.number !== "No active number" &&
+      currentLine.status !== "Inactive"
+    );
+  }, [currentLine]);
+
   // Handlers
   const handleSelectCountry = (dest: DestinationConfig) => {
     setSelectedCountryId(dest.id);
@@ -915,43 +932,116 @@ export default function RoamingAndTravelPage() {
     setCountrySearchFocused(false);
   };
 
-  const handleConfirmBuyPass = () => {
+  const handleTravelDateChange = (val: string) => {
+    setTravelDate(val);
+    if (!val) {
+      setTravelDateError("Please select a travel date.");
+      return;
+    }
+    const sel = new Date(val);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sel < today) {
+      setTravelDateError("Travel date cannot be in the past.");
+    } else {
+      setTravelDateError("");
+    }
+  };
+
+  const handleInitiateBuyPass = (pass: {
+    id: string;
+    title: string;
+    subtitle: string;
+    price: number;
+    priceUnit: string;
+  }) => {
+    if (!hasActiveLine) {
+      showToast("Please activate a SIM line before purchasing a travel pass.", "info");
+      return;
+    }
+    setPassPurchaseError("");
+    setBuyPassModal(pass);
+  };
+
+  const handleConfirmBuyPass = async () => {
     if (!buyPassModal) return;
-    const newPass: ActiveTravelPass = {
-      id: `${buyPassModal.id}-${Date.now()}`,
-      title: buyPassModal.title,
-      destination: buyPassModal.subtitle,
-      price: buyPassModal.price,
-      purchasedAt: new Date().toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-      }),
-    };
-    const nextMap = {
-      ...activePassesByLine,
-      [currentLine.id]: [...(activePassesByLine[currentLine.id] || []), newPass],
-    };
-    setActivePassesByLine(nextMap);
+    if (!hasActiveLine) {
+      showToast("You need an active SIM line to purchase a travel pass.", "info");
+      setBuyPassModal(null);
+      return;
+    }
+
+    if (buyPassModal.price > billLimit) {
+      setPassPurchaseError(
+        `This pass costs £${buyPassModal.price.toFixed(2)}, which exceeds your current monthly bill limit of £${billLimit.toFixed(2)}. Please increase your bill limit first.`
+      );
+      return;
+    }
+
+    setIsBuyingPass(true);
+    setPassPurchaseError("");
+
     try {
-      localStorage.setItem("zoiko_roaming_passes", JSON.stringify(nextMap));
-    } catch {}
-    setBuyPassModal(null);
-    showToast(
-      `Added ${buyPassModal.title} (£${buyPassModal.price.toFixed(2)}) to ${
-        currentLine.number
-      }`,
-      "success"
-    );
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "roaming",
+            subject: `Travel Pass Purchase: ${buyPassModal.title} for ${currentLine.number}`,
+            message: `User purchased ${buyPassModal.title} (£${buyPassModal.price.toFixed(2)}) for destination ${buyPassModal.subtitle}.\nLine: ${currentLine.number} (ID: ${currentLine.id}).`,
+          }),
+        }).catch(() => {});
+      }
+
+      const newPass: ActiveTravelPass = {
+        id: `${buyPassModal.id}-${Date.now()}`,
+        title: buyPassModal.title,
+        destination: buyPassModal.subtitle,
+        price: buyPassModal.price,
+        purchasedAt: new Date().toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+        }),
+      };
+      const nextMap = {
+        ...activePassesByLine,
+        [currentLine.id]: [...(activePassesByLine[currentLine.id] || []), newPass],
+      };
+      setActivePassesByLine(nextMap);
+      try {
+        localStorage.setItem("zoiko_roaming_passes", JSON.stringify(nextMap));
+      } catch {}
+      setBuyPassModal(null);
+      showToast(
+        `Added ${buyPassModal.title} (£${buyPassModal.price.toFixed(2)}) to ${currentLine.number}!`,
+        "success"
+      );
+    } catch {
+      setPassPurchaseError("Unable to activate pass. Please try again or contact support.");
+    } finally {
+      setIsBuyingPass(false);
+    }
   };
 
   const handleSaveBillLimit = (e: React.FormEvent) => {
     e.preventDefault();
     const check = validateSpendLimit(tempBillLimit);
     if (!check.isValid) {
+      setBillLimitError(check.error || "Please enter a valid limit.");
       showToast(check.error || "Please enter a valid limit.", "info");
       return;
     }
     const val = check.amount ?? 0;
+    if (val > 100) {
+      setBillLimitError("Monthly spend cap cannot exceed £100.00.");
+      return;
+    }
+    setBillLimitError("");
     setBillLimit(val);
     try {
       localStorage.setItem("zoiko_bill_limit", String(val));
@@ -966,16 +1056,52 @@ export default function RoamingAndTravelPage() {
     showToast(`Monthly mobile bill limit updated to £${val.toFixed(2)}`, "success");
   };
 
-  const handleSubmitRoamingQuery = (e: React.FormEvent) => {
+  const handleSubmitRoamingQuery = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasActiveLine) {
+      showToast("You need an active line to query roaming charges.", "info");
+      return;
+    }
     if (!queryRoamingNote.trim() || queryRoamingNote.trim().length < 10) {
+      setQueryError("Please provide at least 10 characters describing your query.");
       showToast("Please provide at least 10 characters describing your query.", "info");
       return;
     }
-    const refCode = `ZM-ROAM-${Math.floor(100000 + Math.random() * 900000)}`;
-    setQueryRoamingModalOpen(false);
-    setQueryRoamingNote("");
-    showToast(`Roaming query submitted. Case reference: ${refCode}`, "success");
+    if (queryRoamingNote.trim().length > 1000) {
+      setQueryError("Query text cannot exceed 1000 characters.");
+      return;
+    }
+
+    setQueryError("");
+    setIsSubmittingQuery(true);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      const refCode = `ZM-ROAM-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: `Roaming Charge Query for ${currentLine.number} (${refCode})`,
+            message: `User query on roaming charges for line ${currentLine.number} (${currentLine.billingPeriodLabel}):\n\n${queryRoamingNote.trim()}`,
+          }),
+        }).catch(() => {});
+      }
+
+      setQueryRoamingModalOpen(false);
+      setQueryRoamingNote("");
+      showToast(`Roaming query submitted. Case reference: ${refCode}`, "success");
+    } catch {
+      setQueryError("Could not submit query. Please try again or contact support.");
+    } finally {
+      setIsSubmittingQuery(false);
+    }
   };
 
   return (
@@ -1306,11 +1432,19 @@ export default function RoamingAndTravelPage() {
                   <div className="relative">
                     <input
                       type="date"
+                      min={new Date().toISOString().split("T")[0]}
                       value={travelDate}
-                      onChange={(e) => setTravelDate(e.target.value)}
-                      className="w-full h-10 px-3 py-2 bg-white rounded-xl border border-[#E5E8EF] text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                      onChange={(e) => handleTravelDateChange(e.target.value)}
+                      className={`w-full h-10 px-3 py-2 bg-white rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                        travelDateError
+                          ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                          : "border-[#E5E8EF] focus:border-[#E01C5B]"
+                      }`}
                     />
                   </div>
+                  {travelDateError && (
+                    <span className="text-[11px] text-red-600 font-medium">{travelDateError}</span>
+                  )}
                 </div>
               </div>
 
@@ -2116,15 +2250,7 @@ export default function RoamingAndTravelPage() {
                     {/* Review and buy button */}
                     <button
                       type="button"
-                      onClick={() =>
-                        setBuyPassModal({
-                          id: pass.id,
-                          title: pass.title,
-                          subtitle: pass.subtitle,
-                          price: pass.price,
-                          priceUnit: pass.priceUnit,
-                        })
-                      }
+                      onClick={() => handleInitiateBuyPass(pass)}
                       className="w-full h-9 py-2 bg-[#E01C5B] hover:bg-[#c81750] rounded-[10px] inline-flex items-center justify-center text-white text-xs font-semibold transition cursor-pointer"
                     >
                       Review and buy
@@ -2183,13 +2309,7 @@ export default function RoamingAndTravelPage() {
                   onClick={() => {
                     const firstPass = currentDestination.passes[0];
                     if (firstPass) {
-                      setBuyPassModal({
-                        id: firstPass.id,
-                        title: firstPass.title,
-                        subtitle: firstPass.subtitle,
-                        price: firstPass.price,
-                        priceUnit: firstPass.priceUnit,
-                      });
+                      handleInitiateBuyPass(firstPass);
                     }
                   }}
                   className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
@@ -2357,7 +2477,10 @@ export default function RoamingAndTravelPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setBuyPassModal(null)}
+                onClick={() => {
+                  setBuyPassModal(null);
+                  setPassPurchaseError("");
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2365,6 +2488,26 @@ export default function RoamingAndTravelPage() {
             </div>
 
             <div className="py-4 flex flex-col gap-3 text-xs">
+              {currentDestination.isEuIncluded && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900 leading-relaxed">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">EU Roaming is included!</span>
+                    Your standard UK plan includes calls, texts, and data in {currentDestination.name} at no extra charge up to your EU fair use limit ({currentLine.euFairUseLimitGb} GB). You only need a travel pass if you exceed your allowance.
+                  </div>
+                </div>
+              )}
+
+              {buyPassModal.price > billLimit && (
+                <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2 text-xs text-amber-900 leading-relaxed">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">Exceeds monthly bill limit</span>
+                    This pass costs £{buyPassModal.price.toFixed(2)}, but your current monthly spend cap is £{billLimit.toFixed(2)}. Please increase your bill limit before purchasing.
+                  </div>
+                </div>
+              )}
+
               <div className="p-3.5 rounded-2xl bg-[#F6F7FA] flex items-center justify-between">
                 <div>
                   <div className="text-[#54617E]">Mobile line</div>
@@ -2381,28 +2524,47 @@ export default function RoamingAndTravelPage() {
                   </div>
                 </div>
               </div>
+
               <p className="text-[#54617E] leading-5">
                 This travel pass will be linked to{" "}
                 <strong className="text-[#0D1935]">{currentLine.number}</strong> and
                 counts toward your £{billLimit.toFixed(2)} monthly mobile bill limit. It
                 does not auto-renew.
               </p>
+
+              {passPurchaseError && (
+                <p className="text-xs text-red-600 flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{passPurchaseError}</span>
+                </p>
+              )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setBuyPassModal(null)}
+                onClick={() => {
+                  setBuyPassModal(null);
+                  setPassPurchaseError("");
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isBuyingPass || buyPassModal.price > billLimit}
                 onClick={handleConfirmBuyPass}
-                className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c81750] text-white text-xs font-semibold cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c81750] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                Confirm &amp; buy pass
+                {isBuyingPass ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Activating pass...</span>
+                  </>
+                ) : (
+                  <span>Confirm &amp; buy pass</span>
+                )}
               </button>
             </div>
           </div>
@@ -2429,7 +2591,10 @@ export default function RoamingAndTravelPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setBillLimitModalOpen(false)}
+                onClick={() => {
+                  setBillLimitModalOpen(false);
+                  setBillLimitError("");
+                }}
                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2446,7 +2611,10 @@ export default function RoamingAndTravelPage() {
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => setTempBillLimit(preset.toFixed(2))}
+                      onClick={() => {
+                        setTempBillLimit(preset.toFixed(2));
+                        setBillLimitError("");
+                      }}
                       className={`py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                         parseFloat(tempBillLimit) === preset
                           ? "bg-[#E01C5B] text-white border-[#E01C5B]"
@@ -2461,16 +2629,33 @@ export default function RoamingAndTravelPage() {
                   type="number"
                   step="0.01"
                   min="0"
+                  max="100"
                   value={tempBillLimit}
-                  onChange={(e) => setTempBillLimit(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setTempBillLimit(e.target.value);
+                    if (billLimitError) setBillLimitError("");
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none transition ${
+                    billLimitError
+                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {billLimitError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{billLimitError}</span>
+                  </p>
+                )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setBillLimitModalOpen(false)}
+                  onClick={() => {
+                    setBillLimitModalOpen(false);
+                    setBillLimitError("");
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
@@ -2595,31 +2780,61 @@ export default function RoamingAndTravelPage() {
 
             <form onSubmit={handleSubmitRoamingQuery} className="pt-4 flex flex-col gap-3.5">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-[#0D1935]">
-                  Tell us which roaming session or charge you&apos;d like checked
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#0D1935]">
+                    Tell us which roaming session or charge you&apos;d like checked <span className="text-[#E01C5B]">*</span>
+                  </label>
+                  <span className="text-[11px] text-[#54617E]">
+                    {queryRoamingNote.length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
                   required
+                  maxLength={1000}
                   value={queryRoamingNote}
-                  onChange={(e) => setQueryRoamingNote(e.target.value)}
+                  onChange={(e) => {
+                    setQueryRoamingNote(e.target.value);
+                    if (queryError) setQueryError("");
+                  }}
                   placeholder="e.g. Border roaming near Northern Ireland or unexpected pass charge..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-[#0D1935] focus:outline-none transition ${
+                    queryError
+                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {queryError && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{queryError}</span>
+                  </p>
+                )}
               </div>
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setQueryRoamingModalOpen(false)}
+                  onClick={() => {
+                    setQueryRoamingModalOpen(false);
+                    setQueryError("");
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
+                  disabled={isSubmittingQuery}
+                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
-                  Submit query
+                  {isSubmittingQuery ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Submit query</span>
+                  )}
                 </button>
               </div>
             </form>
