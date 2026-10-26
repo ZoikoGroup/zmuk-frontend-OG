@@ -170,7 +170,13 @@ export default function PlanUsagesPage() {
             <>
               {/* Usage Header */}
               <div className="flex justify-between items-center mb-6">
-                <h4 className="text-xl font-bold">Current Usage Overview</h4>
+                <div className="flex items-center gap-3">
+                  <h4 className="text-xl font-bold">Current Usage Overview</h4>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
+                    Coming Soon
+                  </span>
+                </div>
                 <span className="text-sm text-gray-500">{usage.billingCycle}</span>
               </div>
 

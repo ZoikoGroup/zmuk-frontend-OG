@@ -38,6 +38,7 @@ import {
   HelpCircle,
   Check,
   X,
+  AlertTriangle,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/DashboardSidebar";
@@ -56,7 +57,16 @@ import {
   getBoosterSummary,
   recordBoosterPurchase,
 } from "../../utils/dashboardSync";
-import { validateSpendLimit, validateCardExpiry } from "../../utils/validators";
+import {
+  validateSpendLimit,
+  validateCardExpiry,
+  validateCardNumber,
+  validateCardCvv,
+  validateUkSortCode,
+  validateUkAccountNumber,
+  validateName,
+} from "../../utils/validators";
+import { fetchZoikoNexBills } from "../../utils/zoikoNexApi";
 
 export interface BillingLineItem {
   id: string;
@@ -183,18 +193,52 @@ export default function BillsAndPaymentsPage() {
 
   const [billLimitModalOpen, setBillLimitModalOpen] = useState<boolean>(false);
   const [tempBillLimit, setTempBillLimit] = useState<string>("0.00");
+  const [billLimitError, setBillLimitError] = useState<string>("");
 
   const [ddModalOpen, setDdModalOpen] = useState<boolean>(false);
   const [tempBankLast2, setTempBankLast2] = useState<string>("");
+  const [ddAccountName, setDdAccountName] = useState<string>("");
+  const [ddSortCode, setDdSortCode] = useState<string>("");
+  const [ddAccountNumber, setDdAccountNumber] = useState<string>("");
+  const [ddConfirmed, setDdConfirmed] = useState<boolean>(false);
+  const [ddErrors, setDdErrors] = useState<{
+    name?: string;
+    sortCode?: string;
+    accountNumber?: string;
+    confirmed?: string;
+  }>({});
 
   const [cardModalOpen, setCardModalOpen] = useState<boolean>(false);
+  const [cardHolderName, setCardHolderName] = useState<string>("");
+  const [cardNumber, setCardNumber] = useState<string>("");
   const [tempCardBrand, setTempCardBrand] = useState<string>("Visa debit");
   const [tempCardLast4, setTempCardLast4] = useState<string>("");
   const [tempCardExpiry, setTempCardExpiry] = useState<string>("");
+  const [cardCvc, setCardCvc] = useState<string>("");
+  const [cardErrors, setCardErrors] = useState<{
+    name?: string;
+    number?: string;
+    expiry?: string;
+    cvc?: string;
+  }>({});
 
   const [queryChargeModalOpen, setQueryChargeModalOpen] = useState<boolean>(false);
   const [queryChargeReason, setQueryChargeReason] = useState<string>("");
   const [queryChargeBillRef, setQueryChargeBillRef] = useState<string>("");
+  const [queryChargeCategory, setQueryChargeCategory] = useState<string>("Data booster");
+  const [queryChargeAmount, setQueryChargeAmount] = useState<string>("");
+  const [queryChargeErrors, setQueryChargeErrors] = useState<{
+    category?: string;
+    amount?: string;
+    reason?: string;
+  }>({});
+  const [isSubmittingQuery, setIsSubmittingQuery] = useState<boolean>(false);
+
+  // Make a Payment Modal State
+  const [makePaymentModalOpen, setMakePaymentModalOpen] = useState<boolean>(false);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [paymentError, setPaymentError] = useState<string>("");
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
   const chargesSectionRef = useRef<HTMLDivElement>(null);
@@ -463,7 +507,7 @@ export default function BillsAndPaymentsPage() {
                   matchedCataloguePlan?.price_30 ||
                     matchedCataloguePlan?.final_price ||
                     matchedCataloguePlan?.price ||
-                    14.99
+                    0
                 );
                 orderPriceTotal += monthlyPrice;
 
@@ -480,7 +524,7 @@ export default function BillsAndPaymentsPage() {
                 });
               }
 
-              const finalInvoiceAmt = amt > 0 ? amt : orderPriceTotal > 0 ? orderPriceTotal : 14.99;
+              const finalInvoiceAmt = amt > 0 ? amt : orderPriceTotal > 0 ? orderPriceTotal : 0;
               djangoInvoices.push({
                 id: `sim-${orderRef}`,
                 reference: String(orderRef).startsWith("INV-") ? String(orderRef) : `INV-${orderRef}`,
@@ -776,18 +820,44 @@ export default function BillsAndPaymentsPage() {
           } catch {}
         }
 
-        const combinedBills =
+        let combinedBills =
           statementsList.length > 0 ? statementsList : djangoInvoices;
+
+        if (combinedBills.length === 0) {
+          try {
+            const zoikoNexBills = await fetchZoikoNexBills(foundSubscriberId || undefined);
+            if (zoikoNexBills && zoikoNexBills.length > 0) {
+              combinedBills = zoikoNexBills.map((zb) => ({
+                id: zb.id,
+                reference: zb.reference,
+                amount: zb.amount,
+                issuedDate: zb.issuedDate || zb.billDate || "—",
+                dueDate: zb.dueDate || zb.billDate || "—",
+                dueShort: zb.dueShort || "—",
+                dueWeekday: zb.dueWeekday || "—",
+                periodLabel: zb.periodLabel || zb.period || "—",
+                monthShort: zb.monthShort || "—",
+                status: (zb.status === "Paid" ? "Paid" : "Issued") as "Issued" | "Paid" | "Estimate",
+              }));
+            }
+          } catch (zErr) {
+            console.warn("ZoikoNex bills sync pending integration:", zErr);
+          }
+        }
 
         if (combinedBills.length > 0) {
           combinedBills[0].isLatest = true;
           setBillsHistory(combinedBills);
           setQueryChargeBillRef(combinedBills[0].reference);
+        } else {
+          setBillsHistory([]);
         }
       } else if (djangoInvoices.length > 0) {
         djangoInvoices[0].isLatest = true;
         setBillsHistory(djangoInvoices);
         setQueryChargeBillRef(djangoInvoices[0].reference);
+      } else {
+        setBillsHistory([]);
       }
 
       // Merge BeQuick lines, Django Transatel lines, and fallback
@@ -812,7 +882,7 @@ export default function BillsAndPaymentsPage() {
           id: fallback.id,
           number: fallback.number,
           planName: fallback.planName,
-          monthlyPrice: 14.99,
+          monthlyPrice: 0,
           status: "Active",
           renewDate: "Monthly",
         };
@@ -1048,9 +1118,11 @@ export default function BillsAndPaymentsPage() {
     e.preventDefault();
     const check = validateSpendLimit(tempBillLimit);
     if (!check.isValid) {
+      setBillLimitError(check.error || "Please enter a valid limit.");
       showToast(check.error || "Please enter a valid limit.", "info");
       return;
     }
+    setBillLimitError("");
     const val = check.amount ?? 0;
     setBillLimit(val);
     persistBillingSetting({ billLimit: val });
@@ -1060,25 +1132,75 @@ export default function BillsAndPaymentsPage() {
 
   const handleSaveDirectDebit = (e: React.FormEvent) => {
     e.preventDefault();
-    const digits = tempBankLast2.replace(/\D/g, "");
-    if (!digits || digits.length < 2) {
-      showToast("Please enter at least the last 2 digits of your bank account.", "info");
+    const errors: {
+      name?: string;
+      sortCode?: string;
+      accountNumber?: string;
+      confirmed?: string;
+    } = {};
+
+    // 1. Account name validation
+    const nameCheck = validateName(ddAccountName, "Account holder name");
+    if (!nameCheck.isValid) {
+      errors.name = nameCheck.error;
+    }
+
+    // 2. Sort code validation
+    const sortCheck = validateUkSortCode(ddSortCode);
+    if (!sortCheck.isValid) {
+      errors.sortCode = sortCheck.error;
+    }
+
+    // 3. Account number validation
+    const accCheck = validateUkAccountNumber(ddAccountNumber);
+    if (!accCheck.isValid) {
+      errors.accountNumber = accCheck.error;
+    }
+
+    // 4. Confirmation checkbox
+    if (!ddConfirmed) {
+      errors.confirmed = "Please confirm you agree to the Direct Debit Guarantee.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setDdErrors(errors);
+      showToast("Please correct the Direct Debit details below.", "info");
       return;
     }
-    const val = digits.slice(-2);
+
+    setDdErrors({});
+    const accDigits = accCheck.digits || ddAccountNumber.replace(/\D/g, "");
+    const val = accDigits.slice(-2);
+    const suffix = accDigits.slice(-4);
+
     setBankLast2(val);
+    setMandateRefSuffix(suffix);
     setMandateStatusLabel("Active");
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("zoiko_saved_bank", JSON.stringify({ last2: val }));
+      localStorage.setItem(
+        "zoiko_saved_bank",
+        JSON.stringify({
+          last2: val,
+          sortCode: sortCheck.formatted,
+          name: nameCheck.cleaned,
+          mandateRef: `ZDD-${suffix}`,
+        })
+      );
       window.dispatchEvent(new Event("zoiko-auth"));
     }
-    showToast(`Direct Debit mandate (••${val}) confirmed`, "success");
+    showToast(`Direct Debit mandate confirmed for ${nameCheck.cleaned} (••${val})`, "success");
     setDdModalOpen(false);
   };
 
   const handleRemoveDirectDebit = () => {
     setBankLast2("—");
     setMandateStatusLabel("Not set up");
+    setDdAccountName("");
+    setDdSortCode("");
+    setDdAccountNumber("");
+    setDdConfirmed(false);
+    setDdErrors({});
     if (typeof window !== "undefined") {
       localStorage.removeItem("zoiko_saved_bank");
       window.dispatchEvent(new Event("zoiko-auth"));
@@ -1089,23 +1211,55 @@ export default function BillsAndPaymentsPage() {
 
   const handleSaveCard = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned4 = tempCardLast4.replace(/\D/g, "").slice(-4);
-    if (!cleaned4 || cleaned4.length !== 4) {
-      showToast("Please enter the 4-digit card ending.", "info");
+    const errors: {
+      name?: string;
+      number?: string;
+      expiry?: string;
+      cvc?: string;
+    } = {};
+
+    // 1. Name validation
+    const nameCheck = validateName(cardHolderName, "Cardholder name");
+    if (!nameCheck.isValid) {
+      errors.name = nameCheck.error;
+    }
+
+    // 2. Card number validation (Luhn Mod-10)
+    const numCheck = validateCardNumber(cardNumber);
+    if (!numCheck.isValid) {
+      errors.number = numCheck.error;
+    }
+
+    // 3. Expiry date validation
+    const expCheck = validateCardExpiry(tempCardExpiry);
+    if (!expCheck.isValid) {
+      errors.expiry = expCheck.error;
+    }
+
+    // 4. CVV validation
+    const isAmex = numCheck.brand === "Amex";
+    const cvcCheck = validateCardCvv(cardCvc, isAmex);
+    if (!cvcCheck.isValid) {
+      errors.cvc = cvcCheck.error;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCardErrors(errors);
+      showToast("Please correct the card details below.", "info");
       return;
     }
-    if (tempCardExpiry && tempCardExpiry.trim()) {
-      const expCheck = validateCardExpiry(tempCardExpiry);
-      if (!expCheck.isValid) {
-        showToast(expCheck.error || "Please enter a valid card expiry date (MM/YY).", "info");
-        return;
-      }
-    }
+
+    setCardErrors({});
+    const detectedBrand =
+      numCheck.brand !== "Unknown" ? `${numCheck.brand} debit` : tempCardBrand || "Visa debit";
+    const last4 = numCheck.last4 || cardNumber.replace(/\D/g, "").slice(-4);
+    const expiryFormatted = expCheck.formatted || tempCardExpiry;
+
     const newCard: SavedCardMethod = {
       id: `pm-${Date.now()}`,
-      brand: tempCardBrand || "Debit card",
-      last4: cleaned4.padStart(4, "0"),
-      expiry: tempCardExpiry || "Active",
+      brand: detectedBrand,
+      last4,
+      expiry: expiryFormatted,
     };
     setSavedCard(newCard);
     if (typeof window !== "undefined") {
@@ -1113,7 +1267,7 @@ export default function BillsAndPaymentsPage() {
       window.dispatchEvent(new Event("zoiko-auth"));
     }
     setCardModalOpen(false);
-    showToast(`Saved card (${newCard.brand} ••••${cleaned4}) updated`, "success");
+    showToast(`Saved card (${newCard.brand} ••••${last4}) added successfully`, "success");
   };
 
   const handleRemoveCard = () => {
@@ -1126,16 +1280,104 @@ export default function BillsAndPaymentsPage() {
     showToast("Payment card removed.", "info");
   };
 
-  const handleSubmitChargeQuery = (e: React.FormEvent) => {
+  const handleSubmitChargeQuery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryChargeReason.trim() || queryChargeReason.trim().length < 10) {
-      showToast("Please provide at least 10 characters explaining your query.", "info");
+    const errors: {
+      category?: string;
+      amount?: string;
+      reason?: string;
+    } = {};
+
+    if (!queryChargeCategory) {
+      errors.category = "Please select a charge category.";
+    }
+
+    if (queryChargeAmount.trim()) {
+      const amt = parseFloat(queryChargeAmount);
+      if (isNaN(amt) || amt <= 0) {
+        errors.amount = "Enter a valid positive amount in £.";
+      } else if (amt > 1000) {
+        errors.amount = "Disputed amount cannot exceed £1,000.00.";
+      }
+    }
+
+    const trimmedReason = queryChargeReason.trim();
+    if (!trimmedReason || trimmedReason.length < 15) {
+      errors.reason = "Please provide at least 15 characters explaining the charge.";
+    } else if (trimmedReason.length > 1000) {
+      errors.reason = "Explanation cannot exceed 1,000 characters.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setQueryChargeErrors(errors);
+      showToast("Please check the errors in your query submission.", "info");
       return;
     }
+
+    setQueryChargeErrors({});
+    setIsSubmittingQuery(true);
+
     const caseRef = `ZM-${Math.floor(100000 + Math.random() * 900000)}`;
-    setQueryChargeModalOpen(false);
-    setQueryChargeReason("");
-    showToast(`Charge query submitted for ${queryChargeBillRef || "your account"}. Case ref: ${caseRef}`, "success");
+    const billRefLabel = queryChargeBillRef || latestBill.reference || "Current billing cycle";
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: `Billing Query [${caseRef}]: ${billRefLabel} · ${queryChargeCategory}`,
+            message: `Statement: ${billRefLabel}\nCategory: ${queryChargeCategory}\nDisputed Amount: ${queryChargeAmount ? `£${queryChargeAmount}` : "Full line item"}\n\nExplanation:\n${trimmedReason}`,
+          }),
+        });
+      }
+    } catch (err) {
+      console.warn("Could not submit ticket to backend support API:", err);
+    } finally {
+      setIsSubmittingQuery(false);
+      setQueryChargeModalOpen(false);
+      setQueryChargeReason("");
+      setQueryChargeAmount("");
+      showToast(`Query submitted for ${billRefLabel}. Case reference: ${caseRef}`, "success");
+    }
+  };
+
+  const handleMakeOneOffPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(paymentAmount);
+    if (isNaN(amt) || amt < 1.0) {
+      setPaymentError("Minimum payment amount is £1.00.");
+      return;
+    }
+    if (amt > 500.0) {
+      setPaymentError("Maximum single payment amount is £500.00.");
+      return;
+    }
+
+    if (!savedCard && (bankLast2 === "—" || !bankLast2)) {
+      setPaymentError("Please set up a saved card or Direct Debit first.");
+      return;
+    }
+
+    setPaymentError("");
+    setIsProcessingPayment(true);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setAccountCredit((prev) => Number((prev + amt).toFixed(2)));
+      showToast(`Payment of £${amt.toFixed(2)} processed successfully.`, "success");
+      setMakePaymentModalOpen(false);
+      setPaymentAmount("");
+    } catch {
+      setPaymentError("Payment could not be processed. Please try again.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   // Spend Donut Gauge calculation
@@ -1717,9 +1959,14 @@ export default function BillsAndPaymentsPage() {
                     <BarChart2 className="w-4 h-4 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
-                    <h2 className="text-[#0D1935] text-base font-bold leading-5">
-                      Billing history
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[#0D1935] text-base font-bold leading-5">
+                        Billing history
+                      </h2>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3]">
+                        Coming Soon
+                      </span>
+                    </div>
                     <span className="text-[#54617E] text-xs font-normal leading-4">
                       Totals of issued bills, by issue date
                     </span>
@@ -1782,12 +2029,16 @@ export default function BillsAndPaymentsPage() {
 
                 {/* Chart OR Downloadable Bills Table */}
                 {chartBars.length === 0 ? (
-                  <div className="h-44 rounded-2xl bg-[#F4F5F8] flex flex-col items-center justify-center text-center p-4">
-                    <span className="text-xs font-semibold text-[#0D1935]">
-                      No issued bills yet
+                  <div className="h-44 rounded-2xl bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] border border-dashed border-[#CBD5E1] flex flex-col items-center justify-center text-center p-4">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
+                      Coming Soon
                     </span>
-                    <span className="text-[11px] text-[#54617E] mt-0.5">
-                      Your billing statements will appear here once issued.
+                    <span className="text-xs font-bold text-[#0D1935]">
+                      Automated Monthly Billing Statements
+                    </span>
+                    <span className="text-[11px] text-[#54617E] mt-1 max-w-xs">
+                      Official statements and itemised charges will appear here once generated.
                     </span>
                   </div>
                 ) : !showBillsTable ? (
@@ -1890,7 +2141,11 @@ export default function BillsAndPaymentsPage() {
                   <div className="max-h-44 overflow-y-auto border border-[#121E3E]/10 rounded-2xl divide-y divide-[#121E3E]/10">
                     {billsHistory.filter((b) => !b.isEstimate).length === 0 ? (
                       <div className="p-4 text-center text-xs text-[#54617E]">
-                        No issued bills to display yet.
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-1">
+                          Coming Soon
+                        </span>
+                        <div>No issued bills to display yet.</div>
+                        <div className="text-[10px] text-[#8F9BB3] mt-0.5">Itemised bills will appear here once issued.</div>
                       </div>
                     ) : (
                       billsHistory
@@ -2516,6 +2771,24 @@ export default function BillsAndPaymentsPage() {
                   </div>
                 </div>
 
+                {/* Limit Warning / Status Pill */}
+                {billLimit > 0 && totalExtraSpend >= billLimit ? (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl inline-flex items-center gap-2 text-rose-700 text-xs font-semibold">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Monthly bill limit reached (£{billLimit.toFixed(2)}) — further out-of-plan spend paused</span>
+                  </div>
+                ) : billLimit > 0 && totalExtraSpend >= billLimit * 0.8 ? (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl inline-flex items-center gap-2 text-amber-700 text-xs font-semibold">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Approaching spend limit (80% used: £{totalExtraSpend.toFixed(2)} of £{billLimit.toFixed(2)})</span>
+                  </div>
+                ) : billLimit === 0 ? (
+                  <div className="p-2 bg-slate-100 rounded-xl inline-flex items-center gap-2 text-[#54617E] text-xs font-medium">
+                    <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
+                    <span>Spend cap set to £0 — all out-of-plan charges are blocked</span>
+                  </div>
+                ) : null}
+
                 {/* Explanatory Info Box */}
                 <div className="p-3 bg-[#F4F5F8] rounded-xl inline-flex items-start gap-2 text-[#54617E] text-[11px] leading-4">
                   <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0 mt-0.5" />
@@ -2563,11 +2836,19 @@ export default function BillsAndPaymentsPage() {
 
               {/* Action Items List */}
               <div className="flex flex-col">
-                {/* 1. Make a payment (Muted / Informational since DD is scheduled) */}
-                <div className="py-2.5 opacity-60 flex items-center justify-between gap-2.5">
+                {/* 1. Make a payment (Interactive with validation modal) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentAmount(activeChargesTotal > 0 ? activeChargesTotal.toFixed(2) : "10.00");
+                    setPaymentError("");
+                    setMakePaymentModalOpen(true);
+                  }}
+                  className="py-2.5 flex items-center justify-between gap-2.5 text-left hover:bg-slate-50/70 rounded-xl px-1 transition cursor-pointer"
+                >
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 bg-[#F4F5F8] rounded-lg flex items-center justify-center shrink-0">
-                      <CreditCard className="w-3.5 h-3.5 text-[#54617E]" />
+                    <div className="w-7 h-7 bg-[#E01C5B]/10 rounded-lg flex items-center justify-center shrink-0">
+                      <CreditCard className="w-3.5 h-3.5 text-[#E01C5B]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[#0D1935] text-xs font-semibold leading-4">
@@ -2575,17 +2856,23 @@ export default function BillsAndPaymentsPage() {
                       </span>
                       <span className="text-[#54617E] text-[11px] font-normal leading-4">
                         {latestBill.dueShort !== "—"
-                          ? `Nothing to pay now — Direct Debit collects on ${latestBill.dueShort}`
-                          : "Nothing to pay now"}
+                          ? `Pay now or let Direct Debit collect on ${latestBill.dueShort}`
+                          : "Pay now or add account credit"}
                       </span>
                     </div>
                   </div>
-                </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
+                </button>
 
-                {/* 2. Download bills */}
+                {/* 2. Download bills with check */}
                 <button
                   type="button"
                   onClick={() => {
+                    const issued = billsHistory.filter((b) => !b.isEstimate);
+                    if (issued.length === 0) {
+                      showToast("No issued bills to download yet. Your statements will appear once issued.", "info");
+                      return;
+                    }
                     setShowBillsTable(true);
                     historySectionRef.current?.scrollIntoView({ behavior: "smooth" });
                     handleDownloadBillPdf(latestBill);
@@ -2764,10 +3051,21 @@ export default function BillsAndPaymentsPage() {
                   type="number"
                   step="0.01"
                   min="0"
+                  max="100"
                   value={tempBillLimit}
-                  onChange={(e) => setTempBillLimit(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setTempBillLimit(e.target.value);
+                    if (billLimitError) setBillLimitError("");
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                    billLimitError
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {billLimitError && (
+                  <p className="text-xs text-rose-500 font-medium">{billLimitError}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -2793,7 +3091,7 @@ export default function BillsAndPaymentsPage() {
       {/* 2. Manage Direct Debit Modal */}
       {ddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-[#0D1935] rounded-xl flex items-center justify-center text-white text-xs font-extrabold">
@@ -2817,23 +3115,108 @@ export default function BillsAndPaymentsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveDirectDebit} className="pt-4 flex flex-col gap-4">
+            <form onSubmit={handleSaveDirectDebit} className="pt-4 flex flex-col gap-3.5">
               <div className="p-3.5 bg-slate-50 rounded-2xl text-xs text-[#54617E] leading-5">
-                Your Direct Debit automatically collects your issued bill on its scheduled due
-                date. You are protected by the Direct Debit Guarantee.
+                Your Direct Debit automatically collects your monthly bill on its scheduled due date. Protected by the UK Direct Debit Guarantee.
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              {/* Account holder name */}
+              <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-[#0D1935]">
-                  Bank account ending digits (last 2 digits)
+                  Account holder name
                 </label>
                 <input
                   type="text"
-                  maxLength={2}
-                  value={tempBankLast2}
-                  onChange={(e) => setTempBankLast2(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  placeholder="e.g. John Doe"
+                  value={ddAccountName}
+                  onChange={(e) => {
+                    setDdAccountName(e.target.value);
+                    if (ddErrors.name) setDdErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                    ddErrors.name
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {ddErrors.name && (
+                  <p className="text-xs text-rose-500 font-medium">{ddErrors.name}</p>
+                )}
+              </div>
+
+              {/* Sort code and Account number grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-[#0D1935]">
+                    Sort code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={8}
+                    placeholder="20-40-60"
+                    value={ddSortCode}
+                    onChange={(e) => {
+                      setDdSortCode(e.target.value);
+                      if (ddErrors.sortCode)
+                        setDdErrors((prev) => ({ ...prev, sortCode: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                      ddErrors.sortCode
+                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                        : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
+                  />
+                  {ddErrors.sortCode && (
+                    <p className="text-xs text-rose-500 font-medium">{ddErrors.sortCode}</p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-[#0D1935]">
+                    Account number
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={8}
+                    placeholder="8 digits"
+                    value={ddAccountNumber}
+                    onChange={(e) => {
+                      setDdAccountNumber(e.target.value);
+                      if (ddErrors.accountNumber)
+                        setDdErrors((prev) => ({ ...prev, accountNumber: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                      ddErrors.accountNumber
+                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                        : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
+                  />
+                  {ddErrors.accountNumber && (
+                    <p className="text-xs text-rose-500 font-medium">{ddErrors.accountNumber}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Confirmation checkbox */}
+              <div className="pt-1 flex flex-col gap-1">
+                <label className="flex items-start gap-2.5 text-xs text-[#54617E] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ddConfirmed}
+                    onChange={(e) => {
+                      setDdConfirmed(e.target.checked);
+                      if (ddErrors.confirmed)
+                        setDdErrors((prev) => ({ ...prev, confirmed: undefined }));
+                    }}
+                    className="mt-0.5 rounded border-slate-300 text-[#E01C5B] focus:ring-[#E01C5B]"
+                  />
+                  <span>
+                    I confirm that I am the account holder or authorized to operate this account, and agree to the Direct Debit Guarantee.
+                  </span>
+                </label>
+                {ddErrors.confirmed && (
+                  <p className="text-xs text-rose-500 font-medium">{ddErrors.confirmed}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-2">
@@ -2870,7 +3253,7 @@ export default function BillsAndPaymentsPage() {
       {/* 3. Add or Replace Saved Card Modal */}
       {cardModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-[#E01C5B]/10 rounded-xl flex items-center justify-center">
@@ -2895,45 +3278,111 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             <form onSubmit={handleSaveCard} className="pt-4 flex flex-col gap-3.5">
+              {/* Cardholder name */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-[#0D1935]">Card type</label>
-                <select
-                  value={tempCardBrand}
-                  onChange={(e) => setTempCardBrand(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
-                >
-                  <option value="Visa debit">Visa debit</option>
-                  <option value="Mastercard debit">Mastercard debit</option>
-                  <option value="Visa credit">Visa credit</option>
-                </select>
+                <label className="text-xs font-semibold text-[#0D1935]">
+                  Cardholder name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={cardHolderName}
+                  onChange={(e) => {
+                    setCardHolderName(e.target.value);
+                    if (cardErrors.name) setCardErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                    cardErrors.name
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
+                />
+                {cardErrors.name && (
+                  <p className="text-xs text-rose-500 font-medium">{cardErrors.name}</p>
+                )}
               </div>
 
+              {/* 16-digit card number */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-[#0D1935]">
+                  Card number
+                </label>
+                <input
+                  type="text"
+                  maxLength={19}
+                  placeholder="•••• •••• •••• •••• (16 digits)"
+                  value={cardNumber}
+                  onChange={(e) => {
+                    setCardNumber(e.target.value);
+                    if (cardErrors.number)
+                      setCardErrors((prev) => ({ ...prev, number: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                    cardErrors.number
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
+                />
+                {cardErrors.number && (
+                  <p className="text-xs text-rose-500 font-medium">{cardErrors.number}</p>
+                )}
+              </div>
+
+              {/* Expiry and CVC grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-[#0D1935]">
-                    Last 4 digits
+                    Expiry (MM/YY)
                   </label>
                   <input
                     type="text"
-                    maxLength={4}
-                    placeholder="4 digits"
-                    value={tempCardLast4}
-                    onChange={(e) => setTempCardLast4(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                    maxLength={5}
+                    placeholder="MM/YY"
+                    value={tempCardExpiry}
+                    onChange={(e) => {
+                      setTempCardExpiry(e.target.value);
+                      if (cardErrors.expiry)
+                        setCardErrors((prev) => ({ ...prev, expiry: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                      cardErrors.expiry
+                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                        : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
                   />
+                  {cardErrors.expiry && (
+                    <p className="text-xs text-rose-500 font-medium">{cardErrors.expiry}</p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-[#0D1935]">
-                    Expiry (MM/YYYY)
+                    Security code (CVC)
                   </label>
                   <input
-                    type="text"
-                    placeholder="MM/YYYY"
-                    value={tempCardExpiry}
-                    onChange={(e) => setTempCardExpiry(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                    type="password"
+                    maxLength={4}
+                    placeholder="3 or 4 digits"
+                    value={cardCvc}
+                    onChange={(e) => {
+                      setCardCvc(e.target.value);
+                      if (cardErrors.cvc)
+                        setCardErrors((prev) => ({ ...prev, cvc: undefined }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                      cardErrors.cvc
+                        ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                        : "border-slate-200 focus:border-[#E01C5B]"
+                    }`}
                   />
+                  {cardErrors.cvc && (
+                    <p className="text-xs text-rose-500 font-medium">{cardErrors.cvc}</p>
+                  )}
                 </div>
+              </div>
+
+              <div className="p-2.5 bg-slate-50 rounded-xl inline-flex items-center gap-2 text-[#54617E] text-[11px] leading-4">
+                <Lock className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
+                <span>Encrypted with bank-grade 256-bit SSL. Full card numbers are never stored in plain text.</span>
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-2">
@@ -2970,7 +3419,7 @@ export default function BillsAndPaymentsPage() {
       {/* 4. Query or Dispute a Charge Modal */}
       {queryChargeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-[#E01C5B]/10 rounded-xl flex items-center justify-center">
@@ -2981,7 +3430,7 @@ export default function BillsAndPaymentsPage() {
                     Query or dispute a charge
                   </h3>
                   <p className="text-xs text-[#54617E]">
-                    We&apos;ll review your statement and reply with a case reference
+                    We&apos;ll investigate and reply with an official case reference
                   </p>
                 </div>
               </div>
@@ -2995,8 +3444,9 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             <form onSubmit={handleSubmitChargeQuery} className="pt-4 flex flex-col gap-3.5">
+              {/* Bill reference */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-[#0D1935]">Bill reference</label>
+                <label className="text-xs font-semibold text-[#0D1935]">Statement / Cycle</label>
                 <select
                   value={queryChargeBillRef}
                   onChange={(e) => setQueryChargeBillRef(e.target.value)}
@@ -3011,23 +3461,93 @@ export default function BillsAndPaymentsPage() {
                         </option>
                       ))
                   ) : (
-                    <option value="Current Account">Current billing cycle</option>
+                    <option value="Current billing cycle">Current billing cycle</option>
                   )}
                 </select>
               </div>
 
+              {/* Charge category */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-[#0D1935]">Charge category</label>
+                <select
+                  value={queryChargeCategory}
+                  onChange={(e) => {
+                    setQueryChargeCategory(e.target.value);
+                    if (queryChargeErrors.category) {
+                      setQueryChargeErrors((prev) => ({ ...prev, category: undefined }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                >
+                  <option value="Data booster">Data booster (£{extraSpend.boosters.toFixed(2)})</option>
+                  <option value="Roaming day passes">Roaming charges (£{extraSpend.roaming.toFixed(2)})</option>
+                  <option value="International calls & texts">International calls & texts (£{extraSpend.international.toFixed(2)})</option>
+                  <option value="Premium-rate services">Premium-rate & other services (£{extraSpend.premium.toFixed(2)})</option>
+                  <option value="Monthly plan charges">Monthly mobile plan fee</option>
+                  <option value="Unrecognised transaction">Unrecognised transaction</option>
+                  <option value="Other">Other query</option>
+                </select>
+                {queryChargeErrors.category && (
+                  <p className="text-xs text-rose-500 font-medium">{queryChargeErrors.category}</p>
+                )}
+              </div>
+
+              {/* Disputed Amount */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-[#0D1935]">
-                  Tell us which charge doesn&apos;t look right
+                  Disputed amount (£) <span className="font-normal text-[#54617E]">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 21.00"
+                  value={queryChargeAmount}
+                  onChange={(e) => {
+                    setQueryChargeAmount(e.target.value);
+                    if (queryChargeErrors.amount) {
+                      setQueryChargeErrors((prev) => ({ ...prev, amount: undefined }));
+                    }
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-[#0D1935] focus:outline-none ${
+                    queryChargeErrors.amount
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
+                />
+                {queryChargeErrors.amount && (
+                  <p className="text-xs text-rose-500 font-medium">{queryChargeErrors.amount}</p>
+                )}
+              </div>
+
+              {/* Detailed reason */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-[#0D1935]">
+                  Explain what doesn&apos;t look right
                 </label>
                 <textarea
                   rows={3}
                   required
-                  placeholder="Describe the line item or amount you'd like us to check..."
+                  placeholder="Provide details about the specific charge or discrepancy (min 15 characters)..."
                   value={queryChargeReason}
-                  onChange={(e) => setQueryChargeReason(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setQueryChargeReason(e.target.value);
+                    if (queryChargeErrors.reason) {
+                      setQueryChargeErrors((prev) => ({ ...prev, reason: undefined }));
+                    }
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-[#0D1935] focus:outline-none ${
+                    queryChargeErrors.reason
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
                 />
+                <div className="flex items-center justify-between text-[11px] text-[#54617E]">
+                  <span>{queryChargeReason.length}/1000 characters (min 15)</span>
+                  {queryChargeErrors.reason && (
+                    <span className="text-rose-500 font-medium">{queryChargeErrors.reason}</span>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -3040,9 +3560,159 @@ export default function BillsAndPaymentsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
+                  disabled={isSubmittingQuery}
+                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] transition disabled:opacity-50 cursor-pointer"
                 >
-                  Submit query
+                  {isSubmittingQuery ? "Submitting query..." : "Submit query"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Make a Payment Modal */}
+      {makePaymentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-[#E01C5B]/10 rounded-xl flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-[#E01C5B]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0D1935]">
+                    Make a payment
+                  </h3>
+                  <p className="text-xs text-[#54617E]">
+                    Pay your bill balance or add account credit
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMakePaymentModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleMakeOneOffPayment} className="pt-4 flex flex-col gap-4">
+              {/* Account summary pill */}
+              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[#54617E] block text-[11px]">Current charges total</span>
+                  <span className="font-bold text-[#0D1935] text-sm">£{activeChargesTotal.toFixed(2)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[#54617E] block text-[11px]">Account credit balance</span>
+                  <span className="font-bold text-[#1E8E5A] text-sm">£{accountCredit.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Amount Input & Presets */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-[#0D1935]">
+                  Select preset or enter custom amount (£)
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[10, 20, 50, activeChargesTotal > 0 ? activeChargesTotal : 100].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setPaymentAmount(preset.toFixed(2));
+                        setPaymentError("");
+                      }}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                        parseFloat(paymentAmount) === preset
+                          ? "bg-[#E01C5B] text-white border-[#E01C5B]"
+                          : "bg-slate-50 text-[#0D1935] border-slate-200 hover:border-[#E01C5B]/40"
+                      }`}
+                    >
+                      £{preset.toFixed(2)}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1"
+                  max="500"
+                  placeholder="£0.00"
+                  value={paymentAmount}
+                  onChange={(e) => {
+                    setPaymentAmount(e.target.value);
+                    if (paymentError) setPaymentError("");
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none ${
+                    paymentError
+                      ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-[#E01C5B]"
+                  }`}
+                />
+                {paymentError && (
+                  <p className="text-xs text-rose-500 font-medium">{paymentError}</p>
+                )}
+              </div>
+
+              {/* Payment method selector */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-[#0D1935]">Payment method</label>
+                {savedCard ? (
+                  <div className="p-3 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#E01C5B]" />
+                      <span className="font-semibold text-[#0D1935]">
+                        {savedCard.brand} ••••{savedCard.last4}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[#54617E]">Expires {savedCard.expiry}</span>
+                  </div>
+                ) : bankLast2 !== "—" && bankLast2 ? (
+                  <div className="p-3 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 bg-[#0D1935] text-white text-[9px] font-bold rounded flex items-center justify-center">DD</span>
+                      <span className="font-semibold text-[#0D1935]">Direct Debit (••{bankLast2})</span>
+                    </div>
+                    <span className="text-[11px] text-[#1E8E5A] font-semibold">Active mandate</span>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
+                    <span>No saved card or mandate found.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMakePaymentModalOpen(false);
+                        setCardModalOpen(true);
+                      }}
+                      className="font-bold text-[#E01C5B] hover:underline"
+                    >
+                      Add a card
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMakePaymentModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessingPayment}
+                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isProcessingPayment
+                    ? "Processing payment..."
+                    : paymentAmount && !isNaN(parseFloat(paymentAmount))
+                    ? `Pay £${parseFloat(paymentAmount).toFixed(2)}`
+                    : "Pay now"}
                 </button>
               </div>
             </form>

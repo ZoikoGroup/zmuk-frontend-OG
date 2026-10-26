@@ -24,7 +24,6 @@ import {
   Info,
   BarChart2,
   Cpu,
-  Ban,
   Globe,
   Gauge,
   X,
@@ -1087,26 +1086,6 @@ export default function MyMobileNumbersPage() {
     showToast(`Set ${target?.number || "number"} as your primary number.`);
   };
 
-  const handleToggleSuspend = (id: string) => {
-    if (!id) return;
-    setLines((prev) => {
-      const updated = prev.map((l) => {
-        if (l.id === id) {
-          const isSuspended = l.status === "Paused" || l.status === "Suspended";
-          return { ...l, status: isSuspended ? "Active" : "Suspended" };
-        }
-        return l;
-      });
-      const target = updated.find((l) => l.id === id);
-      showToast(
-        target?.status === "Suspended"
-          ? `Suspended ${target.number}. Outgoing service paused.`
-          : `Reactivated ${target?.number}. Service restored.`
-      );
-      return updated;
-    });
-  };
-
   const handleReportActivity = async (note: string) => {
     try {
       const token = localStorage.getItem("zoiko_token") || "";
@@ -1714,18 +1693,6 @@ export default function MyMobileNumbersPage() {
                           >
                             Buy data booster
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleToggleSuspend(currentLine.id);
-                              setMoreMenuOpen(false);
-                            }}
-                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-pink-50 text-[#0D1935] font-medium transition cursor-pointer"
-                          >
-                            {currentLine.status === "Suspended"
-                              ? "Reactivate this number"
-                              : "Suspend this number"}
-                          </button>
                           {subscriberId && (
                             <Link
                               href={`/dashboard/my-devices-sims/${subscriberId}`}
@@ -1942,35 +1909,7 @@ export default function MyMobileNumbersPage() {
                 <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
               </button>
 
-              {/* Action 4: Suspend this number */}
-              <button
-                type="button"
-                onClick={() =>
-                  hasLines
-                    ? handleToggleSuspend(currentLine.id)
-                    : showToast("No active line selected to suspend.", "info")
-                }
-                className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-pink-50 text-[#E01C5B] flex items-center justify-center flex-shrink-0">
-                    <Ban className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-[#0D1935]">
-                      {currentLine.status === "Suspended"
-                        ? "Reactivate this number"
-                        : "Suspend this number"}
-                    </div>
-                    <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                      Lost, stolen or fraud protection
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-              </button>
-
-              {/* Action 5: Report a security concern */}
+              {/* Action 4: Report a security concern */}
               <button
                 type="button"
                 onClick={() => router.push("/contact-us")}
