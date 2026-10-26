@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
-import { BarChart2, ChevronRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BarChart2, ChevronRight, Sparkles } from "lucide-react";
+import { fetchZoikoNexMonthlyUsage, ZoikoNexCycleUsage, ZOIKONEX_CONFIG } from "../../utils/zoikoNexApi";
 
 interface MonthlyData {
   month: string;
@@ -26,10 +27,34 @@ export default function DataUsageHistoryCard({
 }: DataUsageHistoryCardProps) {
   const [viewMode, setViewMode] = useState<"by_cycle" | "this_cycle">("by_cycle");
   const [hoveredBar, setHoveredBar] = useState<{ month: string; type: string; val: number } | null>(null);
+  const [zoikoNexData, setZoikoNexData] = useState<ZoikoNexCycleUsage[] | null>(null);
 
   const hasActivePlan = linesCount > 0 && currentTotalGb > 0;
 
-  const monthsData: MonthlyData[] = hasActivePlan
+  // Dynamic ZoikoNex CDR monthly usage API call — ready to plug in ZoikoNex endpoint
+  useEffect(() => {
+    let isMounted = true;
+    async function loadZoikoNexUsage() {
+      if (activeLineId) {
+        const cycles = await fetchZoikoNexMonthlyUsage(activeLineId);
+        if (isMounted && cycles) {
+          setZoikoNexData(cycles);
+        }
+      }
+    }
+    loadZoikoNexUsage();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeLineId]);
+
+  const monthsData: MonthlyData[] = zoikoNexData && zoikoNexData.length > 0
+    ? zoikoNexData.map((c) => ({
+        month: c.cycleName,
+        ukData: c.ukDataGb,
+        roamingData: c.roamingDataGb,
+      }))
+    : hasActivePlan
     ? [
         {
           month: "Current",
@@ -49,10 +74,14 @@ export default function DataUsageHistoryCard({
       {/* Header + Segmented Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-base sm:text-lg font-bold text-[#0D1935]">
               Data usage
             </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>Coming Soon</span>
+            </span>
             <a
               href="/dashboard/usage-and-allowances"
               className="text-xs font-semibold text-[#E01C5B] hover:text-[#c9144e] flex items-center gap-0.5 hover:underline"
@@ -62,7 +91,7 @@ export default function DataUsageHistoryCard({
             </a>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            UK and roaming data by billing cycle, in GB
+            UK and roaming data by billing cycle · Live daily and monthly usage history coming soon
           </p>
         </div>
 
@@ -235,6 +264,14 @@ export default function DataUsageHistoryCard({
           </div>
         </div>
       </div>
+
+      {/* Live Usage Notice */}
+      {!ZOIKONEX_CONFIG.IS_CONNECTED && (
+        <div className="mt-3 py-2 px-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-500 flex items-center justify-between gap-2">
+          <span>Daily &amp; monthly usage history is coming soon. Real-time billing cycle data will sync automatically once active.</span>
+          <span className="font-semibold text-slate-600 shrink-0">Coming Soon</span>
+        </div>
+      )}
     </div>
   );
 }

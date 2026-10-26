@@ -524,7 +524,7 @@ export default function MyMobileNumbersPage() {
                 let callsLabel = "Unlimited UK calls";
                 let textsLabel = "Unlimited UK texts";
 
-                let metric: LineUsageMetrics = {
+                const metric: LineUsageMetrics = {
                   dataRemaining: 0,
                   dataTotal: 0,
                   dataUsed: 0,

@@ -403,7 +403,7 @@ export default function SimAndEsimPage() {
                 let rawIccid = line.iccid || line.sim_iccid || "";
                 let rawEid = line.eid || line.esim_eid || "";
                 let rawActivatedAt = line.activated_at || line.created_at || "";
-                let rawCreatedAt = line.created_at || line.activated_at || "";
+                const rawCreatedAt = line.created_at || line.activated_at || "";
 
                 try {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any

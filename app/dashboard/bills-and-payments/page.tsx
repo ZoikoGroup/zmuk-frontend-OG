@@ -66,6 +66,7 @@ import {
   validateUkAccountNumber,
   validateName,
 } from "../../utils/validators";
+import { fetchZoikoNexBills } from "../../utils/zoikoNexApi";
 
 export interface BillingLineItem {
   id: string;
@@ -506,7 +507,7 @@ export default function BillsAndPaymentsPage() {
                   matchedCataloguePlan?.price_30 ||
                     matchedCataloguePlan?.final_price ||
                     matchedCataloguePlan?.price ||
-                    14.99
+                    0
                 );
                 orderPriceTotal += monthlyPrice;
 
@@ -523,7 +524,7 @@ export default function BillsAndPaymentsPage() {
                 });
               }
 
-              const finalInvoiceAmt = amt > 0 ? amt : orderPriceTotal > 0 ? orderPriceTotal : 14.99;
+              const finalInvoiceAmt = amt > 0 ? amt : orderPriceTotal > 0 ? orderPriceTotal : 0;
               djangoInvoices.push({
                 id: `sim-${orderRef}`,
                 reference: String(orderRef).startsWith("INV-") ? String(orderRef) : `INV-${orderRef}`,
@@ -819,18 +820,44 @@ export default function BillsAndPaymentsPage() {
           } catch {}
         }
 
-        const combinedBills =
+        let combinedBills =
           statementsList.length > 0 ? statementsList : djangoInvoices;
+
+        if (combinedBills.length === 0) {
+          try {
+            const zoikoNexBills = await fetchZoikoNexBills(foundSubscriberId || undefined);
+            if (zoikoNexBills && zoikoNexBills.length > 0) {
+              combinedBills = zoikoNexBills.map((zb) => ({
+                id: zb.id,
+                reference: zb.reference,
+                amount: zb.amount,
+                issuedDate: zb.issuedDate || zb.billDate || "—",
+                dueDate: zb.dueDate || zb.billDate || "—",
+                dueShort: zb.dueShort || "—",
+                dueWeekday: zb.dueWeekday || "—",
+                periodLabel: zb.periodLabel || zb.period || "—",
+                monthShort: zb.monthShort || "—",
+                status: (zb.status === "Paid" ? "Paid" : "Issued") as "Issued" | "Paid" | "Estimate",
+              }));
+            }
+          } catch (zErr) {
+            console.warn("ZoikoNex bills sync pending integration:", zErr);
+          }
+        }
 
         if (combinedBills.length > 0) {
           combinedBills[0].isLatest = true;
           setBillsHistory(combinedBills);
           setQueryChargeBillRef(combinedBills[0].reference);
+        } else {
+          setBillsHistory([]);
         }
       } else if (djangoInvoices.length > 0) {
         djangoInvoices[0].isLatest = true;
         setBillsHistory(djangoInvoices);
         setQueryChargeBillRef(djangoInvoices[0].reference);
+      } else {
+        setBillsHistory([]);
       }
 
       // Merge BeQuick lines, Django Transatel lines, and fallback
@@ -855,7 +882,7 @@ export default function BillsAndPaymentsPage() {
           id: fallback.id,
           number: fallback.number,
           planName: fallback.planName,
-          monthlyPrice: 14.99,
+          monthlyPrice: 0,
           status: "Active",
           renewDate: "Monthly",
         };
@@ -1932,9 +1959,14 @@ export default function BillsAndPaymentsPage() {
                     <BarChart2 className="w-4 h-4 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
-                    <h2 className="text-[#0D1935] text-base font-bold leading-5">
-                      Billing history
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[#0D1935] text-base font-bold leading-5">
+                        Billing history
+                      </h2>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3]">
+                        Coming Soon
+                      </span>
+                    </div>
                     <span className="text-[#54617E] text-xs font-normal leading-4">
                       Totals of issued bills, by issue date
                     </span>
@@ -1997,12 +2029,16 @@ export default function BillsAndPaymentsPage() {
 
                 {/* Chart OR Downloadable Bills Table */}
                 {chartBars.length === 0 ? (
-                  <div className="h-44 rounded-2xl bg-[#F4F5F8] flex flex-col items-center justify-center text-center p-4">
-                    <span className="text-xs font-semibold text-[#0D1935]">
-                      No issued bills yet
+                  <div className="h-44 rounded-2xl bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] border border-dashed border-[#CBD5E1] flex flex-col items-center justify-center text-center p-4">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
+                      Coming Soon
                     </span>
-                    <span className="text-[11px] text-[#54617E] mt-0.5">
-                      Your billing statements will appear here once issued.
+                    <span className="text-xs font-bold text-[#0D1935]">
+                      Automated Monthly Billing Statements
+                    </span>
+                    <span className="text-[11px] text-[#54617E] mt-1 max-w-xs">
+                      Official statements and itemised charges will appear here once generated.
                     </span>
                   </div>
                 ) : !showBillsTable ? (
@@ -2105,7 +2141,11 @@ export default function BillsAndPaymentsPage() {
                   <div className="max-h-44 overflow-y-auto border border-[#121E3E]/10 rounded-2xl divide-y divide-[#121E3E]/10">
                     {billsHistory.filter((b) => !b.isEstimate).length === 0 ? (
                       <div className="p-4 text-center text-xs text-[#54617E]">
-                        No issued bills to display yet.
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-1">
+                          Coming Soon
+                        </span>
+                        <div>No issued bills to display yet.</div>
+                        <div className="text-[10px] text-[#8F9BB3] mt-0.5">Itemised bills will appear here once issued.</div>
                       </div>
                     ) : (
                       billsHistory

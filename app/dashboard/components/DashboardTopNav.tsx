@@ -182,9 +182,9 @@ export default function DashboardTopNav({
       href: "/dashboard/orders",
     },
     {
-      title: "Two-factor authentication & security",
-      desc: "Manage 2FA, recent sign-ins, and suspicious activity",
-      keywords: "security 2fa two factor authentication login history",
+      title: "Security & account settings",
+      desc: "Manage password, recent sign-ins, and suspicious activity",
+      keywords: "security login history password sessions privacy",
       icon: Shield,
       href: "/dashboard/security",
     },

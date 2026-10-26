@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { QRCodeCanvas } from "qrcode.react";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -129,9 +130,9 @@ function NewsArticle({ slug }: { slug: string }) {
         <div className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
           <h1 className="text-2xl font-extrabold text-gray-800 dark:text-white">Article not found</h1>
           <p className="mt-3 text-gray-500 dark:text-gray-400">This article may have been moved or unpublished.</p>
-          <a href="/news" className="mt-6 inline-block text-sm font-semibold text-[#0e8f74] hover:underline dark:text-[#34d39e]">
+          <Link href="/news" className="mt-6 inline-block text-sm font-semibold text-[#0e8f74] hover:underline dark:text-[#34d39e]">
             ← Back to all news
-          </a>
+          </Link>
         </div>
       </main>
     );
@@ -284,9 +285,9 @@ function NewsArticle({ slug }: { slug: string }) {
 
         {/* Back link */}
         <div className="mt-12">
-          <a href="/news" className="text-sm font-semibold text-[#0e8f74] hover:underline dark:text-[#34d39e]">
+          <Link href="/news" className="text-sm font-semibold text-[#0e8f74] hover:underline dark:text-[#34d39e]">
             ← Back to all news
-          </a>
+          </Link>
         </div>
       </article>
     </main>

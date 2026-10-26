@@ -183,7 +183,7 @@ export default function PrivacyPolicy() {
               To provide you with the services and products you request, process transactions, and deliver customer support.
             </SubSection>
             <SubSection title="2.2 Improving Our Website">
-              To enhance and optimise our website's functionality, user experience, and content.
+              To enhance and optimise our website&apos;s functionality, user experience, and content.
             </SubSection>
             <SubSection title="2.3 Marketing and Communications">
               To send you promotional materials, updates, and notifications about our products and services, subject to your consent where required by law.
@@ -349,7 +349,7 @@ export default function PrivacyPolicy() {
               Our website is not intended for children under the age of 13. We do not knowingly collect or maintain personal information from children under 13 years of age. If you are a parent or guardian and believe that your child has provided us with personal information, please contact us, and we will take appropriate action to remove the information.
             </p>
             <Callout variant="pink" title="Protection of Minors">
-              We are committed to protecting children's privacy online. If we become aware that we have collected personal information from a child under 13, we will delete it immediately.
+              We are committed to protecting children&apos;s privacy online. If we become aware that we have collected personal information from a child under 13, we will delete it immediately.
             </Callout>
           </section>
 

@@ -46,12 +46,18 @@ export default function ChatbotWidget() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  // The embedded chatbot asks us to navigate same-site (keeps the user in the app).
+  // The embedded chatbot asks us to close the panel or navigate same-site (keeps the user in the app).
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
       const data = e.data as { type?: string; url?: string } | null;
-      if (!data || data.type !== "zovie:navigate" || !data.url) return;
+      if (!data) return;
+      // Minimise / close buttons live in the chat's own header.
+      if (data.type === "zovie:close") {
+        setOpen(false);
+        return;
+      }
+      if (data.type !== "zovie:navigate" || !data.url) return;
       if (data.url.startsWith("/")) {
         setOpen(false);
         router.push(data.url);
@@ -74,36 +80,14 @@ export default function ChatbotWidget() {
           aria-hidden={!open}
           className={`fixed z-[9998] flex flex-col overflow-hidden bg-white shadow-2xl transition-all duration-200
             inset-0
-            sm:inset-auto sm:bottom-24 sm:right-5 sm:h-[640px] sm:max-h-[calc(100vh-8rem)] sm:w-[400px] sm:rounded-2xl
+            sm:inset-auto sm:bottom-24 sm:right-5 sm:h-[680px] sm:max-h-[calc(100vh-8rem)] sm:w-[440px] sm:rounded-3xl
             ${open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-[#7c3aed] to-[#9333ea] px-4 py-3 text-white">
-            <div className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/zovie-logo.png" alt="" className="h-8 w-8 rounded-full" />
-              <div>
-                <p className="text-sm font-bold">Zovie</p>
-                <p className="text-xs text-white/80">Zoiko Mobile assistant</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close chat"
-              className="rounded-md p-1.5 hover:bg-white/20"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
           {/* Embedded chatbot — kept mounted so the conversation survives closing the panel */}
           <iframe
             src={CHAT_URL}
             title="Zovie chat"
-            className="h-full w-full flex-1 border-0 bg-[#f9fafb]"
+            className="h-full w-full flex-1 border-0 bg-white"
             allow="microphone"
           />
         </div>
@@ -115,11 +99,11 @@ export default function ChatbotWidget() {
         onClick={() => (open ? setOpen(false) : show())}
         aria-label={open ? "Close chat" : "Open live chat"}
         aria-expanded={open}
-        className={`fixed bottom-5 right-5 z-[9999] h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.28)] transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-[#7c3aed]/30
+        className={`fixed bottom-5 right-5 z-[9999] h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.28)] transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-[#E5125A]/30
           ${open ? "hidden sm:flex" : "flex"}`}
       >
         {open ? (
-          <svg className="h-6 w-6 text-[#7c3aed]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+          <svg className="h-6 w-6 text-[#E5125A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
@@ -141,7 +125,7 @@ export default function ChatbotWidget() {
           />
         )}
         {!mounted && unread && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 text-[10px] font-bold">
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#E5125A] text-[10px] font-bold text-white">
             1
           </span>
         )}

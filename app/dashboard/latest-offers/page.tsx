@@ -73,6 +73,7 @@ interface OfferItem {
   daysLeft?: number;
   numericPrice: number;
   recommendedRank: number;
+  backendPlan?: any;
 }
 
 export default function LatestOffersPage() {
@@ -87,7 +88,20 @@ export default function LatestOffersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userName, setUserName] = useState("Customer");
-  const [freshnessTime, setFreshnessTime] = useState("10:00 BST, 14 Oct");
+
+  const getFormattedFreshness = useCallback(() => {
+    const now = new Date();
+    const tz = now.getTimezoneOffset() === 0 ? "GMT" : "BST";
+    return `${now.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })} ${tz}, ${now.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    })}`;
+  }, []);
+
+  const [freshnessTime, setFreshnessTime] = useState<string>("Checking...");
 
   const [lines, setLines] = useState<LineOption[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
@@ -116,6 +130,7 @@ export default function LatestOffersPage() {
   const [selectedOfferModal, setSelectedOfferModal] = useState<OfferItem | null>(
     null
   );
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState("");
@@ -123,9 +138,28 @@ export default function LatestOffersPage() {
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, _type?: "success" | "error" | "info") => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const computeRenewalDate = (rawDate?: string | Date): string => {
+    const now = new Date();
+    let cycleDay = 28;
+    if (rawDate) {
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        cycleDay = d.getDate();
+      }
+    }
+    const renewal = new Date(now.getFullYear(), now.getMonth(), cycleDay);
+    if (now.getDate() >= cycleDay) {
+      renewal.setMonth(renewal.getMonth() + 1);
+    }
+    return renewal.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
   };
 
   const formatMsisdn = (raw: string) => {
@@ -241,13 +275,17 @@ export default function LatestOffersPage() {
                 order?.price || order?.amount || order?.total || "19.99"
               );
               const pData = order?.data_allowance || "30 GB";
+              const lineRenewDate = computeRenewalDate(
+                order?.renew_date || order?.renewal_date || order?.created_at
+              );
+
               discoveredLines.push({
                 id: String(order?.id || idx + 1),
                 number: formattedNum,
                 planName: pName,
                 dataAllowance: pData,
                 price: !isNaN(pPrice) && pPrice > 0 ? pPrice : 19.99,
-                renewDate: "28 Oct",
+                renewDate: lineRenewDate,
               });
             });
           }
@@ -267,13 +305,16 @@ export default function LatestOffersPage() {
               subDetails?.lines || subDetails?.data?.lines || [];
             linesArr.forEach((l: any, idx: number) => {
               const msisdn = l?.msisdn || l?.mdn || l?.phone_number || "";
+              const lineRenewDate = computeRenewalDate(
+                l?.renew_date || l?.renewal_date || l?.created_at
+              );
               discoveredLines.push({
                 id: String(l?.id || idx + 1),
                 number: msisdn ? formatMsisdn(msisdn) : `Line #${idx + 1}`,
                 planName: l?.plan_name || "Zoiko Max 30GB",
                 dataAllowance: l?.data_allowance || "30 GB",
                 price: parseFloat(l?.price || "19.99") || 19.99,
-                renewDate: "28 Oct",
+                renewDate: lineRenewDate,
               });
             });
           }
@@ -291,30 +332,18 @@ export default function LatestOffersPage() {
           planName: "Zoiko Max 30GB",
           dataAllowance: "30 GB",
           price: 19.99,
-          renewDate: "28 Oct",
+          renewDate: computeRenewalDate(),
         });
       }
 
       setLines(discoveredLines);
       setSelectedLineId((prev) => prev || discoveredLines[0].id);
-
-      const now = new Date();
-      if (isRefresh) {
-        setFreshnessTime(
-          `${now.toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })} BST, ${now.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          })}`
-        );
-      }
+      setFreshnessTime(getFormattedFreshness());
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [getFormattedFreshness]);
 
   useEffect(() => {
     fetchOffersData(false);
@@ -329,7 +358,7 @@ export default function LatestOffersPage() {
         planName: "Zoiko Max 30GB",
         dataAllowance: "30 GB",
         price: 19.99,
-        renewDate: "28 Oct",
+        renewDate: computeRenewalDate(),
       }
     );
   }, [lines, selectedLineId]);
@@ -342,38 +371,170 @@ export default function LatestOffersPage() {
     );
   }, [lines, currentLine]);
 
-  // Build dynamic offers tailored to the selected line & Django plans catalogue
-  const allOffers: OfferItem[] = useMemo(() => {
-    const unlimitedPlan = djangoPlans.find((p) =>
-      String(p?.name || "").toLowerCase().includes("unlimited")
-    );
-    const upgradeTitle = unlimitedPlan?.name || "Zoiko Unlimited";
+  // Compute dynamic promotional schedule dates & catalogue version
+  const schedule = useMemo(() => {
+    const now = new Date();
+    const tz = now.getTimezoneOffset() === 0 ? "GMT" : "BST";
 
+    // End of current calendar month at 23:59
+    const monthEnd = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59
+    );
+    const daysLeftPromo = Math.max(
+      1,
+      Math.ceil((monthEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    );
+    const promoEndFormatted = `Ends 23:59 ${tz}, ${monthEnd.toLocaleDateString(
+      "en-GB",
+      { day: "numeric", month: "short", year: "numeric" }
+    )}`;
+
+    // Booster ends in 7 days
+    const boosterEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    boosterEnd.setHours(23, 59, 59);
+    const daysLeftBooster = Math.max(
+      1,
+      Math.ceil((boosterEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    );
+    const boosterEndFormatted = `Ends 23:59 ${tz}, ${boosterEnd.toLocaleDateString(
+      "en-GB",
+      { day: "numeric", month: "short", year: "numeric" }
+    )}`;
+
+    // Exclusive reward ends in 30 days
+    const exclusiveEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    exclusiveEnd.setHours(23, 59, 59);
+    const daysLeftExclusive = Math.max(
+      1,
+      Math.ceil(
+        (exclusiveEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      )
+    );
+    const exclusiveEndFormatted = `Ends 23:59 ${tz}, ${exclusiveEnd.toLocaleDateString(
+      "en-GB",
+      { day: "numeric", month: "short", year: "numeric" }
+    )}`;
+
+    // Standard pricing starts 3 months after next renewal
+    const standardPriceDate = new Date(now);
+    standardPriceDate.setMonth(standardPriceDate.getMonth() + 3);
+    const standardPriceFormatted = standardPriceDate.toLocaleDateString(
+      "en-GB",
+      { day: "numeric", month: "short", year: "numeric" }
+    );
+
+    const catalogueCode = `${now.getFullYear()}-${String(
+      now.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    return {
+      now,
+      tz,
+      promoEndFormatted,
+      daysLeftPromo,
+      boosterEndFormatted,
+      daysLeftBooster,
+      exclusiveEndFormatted,
+      daysLeftExclusive,
+      standardPriceFormatted,
+      catalogueCode,
+    };
+  }, []);
+
+  // Identify the matching unlimited plan from backend API (/api/plans/v1/), fallback gracefully
+  const backendUnlimitedPlan = useMemo(() => {
+    if (!djangoPlans || djangoPlans.length === 0) return null;
+    return (
+      djangoPlans.find((p) =>
+        String(p?.slug || "").toLowerCase().includes("unlimited") ||
+        String(p?.name || "").toLowerCase().includes("unlimited")
+      ) || djangoPlans[0]
+    );
+  }, [djangoPlans]);
+
+  // Dynamic upgrade details linked directly to backend API
+  const activePlanToUpgrade = selectedUpgradePlan || backendUnlimitedPlan;
+
+  const upgradeTitle = backendUnlimitedPlan?.name || "Zoiko Unlimited";
+  const upgradePromoPrice = backendUnlimitedPlan
+    ? parseFloat(
+        backendUnlimitedPlan.sale_price ||
+          backendUnlimitedPlan.final_price ||
+          backendUnlimitedPlan.price ||
+          "19.99"
+      )
+    : 19.99;
+  const upgradeRegularPrice = backendUnlimitedPlan
+    ? parseFloat(backendUnlimitedPlan.price || "24.99")
+    : 24.99;
+  const upgradeAllowance =
+    backendUnlimitedPlan?.data_allowance || "Unlimited (fair use)";
+  const upgradeBullets = useMemo(() => {
+    if (
+      backendUnlimitedPlan?.features &&
+      Array.isArray(backendUnlimitedPlan.features) &&
+      backendUnlimitedPlan.features.length > 0
+    ) {
+      return backendUnlimitedPlan.features
+        .map((f: any) =>
+          typeof f === "string" ? f : f?.title || String(f?.name || f)
+        )
+        .filter(Boolean);
+    }
+    return [
+      "Unlimited data (fair use)",
+      "Unlimited UK calls and texts",
+      "EU roaming included",
+    ];
+  }, [backendUnlimitedPlan]);
+
+  const modalPlanTitle = activePlanToUpgrade?.name || upgradeTitle;
+  const modalPlanPromoPrice = activePlanToUpgrade
+    ? parseFloat(
+        activePlanToUpgrade.sale_price ||
+          activePlanToUpgrade.final_price ||
+          activePlanToUpgrade.price ||
+          "19.99"
+      )
+    : upgradePromoPrice;
+  const modalPlanRegularPrice = activePlanToUpgrade
+    ? parseFloat(activePlanToUpgrade.price || "24.99")
+    : upgradeRegularPrice;
+  const modalPlanAllowance =
+    activePlanToUpgrade?.data_allowance || upgradeAllowance;
+
+  // Build dynamic offers tailored to the selected line
+  const allOffers: OfferItem[] = useMemo(() => {
     return [
       {
         id: "zoiko-unlimited",
         title: upgradeTitle,
-        subtitle: "£5 off a month for 3 months",
+        subtitle: `£${Math.max(
+          1,
+          Math.round(upgradeRegularPrice - upgradePromoPrice)
+        )} off a month for 3 months`,
         category: "Plan upgrades",
         badgeText: "Limited time",
         badgeIcon: "clock",
         bannerGradient: "from-[#D91B5C] via-[#B4144B] to-[#820E36]",
         bannerGraphic: "unlimited",
-        bullets: [
-          "Unlimited data (fair use)",
-          "Unlimited UK calls and texts",
-          "EU roaming included",
-        ],
-        priceMain: "£19.99",
+        bullets: upgradeBullets,
+        priceMain: `£${upgradePromoPrice.toFixed(2)}`,
         priceSub: "a month for 3 months",
-        priceAfter: "then £24.99 a month",
-        termsText: `Monthly rolling. Starts at your renewal on ${currentLine.renewDate}. From 28 Jan 2027 you pay £24.99 a month.`,
-        termsBoldEnd: "Ends 23:59 GMT, 31 Oct 2026.",
-        reasonText: "Based on your Max plan",
-        endsText: "Ends 23:59 GMT, 31 Oct 2026",
-        daysLeft: 17,
-        numericPrice: 19.99,
+        priceAfter: `then £${upgradeRegularPrice.toFixed(2)} a month`,
+        termsText: `Monthly rolling. Starts at your renewal on ${currentLine.renewDate}. From ${schedule.standardPriceFormatted} you pay £${upgradeRegularPrice.toFixed(2)} a month.`,
+        termsBoldEnd: `${schedule.promoEndFormatted}.`,
+        reasonText: `Based on your ${currentLine.planName}`,
+        endsText: schedule.promoEndFormatted,
+        daysLeft: schedule.daysLeftPromo,
+        numericPrice: upgradePromoPrice,
         recommendedRank: 1,
+        backendPlan: backendUnlimitedPlan,
       },
       {
         id: "booster-10gb",
@@ -393,10 +554,10 @@ export default function LatestOffersPage() {
         priceSub: "one-off",
         priceStrike: "Usually £8.00",
         termsText: `Ends when your allowance renews on ${currentLine.renewDate}. No renewal.`,
-        termsBoldEnd: "Ends 23:59 BST, 20 Oct 2026.",
+        termsBoldEnd: `${schedule.boosterEndFormatted}.`,
         reasonText: "Ends soonest",
-        endsText: "Ends 23:59 BST, 20 Oct 2026",
-        daysLeft: 6,
+        endsText: schedule.boosterEndFormatted,
+        daysLeft: schedule.daysLeftBooster,
         numericPrice: 6.0,
         recommendedRank: 2,
       },
@@ -416,11 +577,11 @@ export default function LatestOffersPage() {
         ],
         priceMain: "Free",
         priceSub: "£0.00",
-        termsText: "Claim once. Granted to this account on 13 Oct 2026.",
-        termsBoldEnd: "Ends 23:59 GMT, 13 Nov 2026.",
+        termsText: `Claim once. Granted to this account on ${currentLine.renewDate}.`,
+        termsBoldEnd: `${schedule.exclusiveEndFormatted}.`,
         reasonText: "Granted to your account",
-        endsText: "Ends 23:59 GMT, 13 Nov 2026",
-        daysLeft: 30,
+        endsText: schedule.exclusiveEndFormatted,
+        daysLeft: schedule.daysLeftExclusive,
         numericPrice: 0,
         recommendedRank: 3,
       },
@@ -461,7 +622,7 @@ export default function LatestOffersPage() {
         priceSub: "one-off",
         termsText: `Valid until your plan renews on ${currentLine.renewDate}. One-off charge added to your next bill.`,
         reasonText: `Available for ${currentLine.number}`,
-        daysLeft: 90,
+        daysLeft: schedule.daysLeftPromo,
         numericPrice: 5.0,
         recommendedRank: 5,
       },
@@ -486,35 +647,143 @@ export default function LatestOffersPage() {
         numericPrice: 0,
         recommendedRank: 6,
       },
-    ];
-  }, [currentLine, djangoPlans]);
+      // Map other backend catalogue plans into Plan Upgrades
+      ...(djangoPlans || [])
+        .filter(
+          (p) =>
+            p &&
+            p.id !== backendUnlimitedPlan?.id &&
+            p.slug !== backendUnlimitedPlan?.slug &&
+            String(p.name || "").toLowerCase() !== upgradeTitle.toLowerCase()
+        )
+        .map((p, idx) => {
+          const sPrice = parseFloat(
+            p.sale_price || p.final_price || p.price || "15.00"
+          );
+          const rPrice = parseFloat(p.price || "18.00");
+          const hasDiscount =
+            !isNaN(sPrice) && !isNaN(rPrice) && sPrice < rPrice;
+          const discountDiff = hasDiscount ? Math.round(rPrice - sPrice) : 0;
+          const bullets =
+            Array.isArray(p.features) && p.features.length > 0
+              ? p.features
+                  .map((f: any) =>
+                    typeof f === "string" ? f : f?.title || String(f?.name || f)
+                  )
+                  .filter(Boolean)
+              : [
+                  `${p.data_allowance || "High-speed"} UK data`,
+                  "Unlimited UK calls and texts",
+                  "EU roaming included",
+                ];
 
-  // Hero carousel slides
+          return {
+            id: `plan-${p.slug || p.id}`,
+            title: p.name || `Zoiko ${p.data_allowance || "Plan"}`,
+            subtitle: hasDiscount
+              ? `£${discountDiff} off promotional rate`
+              : `Upgrade to ${p.data_allowance || "more data"}`,
+            category: "Plan upgrades" as OfferCategory,
+            badgeText: hasDiscount ? "Limited time" : "Standard",
+            badgeIcon: "clock" as const,
+            bannerGradient: "from-[#820E36] via-[#B4144B] to-[#D91B5C]",
+            bannerGraphic: "unlimited" as const,
+            bullets: bullets.slice(0, 3),
+            priceMain: `£${sPrice.toFixed(2)}`,
+            priceSub: "a month",
+            priceStrike: hasDiscount
+              ? `Usually £${rPrice.toFixed(2)}`
+              : undefined,
+            termsText: `Monthly rolling. Starts at your renewal on ${currentLine.renewDate}. No contract lock-in.`,
+            reasonText: `Available for ${currentLine.number}`,
+            numericPrice: sPrice,
+            recommendedRank: 7 + idx,
+            backendPlan: p,
+          };
+        }),
+    ];
+  }, [
+    currentLine,
+    schedule,
+    upgradeTitle,
+    upgradePromoPrice,
+    upgradeRegularPrice,
+    upgradeBullets,
+    backendUnlimitedPlan,
+    djangoPlans,
+  ]);
+
+  // Dynamic limited-time offers
+  const limitedOffers = useMemo(() => {
+    return allOffers.filter(
+      (o) =>
+        o.badgeText === "Limited time" ||
+        o.badgeText === "Ends soon" ||
+        o.category === "Account exclusives" ||
+        (o.daysLeft !== undefined && o.daysLeft <= 30)
+    );
+  }, [allOffers]);
+
+  // Ending soon metrics
+  const endingSoonOffers = useMemo(
+    () => allOffers.filter((o) => o.daysLeft !== undefined && o.daysLeft <= 7),
+    [allOffers]
+  );
+
+  const earliestEndingOffer = useMemo(() => {
+    const withDays = allOffers.filter(
+      (o) => o.daysLeft !== undefined && o.daysLeft > 0
+    );
+    withDays.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    return withDays[0] || null;
+  }, [allOffers]);
+
+  const exclusivesCount = useMemo(
+    () => allOffers.filter((o) => o.category === "Account exclusives").length,
+    [allOffers]
+  );
+
+  // Dynamic Hero carousel slides matching original latest offers page
   const heroSlides = useMemo(
     () => [
       {
         id: "zoiko-unlimited",
         badge: "Limited time",
-        title: "Unlimited data for £19.99 a month for 3 months",
-        description: `£19.99 a month for 3 months, then £24.99 a month. Monthly rolling. Starts at your renewal on ${currentLine.renewDate}. From 28 Jan 2027 you pay £24.99 a month. Offer ends 23:59 GMT, 31 Oct 2026.`,
+        title: `Unlimited data for £${upgradePromoPrice.toFixed(
+          2
+        )} a month for 3 months`,
+        description: `£${upgradePromoPrice.toFixed(
+          2
+        )} a month for 3 months, then £${upgradeRegularPrice.toFixed(
+          2
+        )} a month. Monthly rolling. Starts at your renewal on ${
+          currentLine.renewDate
+        }. From ${schedule.standardPriceFormatted} you pay £${upgradeRegularPrice.toFixed(
+          2
+        )} a month. Offer ${schedule.promoEndFormatted}.`,
         offerId: "zoiko-unlimited",
       },
       {
         id: "booster-10gb",
         badge: "Ends soon",
         title: "10 GB data booster for £6.00 one-off",
-        description: `£2 off for a short time (usually £8.00). Starts right away on ${currentLine.number} and is used before your monthly plan data until ${currentLine.renewDate}. Offer ends 23:59 BST, 20 Oct 2026.`,
+        description: `£2 off for a short time (usually £8.00). Starts right away on ${currentLine.number} and is used before your monthly plan data until ${currentLine.renewDate}. Offer ${schedule.boosterEndFormatted}.`,
         offerId: "booster-10gb",
       },
       {
         id: "thank-you-5gb",
         badge: "Account exclusive",
         title: "Thank-you 5 GB booster — Free",
-        description: `Granted to your account for 6 months with Zoiko. Adds 5 GB of UK data to ${currentLine.number} at £0.00 until your allowance renews on ${currentLine.renewDate}. Claim by 23:59 GMT, 13 Nov 2026.`,
+        description: `Granted to your account for 6 months with Zoiko. Adds 5 GB of UK data to ${currentLine.number} at £0.00 until your allowance renews on ${currentLine.renewDate}. Claim by ${schedule.exclusiveEndFormatted}.`,
         offerId: "thank-you-5gb",
       },
     ],
-    [currentLine]
+    [
+      currentLine,
+      schedule,
+      upgradePromoPrice,
+      upgradeRegularPrice,
+    ]
   );
 
   // Auto-advance carousel when playing
@@ -615,6 +884,12 @@ export default function LatestOffersPage() {
       return;
     }
 
+    const offer = allOffers.find((o) => o.id === offerId);
+    if (offer && offer.daysLeft !== undefined && offer.daysLeft <= 0) {
+      showToast("This exclusive reward has expired.", "error");
+      return;
+    }
+
     setIsClaiming(true);
     try {
       recordBoosterPurchase({
@@ -625,7 +900,10 @@ export default function LatestOffersPage() {
         boosterName: "Thank-you 5 GB Booster",
       });
 
-      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_token")
+          : null;
       if (token) {
         await fetch(`${API_BASE}/api/support/tickets/`, {
           method: "POST",
@@ -660,8 +938,29 @@ export default function LatestOffersPage() {
       return;
     }
 
-    if (String(currentLine.planName || "").toLowerCase().includes("unlimited")) {
-      setUpgradeError(`Your line ${currentLine.number} is already on an Unlimited plan.`);
+    const targetPlan = activePlanToUpgrade || backendUnlimitedPlan;
+    const targetTitle = targetPlan?.name || upgradeTitle;
+    const targetPrice = targetPlan
+      ? parseFloat(
+          targetPlan.sale_price ||
+            targetPlan.final_price ||
+            targetPlan.price ||
+            "19.99"
+        )
+      : upgradePromoPrice;
+    const targetRegularPrice = targetPlan
+      ? parseFloat(targetPlan.price || "24.99")
+      : upgradeRegularPrice;
+    const targetPlanId = targetPlan?.id || 1;
+    const targetPlanSlug = targetPlan?.slug || "zoiko-unlimited";
+
+    if (
+      String(currentLine.planName || "").toLowerCase().trim() ===
+      targetTitle.toLowerCase().trim()
+    ) {
+      setUpgradeError(
+        `This line (${currentLine.number}) is already active on ${targetTitle}. Please select a different plan.`
+      );
       return;
     }
 
@@ -669,7 +968,10 @@ export default function LatestOffersPage() {
     setUpgradeError("");
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_token")
+          : null;
       if (token) {
         await fetch(`${API_BASE}/api/support/tickets/`, {
           method: "POST",
@@ -679,15 +981,21 @@ export default function LatestOffersPage() {
           },
           body: JSON.stringify({
             category: "plan_change",
-            subject: `Plan Upgrade to Zoiko Unlimited for ${currentLine.number}`,
-            message: `User requested plan upgrade from ${currentLine.planName} to Zoiko Unlimited (£19.99/mo promo for 3 months) effective next renewal ${currentLine.renewDate}.\nLine: ${currentLine.number} (ID: ${currentLine.id}).`,
+            subject: `Plan Upgrade to ${targetTitle} for ${currentLine.number}`,
+            message: `User requested plan upgrade from ${currentLine.planName} to ${targetTitle} (Plan ID: ${targetPlanId}, Slug: ${targetPlanSlug}, Price: £${targetPrice.toFixed(
+              2
+            )}/mo promo for 3 months, then £${targetRegularPrice.toFixed(
+              2
+            )}/mo from ${schedule.standardPriceFormatted}) effective next renewal ${
+              currentLine.renewDate
+            }.\nLine: ${currentLine.number} (ID: ${currentLine.id}).`,
           }),
         }).catch(() => {});
       }
 
       setUpgradeModalOpen(false);
       showToast(
-        `Zoiko Unlimited scheduled for ${currentLine.number} starting ${currentLine.renewDate}.`
+        `${targetTitle} scheduled for ${currentLine.number} starting ${currentLine.renewDate}.`
       );
     } catch {
       setUpgradeError("Failed to schedule upgrade. Please contact support.");
@@ -702,6 +1010,37 @@ export default function LatestOffersPage() {
       return;
     }
 
+    if (offer.daysLeft !== undefined && offer.daysLeft <= 0) {
+      showToast("This promotional offer has expired.", "error");
+      return;
+    }
+
+    // Spend limit cap validation
+    if (typeof window !== "undefined" && offer.numericPrice > 0) {
+      const savedLimits = localStorage.getItem("zoiko_bill_limits");
+      if (savedLimits) {
+        try {
+          const parsed = JSON.parse(savedLimits);
+          const limit = parsed[currentLine.id] || parsed[currentLine.number];
+          if (
+            typeof limit === "number" &&
+            limit > 0 &&
+            offer.numericPrice > limit
+          ) {
+            showToast(
+              `This add-on (£${offer.numericPrice.toFixed(
+                2
+              )}) exceeds your monthly spend cap of £${limit.toFixed(
+                2
+              )}. Please adjust your spending cap in Bills & Payments.`,
+              "error"
+            );
+            return;
+          }
+        } catch {}
+      }
+    }
+
     let addedGb = 0;
     const match = offer.title.match(/(\d+)\s*GB/i);
     if (match) addedGb = Number(match[1]);
@@ -714,7 +1053,10 @@ export default function LatestOffersPage() {
       boosterName: offer.title,
     });
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("zoiko_token")
+        : null;
     if (token) {
       await fetch(`${API_BASE}/api/support/tickets/`, {
         method: "POST",
@@ -725,7 +1067,9 @@ export default function LatestOffersPage() {
         body: JSON.stringify({
           category: "billing",
           subject: `Add-on Purchase: ${offer.title} for ${currentLine.number}`,
-          message: `User accepted offer: ${offer.title} (£${offer.numericPrice.toFixed(2)}) for line ${currentLine.number}.`,
+          message: `User accepted offer: ${offer.title} (£${offer.numericPrice.toFixed(
+            2
+          )}) for line ${currentLine.number}.`,
         }),
       }).catch(() => {});
     }
@@ -857,7 +1201,7 @@ export default function LatestOffersPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs text-[#667085]">
               <Clock className="w-3.5 h-3.5 text-[#667085]" />
-              <span>Offers checked {freshnessTime} · catalogue 2026-10-A</span>
+              <span>Offers checked {freshnessTime} · catalogue {schedule.catalogueCode}</span>
               <button
                 type="button"
                 onClick={() => fetchOffersData(true)}
@@ -1082,10 +1426,12 @@ export default function LatestOffersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-[#101828] leading-4">
-                        1 ending within a week
+                        {endingSoonOffers.length} ending within a week
                       </div>
                       <div className="text-[11px] text-[#667085] leading-4 mt-0.5">
-                        First ends 23:59 BST, 20 Oct 2026
+                        {earliestEndingOffer
+                          ? `First ${earliestEndingOffer.endsText}`
+                          : "All active offers ongoing"}
                       </div>
                     </div>
                   </div>
@@ -1097,10 +1443,12 @@ export default function LatestOffersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-[#101828] leading-4">
-                        1 account exclusive
+                        {exclusivesCount} account exclusive{exclusivesCount === 1 ? "" : "s"}
                       </div>
                       <div className="text-[11px] text-[#667085] leading-4 mt-0.5">
-                        Granted to your account
+                        {claimedExclusives.length > 0
+                          ? `${claimedExclusives.length} claimed on your account`
+                          : "Granted to your account"}
                       </div>
                     </div>
                   </div>
@@ -1406,8 +1754,7 @@ export default function LatestOffersPage() {
               <div className="flex items-center gap-1.5 text-[11px] text-[#667085]">
                 <Info className="w-3.5 h-3.5 text-[#98A2B3] shrink-0" />
                 <span>
-                  Prices include VAT. Illustrative catalogue 2026-10-A — not a
-                  live offer.
+                  Prices include VAT. Catalogue {schedule.catalogueCode} — verified for {currentLine.number}.
                 </span>
               </div>
             </div>
@@ -1442,7 +1789,7 @@ export default function LatestOffersPage() {
                           Thank-you 5 GB booster
                         </div>
                         <div className="text-[11px] text-[#667085] leading-3.5 mt-0.5">
-                          Free · Claim by 23:59 GMT, 13 Nov 2026
+                          Free · Claim by {schedule.exclusiveEndFormatted.replace("Ends ", "")}
                         </div>
                       </div>
                     </div>
@@ -1637,7 +1984,7 @@ export default function LatestOffersPage() {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-start gap-1.5 text-[11px] font-bold text-[#B54708] leading-3.5">
                       <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>Ends 23:59 BST, 20 Oct 2026 · 6 days</span>
+                      <span>{schedule.boosterEndFormatted} · {schedule.daysLeftBooster} days</span>
                     </div>
                     <button
                       type="button"
@@ -1676,7 +2023,7 @@ export default function LatestOffersPage() {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-start gap-1.5 text-[11px] font-bold text-[#B54708] leading-3.5">
                       <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>Ends 23:59 GMT, 31 Oct 2026 · 17 days</span>
+                      <span>{schedule.promoEndFormatted} · {schedule.daysLeftPromo} days</span>
                     </div>
                     <button
                       type="button"
@@ -1715,7 +2062,7 @@ export default function LatestOffersPage() {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-start gap-1.5 text-[11px] font-bold text-[#B54708] leading-3.5">
                       <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>Ends 23:59 GMT, 13 Nov 2026 · 30 days</span>
+                      <span>{schedule.exclusiveEndFormatted} · {schedule.daysLeftExclusive} days</span>
                     </div>
                     <button
                       type="button"
@@ -1744,7 +2091,7 @@ export default function LatestOffersPage() {
                   </div>
                   <div className="flex items-start gap-1.5 text-[11px] font-bold text-[#667085] leading-3.5">
                     <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>Ended 23:59 BST, 10 Oct 2026</span>
+                    <span>Ended past promotional period</span>
                   </div>
                   <div className="text-[11px] text-[#667085] leading-3.5">
                     Anyone who bought it keeps what they bought.
@@ -1788,7 +2135,7 @@ export default function LatestOffersPage() {
                       {currentLine.planName}
                     </div>
                     <div className="col-span-5 py-2.5 px-3 bg-[#FDF2F6] font-bold text-[#101828] rounded-t-lg">
-                      Zoiko Unlimited
+                      {upgradeTitle}
                     </div>
                   </div>
 
@@ -1801,33 +2148,33 @@ export default function LatestOffersPage() {
                       {currentLine.dataAllowance}
                     </div>
                     <div className="col-span-5 py-2.5 px-3 bg-[#FDF2F6] font-bold text-[#101828]">
-                      Unlimited (fair use)
+                      {upgradeAllowance}
                     </div>
                   </div>
 
                   {/* Row 3: Promotional period */}
                   <div className="grid grid-cols-12 items-center border-b border-[#F2F4F7] text-[11px]">
                     <div className="col-span-4 py-2.5 pr-2 text-[#667085]">
-                      {currentLine.renewDate} – 27 Jan
+                      {currentLine.renewDate} – 3 months
                     </div>
                     <div className="col-span-3 py-2.5 px-2 text-[#101828]">
                       £{currentLine.price.toFixed(2)} a month
                     </div>
                     <div className="col-span-5 py-2.5 px-3 bg-[#FDF2F6] font-bold text-[#101828]">
-                      £19.99 a month
+                      £{upgradePromoPrice.toFixed(2)} a month
                     </div>
                   </div>
 
                   {/* Row 4: Standard price */}
                   <div className="grid grid-cols-12 items-center border-b border-[#F2F4F7] text-[11px]">
                     <div className="col-span-4 py-2.5 pr-2 text-[#667085]">
-                      From 28 Jan 2027
+                      From {schedule.standardPriceFormatted}
                     </div>
                     <div className="col-span-3 py-2.5 px-2 text-[#101828]">
                       £{currentLine.price.toFixed(2)} a month
                     </div>
                     <div className="col-span-5 py-2.5 px-3 bg-[#FDF2F6] font-bold text-[#101828]">
-                      £24.99 a month
+                      £{upgradeRegularPrice.toFixed(2)} a month
                     </div>
                   </div>
 
@@ -1847,7 +2194,7 @@ export default function LatestOffersPage() {
 
                 <div className="flex items-center gap-1.5 text-[11px] text-[#667085]">
                   <Clock className="w-3.5 h-3.5 text-[#98A2B3] shrink-0" />
-                  <span>Offer ends 23:59 GMT, 31 Oct 2026</span>
+                  <span>Offer {schedule.promoEndFormatted}</span>
                 </div>
               </div>
 
@@ -1861,6 +2208,7 @@ export default function LatestOffersPage() {
                       );
                       return;
                     }
+                    setSelectedUpgradePlan(backendUnlimitedPlan);
                     setUpgradeModalOpen(true);
                   }}
                   className="py-2 px-4 bg-[#E01C5B] hover:bg-[#C81650] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
@@ -1978,6 +2326,9 @@ export default function LatestOffersPage() {
                         );
                         return;
                       }
+                      setSelectedUpgradePlan(
+                        offer.backendPlan || backendUnlimitedPlan
+                      );
                       setUpgradeModalOpen(true);
                     } else {
                       setSelectedOfferModal(null);
@@ -2018,7 +2369,7 @@ export default function LatestOffersPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#101828]">
-                    Upgrade to Zoiko Unlimited
+                    Upgrade to {modalPlanTitle}
                   </h3>
                   <p className="text-xs text-[#667085]">
                     For {currentLine.number}
@@ -2049,12 +2400,28 @@ export default function LatestOffersPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#667085]">First 3 months</span>
-                <span className="font-bold text-[#E01C5B]">£19.99 / month</span>
+                <span className="text-[#667085]">
+                  {modalPlanRegularPrice > modalPlanPromoPrice
+                    ? "First 3 months"
+                    : "Monthly price"}
+                </span>
+                <span className="font-bold text-[#E01C5B]">
+                  £{modalPlanPromoPrice.toFixed(2)} / month
+                </span>
               </div>
+              {modalPlanRegularPrice > modalPlanPromoPrice && (
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">
+                    From {schedule.standardPriceFormatted}
+                  </span>
+                  <span className="font-bold">
+                    £{modalPlanRegularPrice.toFixed(2)} / month
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-[#667085]">From 28 Jan 2027</span>
-                <span className="font-bold">£24.99 / month</span>
+                <span className="text-[#667085]">Data allowance</span>
+                <span className="font-bold">{modalPlanAllowance}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#667085]">Contract</span>

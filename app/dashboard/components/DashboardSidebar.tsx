@@ -107,12 +107,14 @@ export default function DashboardSidebar({
       icon: Zap,
       href: "/dashboard/addons-and-boosters",
     },
+    /*
     {
       id: "family",
       label: "Family & friends",
       icon: Users,
       href: "/dashboard/family-and-friends",
     },
+    */
     {
       id: "refer",
       label: "Refer & earn",
@@ -256,7 +258,7 @@ export default function DashboardSidebar({
               {/* Top Header: Logo + Close Button */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <Link
-                  href="/dashboard"
+                  href="/"
                   onClick={() => setMobileDrawerOpen(false)}
                   className="flex items-center gap-2"
                 >
@@ -442,8 +444,9 @@ export default function DashboardSidebar({
           {/* Top Header: Logo + Collapse Button */}
           <div className="flex items-center justify-between px-1 pb-2 border-b border-slate-100">
             <Link
-              href="/dashboard"
+              href="/"
               className="flex items-center gap-2 overflow-hidden"
+              title="Go to Zoiko Mobile Home"
             >
               <div className={`relative ${collapsed ? "w-8 h-8" : "w-28 h-9"}`}>
                 <Image

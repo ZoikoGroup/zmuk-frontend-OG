@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 //
@@ -105,7 +106,7 @@ function ESGPolicy() {
       {/* ─── Hero ─── */}
       <section className="bg-gradient-to-r from-[#17a06a] to-[#0e8f74] px-4 py-14 text-center text-white sm:px-6 md:px-8">
         <p className="text-xs text-white/80">
-          <a href="/" className="hover:text-white">Home</a> / ESG Policy
+          <Link href="/" className="hover:text-white">Home</Link> / ESG Policy
         </p>
         <h1 className="mt-3 font-extrabold text-[clamp(1.6rem,4.5vw,2.5rem)]">
           Environmental, Social, and Governance (ESG) Policy

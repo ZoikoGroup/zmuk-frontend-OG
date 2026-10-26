@@ -206,7 +206,7 @@ function deriveCustomerSince(user: any): string {
       }
     } catch {}
   }
-  return "15 Oct 2026";
+  return "Active member";
 }
 
 export default function EditProfilePage() {
@@ -224,17 +224,17 @@ export default function EditProfilePage() {
   const [preferredName, setPreferredName] = useState("");
   const [email, setEmail] = useState("");
   const [contactMobile, setContactMobile] = useState("");
-  const [dob, setDob] = useState("•• ••• 1990");
-  const [accountNumber, setAccountNumber] = useState("0001");
-  const [customerSince, setCustomerSince] = useState("15 Oct 2026");
-  const [planName, setPlanName] = useState("Zoiko Smart 5G Plan");
+  const [dob, setDob] = useState("Not specified");
+  const [accountNumber, setAccountNumber] = useState("—");
+  const [customerSince, setCustomerSince] = useState("Active member");
+  const [planName, setPlanName] = useState("No active plan");
 
   // Dynamic Billing & Account details
   const [nextCollectionAmount, setNextCollectionAmount] = useState("0.00");
-  const [collectionDate, setCollectionDate] = useState("28 Oct");
+  const [collectionDate, setCollectionDate] = useState("Monthly rolling");
   const [contactPreference, setContactPreference] = useState("Email");
   const [marketingMessages, setMarketingMessages] = useState("Off");
-  const [billingAddress, setBillingAddress] = useState("Flat ••, ••• Road, London SW1A •••");
+  const [billingAddress, setBillingAddress] = useState("No billing address on file");
   const [deliveryAddress, setDeliveryAddress] = useState("Same as billing");
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
   const [accessibilityDisplay, setAccessibilityDisplay] = useState("Default display");
@@ -303,7 +303,7 @@ export default function EditProfilePage() {
 
       setClientInfo(detectClient());
 
-      // 1. Load user info from localStorage
+      // 1. Load user info from localStorage and backend
       let user: any = {};
       try {
         user = JSON.parse(
@@ -312,6 +312,25 @@ export default function EditProfilePage() {
           "{}"
         );
       } catch {}
+
+      if (storedToken) {
+        try {
+          const userRes = await fetch(`${API_BASE}/api/accounts/dashboard/`, {
+            headers: { Authorization: `Token ${storedToken}` },
+          });
+          if (userRes.ok) {
+            const backendUser = await userRes.json();
+            if (backendUser && (backendUser.email || backendUser.username)) {
+              user = { ...user, ...backendUser };
+              try {
+                localStorage.setItem("zoiko_user", JSON.stringify(user));
+              } catch {}
+            }
+          }
+        } catch (err) {
+          console.warn("Could not fetch user dashboard:", err);
+        }
+      }
 
       const resolved = resolveUserNames(user);
       const userEmail: string = resolved.email || user?.email || "";
@@ -415,7 +434,7 @@ export default function EditProfilePage() {
       }
 
       // 2. Query BeQuick / Django orders for real numbers, plans, and next collection
-      let fetchedNumbers: NumberItem[] = [];
+      const fetchedNumbers: NumberItem[] = [];
       let calculatedNext = 0;
 
       if (userEmail) {
@@ -500,8 +519,8 @@ export default function EditProfilePage() {
                 const isEsim = entry.sim_type?.toLowerCase() === "esim";
                 fetchedNumbers.push({
                   id: String(entry.id || orderId),
-                  msisdn: formatUkNumber(entry.phone_number || entry.msisdn || phone || "07456 789321"),
-                  plan: entry.plan_name || entry.plan?.title || "Zoiko Unlimited",
+                  msisdn: formatUkNumber(entry.phone_number || entry.msisdn || phone || ""),
+                  plan: entry.plan_name || entry.plan?.title || "Zoiko SIM Plan",
                   simType: isEsim ? "eSIM" : "SIM card",
                   label: "Moving to Zoiko",
                   status: "Pending",
@@ -544,20 +563,20 @@ export default function EditProfilePage() {
 
         if (fetchedNumbers.length > 0) {
           setNumbersList(fetchedNumbers);
-          setNextCollectionAmount(calculatedNext > 0 ? calculatedNext.toFixed(2) : "10.00");
+          setNextCollectionAmount(calculatedNext > 0 ? calculatedNext.toFixed(2) : "0.00");
         } else if (phone) {
           // If user has a verified phone on their account, show 1 active primary line
           setNumbersList([
             {
               id: "primary-1",
               msisdn: formatUkNumber(phone),
-              plan: "Zoiko 5G Mobile Plan",
+              plan: planName || "Zoiko SIM Plan",
               simType: "eSIM",
               label: `${pref}'s number`,
               status: "Active",
             },
           ]);
-          setNextCollectionAmount("10.00");
+          setNextCollectionAmount(calculatedNext > 0 ? calculatedNext.toFixed(2) : "0.00");
         } else {
           // No lines found for this user yet
           setNumbersList([]);
@@ -661,8 +680,8 @@ export default function EditProfilePage() {
     showToast(`We’ll call you ${cleanPref} across the site and emails.`);
   };
 
-  // Save Email
-  const handleSaveEmail = (e: React.FormEvent) => {
+  // Save Email (Validated and connected to backend API)
+  const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const emailCheck = validateEmail(editEmail);
     if (!emailCheck.isValid) {
@@ -670,15 +689,52 @@ export default function EditProfilePage() {
       return;
     }
     const cleanEmail = emailCheck.normalized || editEmail.trim();
-    setEmail(cleanEmail);
-    const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, email: cleanEmail }));
-    setModal(null);
-    showToast("Verification link sent to your updated email address.");
+    if (cleanEmail.toLowerCase() === email.toLowerCase()) {
+      showToast("This email address is already active on your account.");
+      return;
+    }
+
+    setSavingLoading(true);
+    try {
+      if (token) {
+        const res = await fetch(UPDATE_PROFILE_URL, {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: cleanEmail }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg =
+            errData.email ||
+            errData.error ||
+            errData.detail ||
+            "Could not update email. It may already be in use.";
+          showToast(Array.isArray(errMsg) ? errMsg[0] : String(errMsg));
+          return;
+        }
+      }
+
+      setEmail(cleanEmail);
+      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+      localStorage.setItem(
+        "zoiko_user",
+        JSON.stringify({ ...user, email: cleanEmail })
+      );
+      setModal(null);
+      showToast("Email address updated successfully.");
+    } catch {
+      showToast("Network error. Please try again later.");
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
-  // Save Mobile
-  const handleSavePhone = (e: React.FormEvent) => {
+  // Save Mobile (Validated and logged to backend support)
+  const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     const phoneCheck = validateUkMobile(editPhone);
     if (!phoneCheck.isValid) {
@@ -686,40 +742,119 @@ export default function EditProfilePage() {
       return;
     }
     const cleanPhone = phoneCheck.formatted || editPhone.trim();
-    setContactMobile(cleanPhone);
-    const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-    localStorage.setItem("zoiko_user", JSON.stringify({ ...user, phone: cleanPhone }));
-    setModal(null);
-    showToast("Contact mobile number updated.");
+
+    setSavingLoading(true);
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category: "general",
+            subject: `Contact Number Updated: ${cleanPhone}`,
+            message: `User updated account contact mobile number to ${cleanPhone}. Previous: ${contactMobile || "None"}`,
+          }),
+        }).catch(() => {});
+      }
+
+      setContactMobile(cleanPhone);
+      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+      localStorage.setItem(
+        "zoiko_user",
+        JSON.stringify({ ...user, phone: cleanPhone })
+      );
+      localStorage.setItem("zoiko_user_phone", cleanPhone);
+      setModal(null);
+      showToast("Contact mobile number updated.");
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
-  // Save Billing Address
-  const handleSaveBilling = (e: React.FormEvent) => {
+  // Save Billing Address (Validated and dispatched to backend)
+  const handleSaveBilling = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editBillingAddr.trim() || editBillingAddr.trim().length < 5) {
+    const trimmed = editBillingAddr.trim();
+    if (!trimmed || trimmed.length < 5) {
       showToast("Please enter a valid address (at least 5 characters).");
       return;
     }
-    setBillingAddress(editBillingAddr.trim());
-    localStorage.setItem("zoiko_billing_address", editBillingAddr.trim());
-    setModal(null);
-    showToast("Billing address updated. A confirmation email has been dispatched.");
+
+    setSavingLoading(true);
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category: "billing",
+            subject: "Billing Address Update",
+            message: `Customer updated billing address to: ${trimmed}`,
+          }),
+        }).catch(() => {});
+      }
+
+      setBillingAddress(trimmed);
+      localStorage.setItem("zoiko_billing_address", trimmed);
+      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+      localStorage.setItem(
+        "zoiko_user",
+        JSON.stringify({ ...user, billing_address: trimmed, address: trimmed })
+      );
+      setModal(null);
+      showToast("Billing address updated successfully.");
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
-  // Save Delivery Address
-  const handleSaveDelivery = (e: React.FormEvent) => {
+  // Save Delivery Address (Validated and dispatched to backend)
+  const handleSaveDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editDeliveryAddr.trim() || editDeliveryAddr.trim().length < 5) {
+    const trimmed = editDeliveryAddr.trim();
+    if (!trimmed || trimmed.length < 5) {
       showToast("Please enter a valid address (at least 5 characters).");
       return;
     }
-    setDeliveryAddress(editDeliveryAddr.trim());
-    localStorage.setItem("zoiko_delivery_address", editDeliveryAddr.trim());
-    setModal(null);
-    showToast("SIM & letter delivery address updated.");
+
+    setSavingLoading(true);
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category: "general",
+            subject: "Delivery Address Update",
+            message: `Customer updated SIM & delivery address to: ${trimmed}`,
+          }),
+        }).catch(() => {});
+      }
+
+      setDeliveryAddress(trimmed);
+      localStorage.setItem("zoiko_delivery_address", trimmed);
+      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+      localStorage.setItem(
+        "zoiko_user",
+        JSON.stringify({ ...user, delivery_address: trimmed })
+      );
+      setModal(null);
+      showToast("Delivery address updated successfully.");
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
-  // Save Password
+  // Save Password (Validated and connected to backend API)
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const passCheck = validatePassword(newPassword);
@@ -731,10 +866,11 @@ export default function EditProfilePage() {
       showToast("Passwords do not match.");
       return;
     }
+
     setSavingLoading(true);
     try {
       if (token) {
-        await fetch(CHANGE_PASSWORD_URL, {
+        const res = await fetch(CHANGE_PASSWORD_URL, {
           method: "POST",
           headers: {
             Authorization: `Token ${token}`,
@@ -744,7 +880,24 @@ export default function EditProfilePage() {
             password: newPassword,
             confirm_password: confirmPassword,
           }),
-        }).catch(() => {});
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg =
+            errData.error ||
+            errData.password ||
+            errData.detail ||
+            "Failed to update password.";
+          showToast(Array.isArray(errMsg) ? errMsg.join(" ") : String(errMsg));
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        if (data.token) {
+          localStorage.setItem("zoiko_token", data.token);
+          setToken(data.token);
+        }
       }
 
       const today = new Date().toLocaleDateString("en-GB", {
@@ -758,23 +911,55 @@ export default function EditProfilePage() {
       setConfirmPassword("");
       setModal(null);
       showToast("Password updated successfully.");
+    } catch {
+      showToast("Network error. Please try again later.");
     } finally {
       setSavingLoading(false);
     }
   };
 
-  // Add Authorised Person
-  const handleAddAuthPerson = (e: React.FormEvent) => {
+  // Add Authorised Person (Validated and dispatched to backend)
+  const handleAddAuthPerson = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAuthName.trim()) return;
-    const entry = `${newAuthName.trim()} (${newAuthRel.trim() || "Authorised representative"})`;
-    const updated = [...authorisedPeople, entry];
-    setAuthorisedPeople(updated);
-    localStorage.setItem("zoiko_authorised_people", JSON.stringify(updated));
-    setNewAuthName("");
-    setNewAuthRel("");
-    setModal(null);
-    showToast(`${newAuthName.trim()} added as an authorised account helper.`);
+    const nameCheck = validateName(newAuthName, "Name");
+    if (!nameCheck.isValid) {
+      showToast(nameCheck.error || "Please enter a valid representative name.");
+      return;
+    }
+    const relTrimmed = newAuthRel.trim() || "Authorised representative";
+    const entry = `${nameCheck.cleaned} (${relTrimmed})`;
+    if (authorisedPeople.includes(entry)) {
+      showToast("This person is already listed as an authorised representative.");
+      return;
+    }
+
+    setSavingLoading(true);
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category: "general",
+            subject: `Authorised Representative Added: ${nameCheck.cleaned}`,
+            message: `Customer added ${nameCheck.cleaned} (${relTrimmed}) as an authorised representative on the account.`,
+          }),
+        }).catch(() => {});
+      }
+
+      const updated = [...authorisedPeople, entry];
+      setAuthorisedPeople(updated);
+      localStorage.setItem("zoiko_authorised_people", JSON.stringify(updated));
+      setNewAuthName("");
+      setNewAuthRel("");
+      setModal(null);
+      showToast(`${nameCheck.cleaned} added as an authorised account helper.`);
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
   // Sign out handlers
@@ -892,10 +1077,12 @@ export default function EditProfilePage() {
                     <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                     <span>Identity checked</span>
                   </span>
+                  {/* 2FA - Two-step verification badge (Temporarily commented out)
                   <span className="px-2.5 py-1 rounded-full bg-white/15 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-xs">
                     <ShieldCheck className="w-3.5 h-3.5 text-white" />
                     <span>{twoFAEnabled ? "Two-step verification on" : "Two-step verification off"}</span>
                   </span>
+                  */}
                   <span className="px-2.5 py-1 rounded-full bg-white/15 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-xs">
                     <User className="w-3.5 h-3.5 text-white" />
                     <span>We call you {preferredName}</span>
@@ -1294,8 +1481,9 @@ export default function EditProfilePage() {
                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0D1935] transition shrink-0" />
                 </Link>
 
-                {/* Family & Friends */}
-                <Link
+                {/* Family & Friends (commented out) */}
+                {false && (
+<Link
                   href="/dashboard/family-and-friends"
                   className="py-2.5 flex items-center justify-between gap-3 group"
                 >
@@ -1310,6 +1498,7 @@ export default function EditProfilePage() {
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0D1935] transition shrink-0" />
                 </Link>
+                )}
 
                 {/* Authorised People */}
                 <div className="py-2.5 flex items-center justify-between gap-3">
@@ -1441,7 +1630,7 @@ export default function EditProfilePage() {
               </div>
 
               <div className="divide-y divide-[#F2F4F7] flex-1">
-                {/* 2FA */}
+                {/* 2FA - Two-factor authentication (Temporarily commented out)
                 <Link
                   href="/dashboard/security"
                   className="py-2.5 flex items-center justify-between gap-3 group"
@@ -1460,6 +1649,7 @@ export default function EditProfilePage() {
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0D1935] transition" />
                   </div>
                 </Link>
+                */}
 
                 {/* Password */}
                 <button

@@ -296,10 +296,15 @@ export default function BillsPaymentsCard({
         {/* Right Column: Bills Table */}
         <div className="lg:col-span-7 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3">
-              <h4 className="text-sm font-bold text-[#0D1935]">Bills</h4>
+            <div className="flex items-center justify-between pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-[#0D1935]">Bills</h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                  Coming Soon
+                </span>
+              </div>
               <span className="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
-                Generated monthly on the 28th
+                Monthly billing statements
               </span>
             </div>
 
@@ -308,9 +313,9 @@ export default function BillsPaymentsCard({
                 <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 mb-2.5 shadow-xs">
                   <Receipt className="w-6 h-6 text-slate-400" />
                 </div>
-                <h5 className="text-sm font-bold text-[#0D1935]">No bills or statements yet</h5>
+                <h5 className="text-sm font-bold text-[#0D1935]">Coming Soon: Itemised Statements</h5>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                  Your monthly billing statements and itemised VAT receipts will be automatically generated and listed here.
+                  Monthly billing statements and downloadable VAT invoice PDFs will appear here once generated.
                 </p>
                 <div className="mt-4">
                   <a

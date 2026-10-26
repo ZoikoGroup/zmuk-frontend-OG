@@ -650,8 +650,8 @@ export default function RoamingAndTravelPage() {
                 let euFairUseLimitGb = 0;
                 let euFairUseRemainingGb = 0;
                 let euUsedGb = 0;
-                let roamingCallsMins = 0;
-                let roamingTextsCount = 0;
+                const roamingCallsMins = 0;
+                const roamingTextsCount = 0;
 
                 try {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1490,20 +1490,12 @@ export default function RoamingAndTravelPage() {
                       </span>
                     </div>
                   </div>
-                  <span
-                    className={`h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold ${
-                      currentDestination.isEuIncluded
-                        ? "bg-[#1E8E5A]/10 text-[#1E8E5A]"
-                        : "bg-[#FFF5EB] text-[#9A5311]"
-                    }`}
-                  >
-                    <Ticket className="w-3 h-3" />
-                    <span>
-                      {currentDestination.isEuIncluded
-                        ? "Included in your plan"
-                        : "Travel pass available"}
+                  {currentDestination.isEuIncluded && (
+                    <span className="h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold bg-[#1E8E5A]/10 text-[#1E8E5A]">
+                      <Ticket className="w-3 h-3" />
+                      <span>Included in your plan</span>
                     </span>
-                  </span>
+                  )}
                 </div>
 
                 {/* Plan Inclusion Description */}
@@ -1592,31 +1584,7 @@ export default function RoamingAndTravelPage() {
                   </div>
                 </div>
 
-                {/* Active Travel Pass Status */}
-                {activeLinePasses.length === 0 ? (
-                  <p className="text-[#3B4A68] text-sm font-normal leading-5">
-                    No active travel pass on this number.
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {activeLinePasses.map((pass) => (
-                      <div
-                        key={pass.id}
-                        className="p-3 rounded-xl bg-[#1E8E5A]/10 border border-[#1E8E5A]/20 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-[#0D1935]">{pass.title}</div>
-                          <div className="text-[11px] text-[#54617E]">
-                            {pass.destination} · Ready for travel
-                          </div>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-full bg-[#1E8E5A] text-white text-[10px] font-semibold">
-                          Active
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* Active Travel Pass Status (commented out) */}
 
                 {/* EU Roaming Fair Use Box */}
                 <div className="p-3.5 bg-[#F6F7FA] rounded-2xl flex flex-col gap-2.5">
@@ -1653,19 +1621,7 @@ export default function RoamingAndTravelPage() {
                 </div>
               </div>
 
-              {/* Footer Button */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    passesSectionRef.current?.scrollIntoView({ behavior: "smooth" })
-                  }
-                  className="h-9 px-3.5 py-2 bg-white rounded-[10px] border border-[#E01C5B]/30 hover:bg-[#FAF1F4] inline-flex items-center gap-2 text-[#B9154B] text-xs font-semibold transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add a travel pass</span>
-                </button>
-              </div>
+              {/* Footer Button (Add travel pass commented out) */}
             </div>
           </div>
 
@@ -2173,7 +2129,10 @@ export default function RoamingAndTravelPage() {
 
           {/* ── ROW 3: 2-Column Grid (Travel passes for {Country} [8] + Quick actions [4]) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            {/* Card 7: Travel passes for {Destination} (lg:col-span-8) */}
+            {/* Card 7: Travel passes for Destination (commented out) */}
+            {false && (
+              <>
+{/* Card 7: Travel passes for {Destination} (lg:col-span-8) */}
             <div
               ref={passesSectionRef}
               className="lg:col-span-8 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4"
@@ -2259,9 +2218,11 @@ export default function RoamingAndTravelPage() {
                 ))}
               </div>
             </div>
+              </>
+            )}
 
             {/* Card 8: Quick actions (lg:col-span-4) */}
-            <div className="lg:col-span-4 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5">
+            <div className="lg:col-span-12 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5">
               {/* Header */}
               <div className="inline-flex items-center gap-3">
                 <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
@@ -2303,32 +2264,7 @@ export default function RoamingAndTravelPage() {
                   <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
                 </button>
 
-                {/* 2. Add a travel pass */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstPass = currentDestination.passes[0];
-                    if (firstPass) {
-                      handleInitiateBuyPass(firstPass);
-                    }
-                  }}
-                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Ticket className="w-4 h-4 text-[#E01C5B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Add a travel pass
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        For the destination you checked
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </button>
+                {/* 2. Add a travel pass (commented out) */}
 
                 {/* 3. Manage bill limit */}
                 <button
@@ -2459,117 +2395,7 @@ export default function RoamingAndTravelPage() {
         </div>
       )}
 
-      {/* 2. Review & Buy Travel Pass Modal */}
-      {buyPassModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center">
-                  <Ticket className="w-5 h-5 text-[#E01C5B]" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#0D1935]">
-                    {buyPassModal.title}
-                  </h3>
-                  <p className="text-xs text-[#54617E]">{buyPassModal.subtitle}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setBuyPassModal(null);
-                  setPassPurchaseError("");
-                }}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-4 flex flex-col gap-3 text-xs">
-              {currentDestination.isEuIncluded && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900 leading-relaxed">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold block mb-0.5">EU Roaming is included!</span>
-                    Your standard UK plan includes calls, texts, and data in {currentDestination.name} at no extra charge up to your EU fair use limit ({currentLine.euFairUseLimitGb} GB). You only need a travel pass if you exceed your allowance.
-                  </div>
-                </div>
-              )}
-
-              {buyPassModal.price > billLimit && (
-                <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2 text-xs text-amber-900 leading-relaxed">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold block mb-0.5">Exceeds monthly bill limit</span>
-                    This pass costs £{buyPassModal.price.toFixed(2)}, but your current monthly spend cap is £{billLimit.toFixed(2)}. Please increase your bill limit before purchasing.
-                  </div>
-                </div>
-              )}
-
-              <div className="p-3.5 rounded-2xl bg-[#F6F7FA] flex items-center justify-between">
-                <div>
-                  <div className="text-[#54617E]">Mobile line</div>
-                  <div className="font-bold text-sm text-[#0D1935]">
-                    {currentLine.number}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#0D1935]">
-                    £{buyPassModal.price.toFixed(2)}
-                  </div>
-                  <div className="text-[11px] text-[#54617E]">
-                    {buyPassModal.priceUnit}
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[#54617E] leading-5">
-                This travel pass will be linked to{" "}
-                <strong className="text-[#0D1935]">{currentLine.number}</strong> and
-                counts toward your £{billLimit.toFixed(2)} monthly mobile bill limit. It
-                does not auto-renew.
-              </p>
-
-              {passPurchaseError && (
-                <p className="text-xs text-red-600 flex items-center gap-1.5 font-medium">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{passPurchaseError}</span>
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setBuyPassModal(null);
-                  setPassPurchaseError("");
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isBuyingPass || buyPassModal.price > billLimit}
-                onClick={handleConfirmBuyPass}
-                className="px-5 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c81750] disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isBuyingPass ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Activating pass...</span>
-                  </>
-                ) : (
-                  <span>Confirm &amp; buy pass</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 2. Review & Buy Travel Pass Modal (commented out) */}
 
       {/* 3. Manage Bill Limit Modal */}
       {billLimitModalOpen && (
