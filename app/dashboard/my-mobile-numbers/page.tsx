@@ -1942,7 +1942,12 @@ export default function MyMobileNumbersPage() {
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-base font-bold text-[#0D1935]">Usage this month</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[#0D1935]">Usage this month</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                      Upcoming
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Updated {freshnessTime} · renews {currentLine.renewDate}
                   </p>
@@ -2082,7 +2087,12 @@ export default function MyMobileNumbersPage() {
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="text-base font-bold text-[#0D1935]">Account billing</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-[#0D1935]">Account billing</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                        Upcoming
+                      </span>
+                    </div>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Billed to your account, not per number
                     </p>

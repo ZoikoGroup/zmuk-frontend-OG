@@ -70,6 +70,99 @@ interface UserLine {
   status: string;
 }
 
+function computeDynamicPromoNotice(): string {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const formatted = lastDay.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return `Offer ends 23:59 GMT, ${formatted}`;
+}
+
+function parseGb(val: any, fallbackName: string): number {
+  if (!val && !fallbackName) return 30;
+  const str = String(val || fallbackName).toLowerCase();
+  if (str.includes("unlimited")) return 999;
+  const match = str.match(/(\d+)\s*(?:gb|gig|g\b)/i);
+  if (match) return parseInt(match[1], 10);
+  const numOnly = str.replace(/[^\d]/g, "");
+  if (numOnly) return parseInt(numOnly, 10);
+  return 30;
+}
+
+function formatDataAllowance(val: any, name: string): string {
+  const str = String(val || name || "").toLowerCase();
+  if (str.includes("unlimited")) return "Unlimited";
+  const gb = parseGb(val, name);
+  return `${gb} GB`;
+}
+
+function mapApiPlanToItem(p: any): PlanItem {
+  const rawDataAllowance = p.data_allowance || p.data || "";
+  const gb = parseGb(rawDataAllowance, p.name || "");
+  const formattedData = formatDataAllowance(rawDataAllowance, p.name || "");
+
+  const priceNum = Number(p.final_price ?? p.sale_price ?? p.price_30 ?? p.price ?? 19.99);
+  const standardPrice = Number(p.price ?? priceNum);
+  const isDiscounted = standardPrice > priceNum;
+
+  // Features inspection
+  const featuresList: string[] = Array.isArray(p.features)
+    ? p.features.map((f: any) => (typeof f === "string" ? f : f?.title || "")).filter(Boolean)
+    : [];
+
+  const desc = String(p.short_description || p.description || "").toLowerCase();
+  const allText = [p.name, p.tier_label, desc, ...featuresList].join(" ").toLowerCase();
+
+  const is5G = allText.includes("5g") || p.is_5g === true || true;
+
+  const roamingIncluded =
+    allText.includes("roaming") &&
+    !allText.includes("no roaming") &&
+    !allText.includes("roaming not included");
+
+  const roamingStr = roamingIncluded
+    ? featuresList.find((f) => f.toLowerCase().includes("roaming")) || "Included in 8 EU countries"
+    : "Not included";
+
+  const roamingDetailsStr = roamingIncluded
+    ? "15 GB fair use"
+    : "EU Day Pass £2.50 per day used";
+
+  const hasCalls = allText.includes("call");
+  const callsStr = hasCalls
+    ? allText.includes("unlimited") ? "Unlimited UK calls" : (featuresList.find((f) => f.toLowerCase().includes("call")) || "Unlimited UK calls")
+    : "Unlimited UK calls";
+
+  const hasTexts = allText.includes("text");
+  const textsStr = hasTexts
+    ? allText.includes("unlimited") ? "Unlimited UK texts" : (featuresList.find((f) => f.toLowerCase().includes("text")) || "Unlimited UK texts")
+    : "Unlimited UK texts";
+
+  const tier: "5G" | "4G" = is5G ? "5G" : "4G";
+
+  return {
+    id: String(p.id ?? p.slug),
+    name: p.name || "Zoiko Plan",
+    shortName: p.name || "Zoiko Plan",
+    tier,
+    subtitle:
+      p.short_description ||
+      (p.category?.name ? `${p.category.name} · Flexible mobile plan` : "Flexible mobile plan"),
+    price: priceNum,
+    billingCycle: "a month",
+    dataAllowance: formattedData,
+    dataAmountGb: gb,
+    dataDetails: gb >= 900 ? "Fair use policy applies" : undefined,
+    calls: callsStr,
+    texts: textsStr,
+    roaming: roamingStr,
+    roamingDetails: roamingDetailsStr,
+    is5G: is5G,
+    terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
+    promoSubtext: isDiscounted ? `for 3 months, then £${standardPrice.toFixed(2)} a month` : undefined,
+    promoNotice: isDiscounted ? computeDynamicPromoNotice() : undefined,
+  };
+}
+
 const DEFAULT_PLANS: PlanItem[] = [
   {
     id: "plan-max",
@@ -152,13 +245,6 @@ function computeCatalogueCode(): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}-A`;
-}
-
-function computeDynamicPromoNotice(): string {
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const formatted = lastDay.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  return `Offer ends 23:59 GMT, ${formatted}`;
 }
 
 function formatUkNumber(mdn?: string | number): string {
@@ -257,9 +343,10 @@ export default function ComparePlansPage() {
 
   // Plans & Lines
   const [plans, setPlans] = useState<PlanItem[]>(DEFAULT_PLANS);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [lines, setLines] = useState<UserLine[]>(() => {
     if (typeof window === "undefined") return [];
-    const savedPlanName = localStorage.getItem("zoiko_active_plan") || "Zoiko Max 30GB";
+    const savedPlanName = localStorage.getItem("zoiko_active_plan") || "Zoiko Max 100GB";
     const userPhone =
       initialUser?.phone_number ||
       initialUser?.phone ||
@@ -289,9 +376,9 @@ export default function ComparePlansPage() {
   const [lineDropdownOpen, setLineDropdownOpen] = useState(false);
 
   // Filters
-  const [dataFilter, setDataFilter] = useState<"all" | "10" | "30" | "unlimited">("all");
+  const [dataFilter, setDataFilter] = useState<"all" | "10" | "30" | "100" | "unlimited">("all");
   const [budgetFilter, setBudgetFilter] = useState<"all" | "under15" | "15to25" | "25plus">("all");
-  const [contractFilter, setContractFilter] = useState<"all" | "monthly" | "12mo">("all");
+  const [contractFilter, setContractFilter] = useState<"all" | "monthly" | "12mo" | "24mo">("all");
   const [moreFiltersModalOpen, setMoreFiltersModalOpen] = useState(false);
   const [filter5GOnly, setFilter5GOnly] = useState(false);
   const [filterEuRoamingOnly, setFilterEuRoamingOnly] = useState(false);
@@ -375,29 +462,33 @@ export default function ComparePlansPage() {
         if (plansRes.ok) {
           const pData = await plansRes.json();
           if (Array.isArray(pData) && pData.length > 0) {
-            const mappedPlans: PlanItem[] = pData.map((p: any) => ({
-              id: String(p.id || p.slug),
-              name: p.name || p.title || "Zoiko Plan",
-              shortName: p.name ? p.name.replace(/\s*\d+GB.*$/i, "").trim() : "Zoiko",
-              tier: p.tier_label?.includes("5G") || p.is_5g ? "5G" : "4G",
-              subtitle: p.short_description || p.subtitle || "Flexible mobile plan",
-              price: Number(p.price || 19.99),
-              billingCycle: "a month",
-              dataAllowance: p.data_allowance || `${p.data_amount || 30} GB`,
-              dataAmountGb: Number(p.data_amount || 30),
-              calls: "Unlimited UK calls",
-              texts: "Unlimited UK texts",
-              roaming: p.roaming_included ? "Included in 8 EU countries" : "Not included",
-              roamingDetails: p.roaming_included ? "15 GB fair use" : "EU Day Pass £2.50 per day used",
-              is5G: p.tier_label?.includes("5G") || p.is_5g || true,
-              terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
-            }));
-            if (mappedPlans.length >= 3) {
-              setPlans(mappedPlans);
-            }
+            const mappedPlans: PlanItem[] = pData.map(mapApiPlanToItem);
+            setPlans(mappedPlans);
+
+            // Sync user line plan names to match active API plan
+            setLines((prev) =>
+              prev.map((l) => {
+                const match =
+                  mappedPlans.find((p) => p.name.toLowerCase() === l.planName.toLowerCase()) ||
+                  mappedPlans.find((p) => {
+                    const lLower = l.planName.toLowerCase();
+                    const pLower = p.name.toLowerCase();
+                    if (lLower.includes("unlimited") && pLower.includes("unlimited")) return true;
+                    if (lLower.includes("max") && pLower.includes("max")) return true;
+                    if (lLower.includes("lite") && pLower.includes("lite")) return true;
+                    return false;
+                  }) ||
+                  mappedPlans[0];
+                return { ...l, planId: match.id, planName: match.name };
+              })
+            );
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn("Could not fetch /api/plans/v1/:", err);
+      } finally {
+        setPlansLoading(false);
+      }
 
       // 2. Fetch real user lines from bqorders or sims orders
       let fetchedLines: UserLine[] = [];
@@ -497,7 +588,7 @@ export default function ComparePlansPage() {
 
       // If no orders found, provide sensible primary line for the active user
       if (fetchedLines.length === 0) {
-        const savedPlanName = localStorage.getItem("zoiko_active_plan") || "Zoiko Max 30GB";
+        const savedPlanName = localStorage.getItem("zoiko_active_plan") || (plans[0]?.name || "Zoiko Max 100GB");
         fetchedLines = [
           {
             id: "line-1",
@@ -506,7 +597,7 @@ export default function ComparePlansPage() {
               ? "plan-lite"
               : savedPlanName.toLowerCase().includes("unlimited")
               ? "plan-unlimited"
-              : "plan-max",
+              : (plans[0]?.id || "plan-max"),
             planName: savedPlanName,
             renewDate: computeDynamicRenewalDate(),
             simType: "eSIM",
@@ -538,18 +629,33 @@ export default function ComparePlansPage() {
     return lines.find((l) => l.id === selectedLineId) || lines[0] || {
       id: "line-1",
       number: "07700 900123",
-      planId: "plan-max",
-      planName: "Zoiko Max 30GB",
+      planId: plans[0]?.id || "plan-max",
+      planName: plans[0]?.name || "Zoiko Max 100GB",
       renewDate: computeDynamicRenewalDate(),
       simType: "eSIM",
       status: "Active",
     };
-  }, [lines, selectedLineId]);
+  }, [lines, selectedLineId, plans]);
 
   // Current active plan object for this line
   const currentPlan = useMemo(() => {
-    const found = plans.find((p) => p.id === currentLine.planId || p.name === currentLine.planName);
-    return found || plans[0] || DEFAULT_PLANS[0];
+    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
+    let found = list.find(
+      (p) =>
+        p.id === currentLine.planId ||
+        p.name.toLowerCase() === currentLine.planName.toLowerCase()
+    );
+    if (!found) {
+      const lower = currentLine.planName.toLowerCase();
+      found = list.find((p) => {
+        const pLower = p.name.toLowerCase();
+        if (lower.includes("unlimited") && pLower.includes("unlimited")) return true;
+        if (lower.includes("max") && pLower.includes("max")) return true;
+        if (lower.includes("lite") && pLower.includes("lite")) return true;
+        return false;
+      });
+    }
+    return found || list[0] || DEFAULT_PLANS[0];
   }, [plans, currentLine]);
 
   // Dynamic average data usage for this line based on storage or plan baseline
@@ -568,23 +674,24 @@ export default function ComparePlansPage() {
 
   // Dynamic recommendation based on actual usage
   const recommendedPlan = useMemo(() => {
-    if (averageUsageGb <= 8) {
-      return plans.find((p) => p.id === "plan-lite") || DEFAULT_PLANS[1];
-    } else if (averageUsageGb > 25) {
-      return plans.find((p) => p.id === "plan-unlimited") || DEFAULT_PLANS[2];
-    } else {
-      return plans.find((p) => p.id === "plan-max") || DEFAULT_PLANS[0];
-    }
+    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
+    if (list.length <= 1) return list[0] || DEFAULT_PLANS[0];
+
+    const sorted = [...list].sort((a, b) => a.dataAmountGb - b.dataAmountGb);
+    const suitable = sorted.find((p) => p.dataAmountGb >= averageUsageGb * 1.2);
+    return suitable || sorted[sorted.length - 1];
   }, [plans, averageUsageGb]);
 
   // Filter non-current plans
   const filteredOtherPlans = useMemo(() => {
-    return plans.filter((p) => {
+    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
+    return list.filter((p) => {
       if (p.id === currentPlan.id) return false;
 
       // Data filter
       if (dataFilter === "10" && p.dataAmountGb < 10) return false;
       if (dataFilter === "30" && p.dataAmountGb < 30) return false;
+      if (dataFilter === "100" && p.dataAmountGb < 100) return false;
       if (dataFilter === "unlimited" && p.dataAmountGb < 900) return false;
 
       // Budget filter
@@ -593,7 +700,8 @@ export default function ComparePlansPage() {
       if (budgetFilter === "25plus" && p.price <= 25) return false;
 
       // Contract filter
-      if (contractFilter === "12mo" && !p.terms.includes("12")) return false;
+      if (contractFilter === "12mo" && !p.terms.toLowerCase().includes("12") && !p.name.toLowerCase().includes("12")) return false;
+      if (contractFilter === "24mo" && !p.terms.toLowerCase().includes("24") && !p.name.toLowerCase().includes("24")) return false;
 
       // More filters
       if (filter5GOnly && !p.is5G) return false;
@@ -803,73 +911,85 @@ export default function ComparePlansPage() {
           {/* ========================================================================= */}
           {/* HERO BANNER: Magenta Current Plan Banner */}
           {/* ========================================================================= */}
-          <div className="w-full p-5 sm:p-6 relative bg-[#E01C5B] rounded-[20px] text-white shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="w-full p-5 sm:p-6 relative bg-[#E01C5B] rounded-[20px] text-white shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] overflow-hidden flex flex-col gap-5">
             {/* Subtle decorative background circles & dot matrix */}
             <div className="absolute right-0 top-0 w-80 h-full opacity-10 pointer-events-none overflow-hidden">
               <div className="absolute -right-10 -top-10 w-72 h-72 rounded-full bg-white" />
               <div className="absolute right-20 top-16 w-32 h-32 rounded-full bg-white" />
             </div>
 
-            {/* Left: Current Plan Identity */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 relative z-10 min-w-0">
-              <div className="w-16 h-16 rounded-2xl bg-white/16 border border-white/20 flex flex-col items-center justify-center text-white font-extrabold text-xs uppercase leading-tight shrink-0 shadow-inner">
-                <span>ZOIKO</span>
-                <span>{currentPlan.shortName.replace(/^zoiko\s*/i, "")}</span>
+            {/* Top Row: Current Plan Identity & View Details Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0 shadow-inner">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/90">Your current plan</span>
+                    <span className="px-2.5 py-0.5 bg-white text-[#E01C5B] text-[11px] font-bold rounded-full flex items-center gap-1 shadow-2xs">
+                      <Check className="w-3 h-3" />
+                      <span>Active</span>
+                    </span>
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-extrabold text-white mt-0.5 leading-tight truncate">
+                    {currentPlan.name}
+                  </h3>
+                  <p className="text-xs text-white/85 mt-1 font-normal">
+                    {currentLine.number} · renews {currentLine.renewDate}
+                  </p>
+                </div>
               </div>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/90">Your current plan</span>
-                  <span className="px-2.5 py-0.5 bg-white text-[#E01C5B] text-[11px] font-bold rounded-full flex items-center gap-1 shadow-2xs">
-                    <Check className="w-3 h-3" />
-                    <span>Active</span>
-                  </span>
+              <div className="flex items-center gap-4 self-start sm:self-auto shrink-0">
+                <div className="text-left sm:text-right">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+                    £{currentPlan.price.toFixed(2)}
+                    <span className="text-xs text-white/90 font-medium ml-1">/ month</span>
+                  </div>
+                  {currentPlan.promoSubtext && (
+                    <div className="text-[11px] text-white/90 font-medium mt-0.5">{currentPlan.promoSubtext}</div>
+                  )}
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-extrabold text-white mt-0.5 leading-tight truncate">
-                  {currentPlan.name}
-                </h3>
-                <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-white">£{currentPlan.price.toFixed(2)}</span>
-                  <span className="text-xs text-white/90 font-medium">a month</span>
-                </div>
-                <p className="text-xs text-white/85 mt-1 font-normal">
-                  {currentLine.number} · renews {currentLine.renewDate}
-                </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetPlanForDetails(currentPlan);
+                    setModal("view_details");
+                  }}
+                  className="h-10 px-4 bg-white text-[#E01C5B] hover:bg-white/95 text-xs font-semibold rounded-xl transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <span>View plan details</span>
+                </button>
               </div>
             </div>
 
-            {/* Middle: 4 White Stats Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 relative z-10 shrink-0">
-              <div className="px-3 py-2.5 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center min-w-[90px]">
-                <div className="text-base sm:text-lg font-bold leading-tight">{currentPlan.dataAllowance}</div>
-                <div className="text-[11px] text-[#54617E] mt-0.5">UK data</div>
+            {/* Bottom Row: 4 Full-Width White Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative z-10">
+              <div className="px-4 py-3 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center">
+                <div className="text-lg sm:text-xl font-extrabold leading-tight">{currentPlan.dataAllowance}</div>
+                <div className="text-xs text-[#54617E] mt-0.5 font-medium">UK data</div>
               </div>
-              <div className="px-3 py-2.5 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center min-w-[90px]">
-                <div className="text-base sm:text-lg font-bold leading-tight">{currentPlan.calls.replace(/\s*uk\s*calls/i, "") || "Unlimited"}</div>
-                <div className="text-[11px] text-[#54617E] mt-0.5">UK calls</div>
+              <div className="px-4 py-3 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center">
+                <div className="text-lg sm:text-xl font-extrabold leading-tight">
+                  {currentPlan.calls.toLowerCase().includes("unlimited") ? "Unlimited" : currentPlan.calls}
+                </div>
+                <div className="text-xs text-[#54617E] mt-0.5 font-medium">UK calls</div>
               </div>
-              <div className="px-3 py-2.5 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center min-w-[90px]">
-                <div className="text-base sm:text-lg font-bold leading-tight">{currentPlan.texts.replace(/\s*uk\s*texts/i, "") || "Unlimited"}</div>
-                <div className="text-[11px] text-[#54617E] mt-0.5">UK texts</div>
+              <div className="px-4 py-3 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center">
+                <div className="text-lg sm:text-xl font-extrabold leading-tight">
+                  {currentPlan.texts.toLowerCase().includes("unlimited") ? "Unlimited" : currentPlan.texts}
+                </div>
+                <div className="text-xs text-[#54617E] mt-0.5 font-medium">UK texts</div>
               </div>
-              <div className="px-3 py-2.5 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center min-w-[90px]">
-                <div className="text-base sm:text-lg font-bold leading-tight truncate">{currentPlan.roaming.toLowerCase().includes("included") ? "EU roaming" : "Roaming"}</div>
-                <div className="text-[11px] text-[#54617E] mt-0.5 truncate">{currentPlan.roamingDetails}</div>
+              <div className="px-4 py-3 bg-white rounded-xl text-[#0D1935] shadow-xs flex flex-col justify-center">
+                <div className="text-lg sm:text-xl font-extrabold leading-tight truncate">
+                  {currentPlan.roaming.toLowerCase().includes("not") ? "Not included" : "EU roaming"}
+                </div>
+                <div className="text-xs text-[#54617E] mt-0.5 font-medium truncate">{currentPlan.roamingDetails}</div>
               </div>
-            </div>
-
-            {/* Right: View Plan Details Action */}
-            <div className="relative z-10 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setTargetPlanForDetails(currentPlan);
-                  setModal("view_details");
-                }}
-                className="w-full sm:w-auto h-10 px-4 bg-white text-[#E01C5B] hover:bg-white/95 text-xs font-semibold rounded-xl transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-              >
-                <span>View plan details</span>
-              </button>
             </div>
           </div>
 
@@ -908,6 +1028,7 @@ export default function ComparePlansPage() {
                     <option value="all">Any amount</option>
                     <option value="10">10 GB+</option>
                     <option value="30">30 GB+</option>
+                    <option value="100">100 GB+</option>
                     <option value="unlimited">Unlimited</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
@@ -941,9 +1062,10 @@ export default function ComparePlansPage() {
                     onChange={(e) => setContractFilter(e.target.value as any)}
                     className="w-full h-11 pl-3 pr-8 bg-white border border-[#E6E8EE] rounded-xl text-xs sm:text-sm font-semibold text-[#0D1935] appearance-none focus:outline-none focus:border-[#E01C5B] cursor-pointer"
                   >
-                    <option value="all">Any</option>
-                    <option value="monthly">Monthly rolling</option>
+                    <option value="all">Any contract length</option>
+                    <option value="monthly">Monthly rolling (30 Day)</option>
                     <option value="12mo">12 months</option>
+                    <option value="24mo">24 months</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                 </div>
@@ -983,7 +1105,26 @@ export default function ComparePlansPage() {
           {/* ========================================================================= */}
           {/* PLANS COMPARISON CARDS: Dynamic Responsive Grid */}
           {/* ========================================================================= */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {plansLoading && plans.length === 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse rounded-2xl bg-white p-6 border border-slate-200 h-96 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="h-6 w-3/4 bg-slate-200 rounded-lg" />
+                    <div className="h-4 w-1/2 bg-slate-100 rounded-lg" />
+                    <div className="h-10 w-1/3 bg-slate-200 rounded-lg mt-4" />
+                    <div className="space-y-2 pt-6">
+                      <div className="h-4 w-full bg-slate-100 rounded" />
+                      <div className="h-4 w-5/6 bg-slate-100 rounded" />
+                      <div className="h-4 w-4/6 bg-slate-100 rounded" />
+                    </div>
+                  </div>
+                  <div className="h-10 w-full bg-slate-200 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* --------------------------------------------------------------------- */}
             {/* CARD 1: Current Plan (Always rendered with Current Plan Ribbon) */}
             {/* --------------------------------------------------------------------- */}
@@ -1262,6 +1403,7 @@ export default function ComparePlansPage() {
               </div>
             )}
           </div>
+          )}
 
           {/* ========================================================================= */}
           {/* COMPARE SELECTED PLANS: Docked Action Bar */}
@@ -1687,11 +1829,11 @@ export default function ComparePlansPage() {
               <div className="p-3.5 bg-[#FDE8F1] rounded-2xl border border-[#FBCFE8] text-[#0D1935]">
                 <div className="font-bold text-sm text-[#E01C5B] mb-1">Recommended: {recommendedPlan.name}</div>
                 <p className="text-xs text-[#54617E]">
-                  {recommendedPlan.id === "plan-lite"
-                    ? "Great value option for moderate usage with full UK coverage."
-                    : recommendedPlan.id === "plan-unlimited"
+                  {recommendedPlan.dataAmountGb >= 900
                     ? "Ideal for heavy streaming, downloads, and worry-free data usage with 5G connectivity."
-                    : "You have plenty of headroom to stream and download without hitting speed caps, plus free EU roaming included at no extra charge."}
+                    : recommendedPlan.dataAmountGb >= 50
+                    ? `High-capacity ${recommendedPlan.dataAllowance} data allowance to stream, work, and browse freely without speed caps, plus EU roaming.`
+                    : "Great value option with full UK coverage and flexible rolling terms."}
                 </p>
               </div>
               {currentPlan.id === recommendedPlan.id ? (

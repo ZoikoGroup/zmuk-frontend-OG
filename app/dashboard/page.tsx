@@ -154,6 +154,7 @@ export default function DashboardPage() {
   // ── UI / State Helpers ──
   const [freshnessTime, setFreshnessTime] = useState<string>("Just now");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [storedBillLimit, setStoredBillLimit] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
 
   // ── Modals State ──
@@ -632,6 +633,9 @@ export default function DashboardPage() {
         note: pmNote,
         hasMandate: mandateActive,
       });
+
+      const storedLimit = typeof window !== "undefined" ? localStorage.getItem("zoiko_bill_limit") : null;
+      setStoredBillLimit(storedLimit || null);
     } catch (err) {
       console.error("Dashboard dynamic load error:", err);
     }
@@ -1077,12 +1081,12 @@ export default function DashboardPage() {
             paymentMethod={paymentMethodInfo.method}
             paymentMethodNote={paymentMethodInfo.note}
             mobileBillLimit={
-              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
-                ? `£${Number(localStorage.getItem("zoiko_bill_limit")).toFixed(2)}`
+              storedBillLimit
+                ? `£${Number(storedBillLimit).toFixed(2)}`
                 : "Not set"
             }
             mobileBillLimitNote={
-              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
+              storedBillLimit
                 ? "/ month · safety spend cap"
                 : "· Set a spend limit"
             }

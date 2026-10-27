@@ -768,6 +768,29 @@ export function ReportActivityModal({ isOpen, onClose, onSubmit }: ReportModalPr
   );
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
+const DEFAULT_MODAL_PLANS = [
+  {
+    name: "Zoiko Max 100GB",
+    price: "£15.00",
+    priceNum: 15.0,
+    gb: 100,
+    data: "100 GB 5G Data",
+    calls: "Unlimited UK Calls & Texts",
+    roaming: "EU Roaming Included",
+  },
+  {
+    name: "Zoiko Unlimited",
+    price: "£19.99",
+    priceNum: 19.99,
+    gb: 999,
+    data: "Unlimited 5G Data",
+    calls: "Unlimited UK Calls & Texts",
+    roaming: "EU Roaming Included",
+  },
+];
+
 // ── 4. COMPARE PLANS MODAL ──
 interface ComparePlansModalProps {
   isOpen: boolean;
@@ -782,6 +805,51 @@ export function ComparePlansModal({
   currentPlanName,
   onSelectPlan,
 }: ComparePlansModalProps) {
+  const [plans, setPlans] = useState<any[]>(DEFAULT_MODAL_PLANS);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/plans/v1/`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0 && mounted) {
+            setPlans(
+              data.map((p: any) => {
+                const rawData = String(p.data_allowance || p.name || "").toLowerCase();
+                const isUnlimited = rawData.includes("unlimited");
+                const gb = isUnlimited ? 999 : parseInt(rawData.replace(/\D/g, "") || "30", 10);
+                const priceNum = Number(p.final_price ?? p.sale_price ?? p.price_30 ?? p.price ?? 19.99);
+                const jsonStr = JSON.stringify(p).toLowerCase();
+                const roaming =
+                  jsonStr.includes("roaming") && !jsonStr.includes("not included")
+                    ? "EU Roaming Included"
+                    : "EU Roaming Day Pass";
+
+                return {
+                  name: p.name || "Zoiko Plan",
+                  price: `£${priceNum.toFixed(2)}`,
+                  priceNum,
+                  gb,
+                  data: `${isUnlimited ? "Unlimited" : gb + " GB"} 5G Data`,
+                  calls: "Unlimited UK Calls & Texts",
+                  roaming,
+                };
+              })
+            );
+          }
+        }
+      } catch {
+        // fallback
+      }
+    };
+    fetchPlans();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const effectiveCurrentPlan =
@@ -789,36 +857,6 @@ export function ComparePlansModal({
     (typeof window !== "undefined"
       ? localStorage.getItem("zoiko_active_plan") || "Zoiko SIM Plan"
       : "Zoiko SIM Plan");
-
-  const plans = [
-    {
-      name: "Zoiko Lite 10GB",
-      price: "£9.99",
-      priceNum: 9.99,
-      gb: 10,
-      data: "10 GB 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "EU Roaming Included",
-    },
-    {
-      name: "Zoiko Max 30GB",
-      price: "£19.99",
-      priceNum: 19.99,
-      gb: 30,
-      data: "30 GB 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "EU + 5 Travel Passes",
-    },
-    {
-      name: "Zoiko Unlimited",
-      price: "£19.99",
-      priceNum: 19.99,
-      gb: 100,
-      data: "Unlimited 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "Worldwide Roaming Included",
-    },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">

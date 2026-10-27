@@ -1306,6 +1306,7 @@ export default function UsageAndAllowancesPage() {
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => handleOpenBooster()}
             customTitle="Usage & allowances"
+            customTitleBadge="Upcoming"
             customSubtitle="Check your data, calls and texts, see what your plan includes, and add more before you run out."
             hideDemoBadgeInHeader={true}
           />
@@ -1724,11 +1725,11 @@ export default function UsageAndAllowancesPage() {
                           </h3>
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            Coming Soon
+                            Upcoming
                           </span>
                         </div>
                         <p className="text-xs text-[#5E6E8C] leading-5 mt-0.5">
-                          Daily totals and session feeds are coming soon
+                          Daily totals and session feeds are upcoming
                         </p>
                       </div>
 
@@ -1834,10 +1835,10 @@ export default function UsageAndAllowancesPage() {
                       <div className="mt-3 mb-4 p-8 rounded-2xl bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] border border-dashed border-[#CBD5E1] text-center flex flex-col items-center justify-center">
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-3">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
-                          Coming Soon
+                          Upcoming
                         </div>
                         <h4 className="text-sm font-bold text-[#0D1935] mb-1.5">
-                          Daily &amp; Hourly Breakdown Coming Soon
+                          Daily &amp; Hourly Breakdown Upcoming
                         </h4>
                         <p className="text-xs text-[#5E6E8C] max-w-md leading-relaxed">
                           Daily call records, SMS counts, and granular data usage will stream dynamically once available. Current cycle totals are tracked above.
@@ -2087,7 +2088,7 @@ export default function UsageAndAllowancesPage() {
                           <div className="text-xs text-[#5E6E8C] leading-4 mt-0.5">
                             {dailyBars.length > 0
                               ? `Daily average · ${chartSummary.completedCount} complete days`
-                              : "Daily average · Coming Soon"}
+                              : "Daily average · Upcoming"}
                           </div>
                         </div>
                       </div>
@@ -2104,7 +2105,7 @@ export default function UsageAndAllowancesPage() {
                           <div className="text-xs text-[#5E6E8C] leading-4 mt-0.5">
                             {dailyBars.length > 0
                               ? `Highest day · ${chartSummary.highestDayDate}`
-                              : "Highest day · Coming Soon"}
+                              : "Highest day · Upcoming"}
                           </div>
                         </div>
                       </div>
@@ -2117,7 +2118,7 @@ export default function UsageAndAllowancesPage() {
                       <Info className="w-3.5 h-3.5 text-[#5E6E8C]" />
                       {dailyBars.length > 0
                         ? `Average uses complete days only (${chartSummary.firstCompletedDate}–${chartSummary.lastCompletedDate}).`
-                        : "Daily breakdown is coming soon."}
+                        : "Daily breakdown is upcoming."}
                     </span>
                     {dailyBars.length > 0 && (
                       <button

@@ -274,7 +274,7 @@ export default function BillsPaymentsCard({
                 </div>
                 <div>
                   <div className="text-slate-500">Mobile bill limit</div>
-                  <div className="text-sm font-bold text-[#0D1935] mt-0.5">
+                  <div className="text-sm font-bold text-[#0D1935] mt-0.5" suppressHydrationWarning>
                     {mobileBillLimit}{" "}
                     <span className="font-normal text-slate-500 text-xs">
                       {mobileBillLimitNote}

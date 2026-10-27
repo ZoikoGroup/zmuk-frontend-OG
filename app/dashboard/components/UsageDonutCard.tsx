@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ChevronRight, Plus, Check } from "lucide-react";
+import { ZOIKONEX_CONFIG } from "../../utils/zoikoNexApi";
 
 interface UsageDonutCardProps {
   dataRemainingGb: number;
@@ -22,12 +23,14 @@ export default function UsageDonutCard({
   onOpenBoosterModal,
   onOpenDetails,
 }: UsageDonutCardProps) {
+  const isLive = ZOIKONEX_CONFIG.IS_CONNECTED;
+
   // SVG Donut calculation
   const radius = 78;
   const strokeWidth = 18;
   const circumference = 2 * Math.PI * radius;
   // Progress offset (from top: -90 deg rotation)
-  const offset = circumference - (Math.min(100, Math.max(0, dataRemainingPct)) / 100) * circumference;
+  const offset = circumference - (Math.min(100, Math.max(0, isLive ? dataRemainingPct : 0)) / 100) * circumference;
 
   return (
     <div className="rounded-[20px] bg-white p-5 shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-slate-200 flex flex-col justify-between h-full">
@@ -82,19 +85,19 @@ export default function UsageDonutCard({
           {/* Center Info */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
             <span className="text-2xl sm:text-3xl font-extrabold text-[#0D1935] tracking-tight">
-              {dataTotalGb > 0 ? `${dataRemainingGb} GB` : "0.0 GB"}
+              {isLive && dataTotalGb > 0 ? `${dataRemainingGb} GB` : "0.0 GB"}
             </span>
             <span className="text-[11px] sm:text-xs text-slate-500 font-normal mt-0.5">
-              {dataTotalGb > 0 ? `remaining of ${dataTotalGb} GB` : "No active plan"}
+              {isLive && dataTotalGb > 0 ? `remaining of ${dataTotalGb} GB` : "Live usage upcoming"}
             </span>
           </div>
         </div>
 
         {/* Center Badge below donut */}
         <div className="mt-2 px-3 py-1 bg-pink-50 text-[#E01C5B] text-xs font-semibold rounded-full border border-pink-100">
-          {dataTotalGb > 0
+          {isLive && dataTotalGb > 0
             ? `${dataRemainingPct}% remaining · ${dataUsedGb} GB used`
-            : "No active data allowance"}
+            : "Data & allowances upcoming"}
         </div>
       </div>
 
@@ -107,10 +110,10 @@ export default function UsageDonutCard({
             <span className="font-medium text-slate-700">Data</span>
           </div>
           <span className="font-semibold text-[#0D1935]">
-            {dataTotalGb > 0 ? `${dataRemainingGb} GB / ${dataTotalGb} GB` : "0.0 GB"}
+            {isLive && dataTotalGb > 0 ? `${dataRemainingGb} GB / ${dataTotalGb} GB` : "0.0 GB"}
           </span>
           <span className="px-2 py-0.5 rounded-full bg-pink-50 text-[#E01C5B] font-semibold text-[11px]">
-            {dataTotalGb > 0 ? `${dataRemainingPct}% left` : "No plan"}
+            {isLive && dataTotalGb > 0 ? `${dataRemainingPct}% left` : "Upcoming"}
           </span>
         </div>
 
@@ -121,13 +124,13 @@ export default function UsageDonutCard({
             <span className="font-medium text-slate-700">UK calls</span>
           </div>
           <span className="font-semibold text-[#0D1935]">
-            {dataTotalGb > 0 ? "Unlimited" : "—"}
+            {isLive && dataTotalGb > 0 ? "Unlimited" : "—"}
           </span>
           <span className={`px-2 py-0.5 rounded-full font-semibold text-[11px] flex items-center gap-1 ${
-            dataTotalGb > 0 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+            isLive && dataTotalGb > 0 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
           }`}>
-            {dataTotalGb > 0 && <Check className="w-3 h-3 stroke-[3]" />}
-            <span>{dataTotalGb > 0 ? "Included" : "Inactive"}</span>
+            {isLive && dataTotalGb > 0 && <Check className="w-3 h-3 stroke-[3]" />}
+            <span>{isLive && dataTotalGb > 0 ? "Included" : "Upcoming"}</span>
           </span>
         </div>
 
@@ -138,20 +141,20 @@ export default function UsageDonutCard({
             <span className="font-medium text-slate-700">UK texts</span>
           </div>
           <span className="font-semibold text-[#0D1935]">
-            {dataTotalGb > 0 ? "Unlimited" : "—"}
+            {isLive && dataTotalGb > 0 ? "Unlimited" : "—"}
           </span>
           <span className={`px-2 py-0.5 rounded-full font-semibold text-[11px] flex items-center gap-1 ${
-            dataTotalGb > 0 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+            isLive && dataTotalGb > 0 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
           }`}>
-            {dataTotalGb > 0 && <Check className="w-3 h-3 stroke-[3]" />}
-            <span>{dataTotalGb > 0 ? "Included" : "Inactive"}</span>
+            {isLive && dataTotalGb > 0 && <Check className="w-3 h-3 stroke-[3]" />}
+            <span>{isLive && dataTotalGb > 0 ? "Included" : "Upcoming"}</span>
           </span>
         </div>
       </div>
 
       {/* Booster Action Button */}
       <div className="pt-3">
-        {dataTotalGb > 0 ? (
+        {isLive && dataTotalGb > 0 ? (
           <button
             type="button"
             onClick={onOpenBoosterModal}

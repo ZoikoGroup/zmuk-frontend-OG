@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { validateUkMobile } from "../utils/validators";
 
 // Base URL from env (NEXT_PUBLIC_API_URL). Paths built inline.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -59,15 +58,7 @@ function Recharge() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    const phoneCheck = validateUkMobile(phone);
-    if (!phoneCheck.isValid) {
-      setError(phoneCheck.error || "Please enter a valid 11-digit UK mobile number.");
-      return;
-    }
-    if (amountNum < 1 || amountNum > 100) {
-      setError("Please choose or enter a top-up amount between £1 and £100.");
-      return;
-    }
+    if (!isValid) return;
 
     setPhase("starting");
     try {
