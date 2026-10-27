@@ -375,7 +375,7 @@ function DeviceCard({ d }: { d: Product }) {
 /** 1. HERO - NEW SECTION 1 */
 function Hero() {
   return (
-    <section className="relative w-full overflow-hidden bg-white">
+    <section className="relative w-full overflow-hidden bg-white dark:bg-gray-950">
       {/* Background Hero Banner using Frame 27.png */}
       <div
         className="relative min-h-[580px] md:min-h-[614px] w-full bg-cover bg-right md:bg-[center_right] bg-no-repeat flex items-center"
@@ -384,46 +384,46 @@ function Hero() {
         }}
       >
         {/* Subtle overlay gradient on mobile/tablet for optimal text contrast */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-transparent md:from-white/70 md:via-white/20 md:to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-transparent md:from-white/70 md:via-white/20 md:to-transparent dark:from-gray-950/95 dark:via-gray-950/85 md:dark:from-gray-950/90 md:dark:via-gray-950/60 md:dark:to-transparent pointer-events-none" />
 
         <div className="relative z-10 mx-auto max-w-7xl w-full px-4 sm:px-8 lg:px-14 py-12 md:py-16">
           <div className="max-w-xl lg:max-w-2xl">
             {/* Eyebrow */}
-            <p className="text-xs sm:text-sm md:text-base font-semibold tracking-[0.2em] text-black/80 uppercase font-['Inter',sans-serif]">
+            <p className="text-xs sm:text-sm md:text-base font-semibold tracking-[0.2em] text-black/80 dark:text-rose-400 uppercase font-['Inter',sans-serif]">
               THE ANIMAL &amp; MUSIC LOVING NETWORK
             </p>
 
             {/* Main Heading */}
-            <h1 className="mt-4 text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold text-black leading-[1.12] font-['Inter',sans-serif] tracking-tight">
+            <h1 className="mt-4 text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold text-black dark:text-white leading-[1.12] font-['Inter',sans-serif] tracking-tight">
               Stay connected <br className="hidden sm:inline" />
-              to <span className="text-[#E01C5B]">what you love.</span>
+              to <span className="text-[#E01C5B] dark:text-[#ff4081]">what you love.</span>
             </h1>
 
             {/* Subheading */}
-            <p className="mt-4 text-base sm:text-lg text-black/70 leading-relaxed font-normal font-['Inter',sans-serif] max-w-lg">
+            <p className="mt-4 text-base sm:text-lg text-black/70 dark:text-gray-300 leading-relaxed font-normal font-['Inter',sans-serif] max-w-lg">
               Flexible mobile plans, easy switching and more freedom to stay connected across the UK and beyond.
             </p>
 
             {/* Offer Pill Card */}
-            <div className="mt-7 inline-flex items-center gap-4 sm:gap-6 bg-gradient-to-r from-pink-100 to-rose-100/70 border border-pink-200/80 rounded-3xl px-5 sm:px-6 py-3.5 shadow-sm">
+            <div className="mt-7 inline-flex items-center gap-4 sm:gap-6 bg-gradient-to-r from-pink-100 to-rose-100/70 dark:from-rose-950/70 dark:to-pink-950/50 border border-pink-200/80 dark:border-rose-900/60 rounded-3xl px-5 sm:px-6 py-3.5 shadow-sm">
               <div>
-                <p className="text-xl sm:text-2xl font-bold text-[#E01C5B] leading-tight">
+                <p className="text-xl sm:text-2xl font-bold text-[#E01C5B] dark:text-rose-400 leading-tight">
                   30GB
                 </p>
-                <p className="text-xs sm:text-sm font-medium text-[#E01C5B]/90">
+                <p className="text-xs sm:text-sm font-medium text-[#E01C5B]/90 dark:text-rose-300">
                   Unlimited UK Calls &amp; Texts
                 </p>
               </div>
 
-              <div className="w-px h-10 bg-[#E01C5B]/40" />
+              <div className="w-px h-10 bg-[#E01C5B]/40 dark:bg-rose-500/40" />
 
               <div>
-                <p className="text-xs text-black/60 font-medium">From just</p>
+                <p className="text-xs text-black/60 dark:text-gray-400 font-medium">From just</p>
                 <p className="leading-tight">
-                  <span className="text-xl sm:text-2xl font-bold text-[#E01C5B]">
+                  <span className="text-xl sm:text-2xl font-bold text-[#E01C5B] dark:text-rose-400">
                     £4
                   </span>
-                  <span className="text-sm font-medium text-[#E01C5B]/80">
+                  <span className="text-sm font-medium text-[#E01C5B]/80 dark:text-rose-300">
                     /month
                   </span>
                 </p>
@@ -442,7 +442,7 @@ function Hero() {
 
               <Link
                 href="/switch-and-save"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E01C5B] bg-white px-8 py-3.5 text-base font-medium text-[#E01C5B] shadow-[0px_0px_4px_2px_rgba(224,28,91,0.15)] transition-all hover:bg-rose-50 active:scale-95"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E01C5B] bg-white dark:bg-gray-900 px-8 py-3.5 text-base font-medium text-[#E01C5B] dark:text-rose-400 shadow-[0px_0px_4px_2px_rgba(224,28,91,0.15)] transition-all hover:bg-rose-50 dark:hover:bg-gray-800 active:scale-95"
               >
                 <span>Switch &amp; Save</span>
                 <ChevronRight className="h-5 w-5" />
