@@ -80,7 +80,7 @@ export default function DataUsageHistoryCard({
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5" />
-              <span>Coming Soon</span>
+              <span>Upcoming</span>
             </span>
             <a
               href="/dashboard/usage-and-allowances"
@@ -91,7 +91,7 @@ export default function DataUsageHistoryCard({
             </a>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            UK and roaming data by billing cycle · Live daily and monthly usage history coming soon
+            UK and roaming data by billing cycle · Live daily and monthly usage history upcoming
           </p>
         </div>
 
@@ -268,8 +268,8 @@ export default function DataUsageHistoryCard({
       {/* Live Usage Notice */}
       {!ZOIKONEX_CONFIG.IS_CONNECTED && (
         <div className="mt-3 py-2 px-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-500 flex items-center justify-between gap-2">
-          <span>Daily &amp; monthly usage history is coming soon. Real-time billing cycle data will sync automatically once active.</span>
-          <span className="font-semibold text-slate-600 shrink-0">Coming Soon</span>
+          <span>Daily &amp; monthly usage history is upcoming. Real-time billing cycle data will sync automatically once active.</span>
+          <span className="font-semibold text-slate-600 shrink-0">Upcoming</span>
         </div>
       )}
     </div>

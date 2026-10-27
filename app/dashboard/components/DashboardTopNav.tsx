@@ -37,6 +37,7 @@ interface TopNavProps {
   onOpenBoosterModal?: () => void;
   customTitle?: string;
   customSubtitle?: string;
+  customTitleBadge?: string;
   hideDemoBadgeInHeader?: boolean;
 }
 
@@ -56,6 +57,7 @@ export default function DashboardTopNav({
   onOpenBoosterModal,
   customTitle,
   customSubtitle,
+  customTitleBadge,
   hideDemoBadgeInHeader = true,
 }: TopNavProps) {
   const [profileOpen, setProfileOpen] = useState(false);

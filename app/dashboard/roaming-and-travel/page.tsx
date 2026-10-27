@@ -103,12 +103,12 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
   {
     id: "us",
     name: "United States",
-    zone: "North America zone",
+    zone: "Zone 4 (North America)",
     isEuIncluded: false,
-    dataRate: "75p per MB",
-    callsMadeRate: "£1.50 per min",
-    callsReceivedRate: "£1.00 per min",
-    textsSentRate: "40p each",
+    dataRate: "£0.0800 per MB (8p/MB)",
+    callsMadeRate: "£0.065 per min (6.5p/min)",
+    callsReceivedRate: "£0.390 per min (39p/min)",
+    textsSentRate: "£0.35 each (35p)",
     hasTravelPass: true,
     passes: [
       {
@@ -154,11 +154,11 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
   {
     id: "fr",
     name: "France",
-    zone: "EU & EEA zone",
+    zone: "Zone 2 (EU & EEA)",
     isEuIncluded: true,
-    dataRate: "Included (up to EU fair use limit)",
+    dataRate: "Included (Overage: £0.0160/MB)",
     callsMadeRate: "Included in UK allowance",
-    callsReceivedRate: "Free (0p per min)",
+    callsReceivedRate: "Free (£0.00)",
     textsSentRate: "Included in UK allowance",
     hasTravelPass: true,
     passes: [
@@ -205,11 +205,11 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
   {
     id: "es",
     name: "Spain",
-    zone: "EU & EEA zone",
+    zone: "Zone 2 (EU & EEA)",
     isEuIncluded: true,
-    dataRate: "Included (up to EU fair use limit)",
+    dataRate: "Included (Overage: £0.0160/MB)",
     callsMadeRate: "Included in UK allowance",
-    callsReceivedRate: "Free (0p per min)",
+    callsReceivedRate: "Free (£0.00)",
     textsSentRate: "Included in UK allowance",
     hasTravelPass: true,
     passes: [
@@ -256,12 +256,12 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
   {
     id: "tr",
     name: "Türkiye",
-    zone: "Rest of Europe (Non-EU) zone",
+    zone: "Zone 2 (Non-EU Europe)",
     isEuIncluded: false,
-    dataRate: "50p per MB",
-    callsMadeRate: "£1.20 per min",
-    callsReceivedRate: "75p per min",
-    textsSentRate: "30p each",
+    dataRate: "£0.0160 per MB (1.6p/MB)",
+    callsMadeRate: "£0.065 per min (6.5p/min)",
+    callsReceivedRate: "£0.052 per min (5.2p/min)",
+    textsSentRate: "£0.10 each (10p)",
     hasTravelPass: true,
     passes: [
       {
@@ -304,6 +304,30 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
       },
     ],
   },
+  {
+    id: "in",
+    name: "India",
+    zone: "Zone 3 (Asia Pacific & Subcontinent)",
+    isEuIncluded: false,
+    dataRate: "£0.0320 per MB (3.2p/MB)",
+    callsMadeRate: "£0.065 per min (6.5p/min)",
+    callsReceivedRate: "£0.033 per min (3.3p/min)",
+    textsSentRate: "£0.16 each (16p)",
+    hasTravelPass: false,
+    passes: [],
+  },
+  {
+    id: "ae",
+    name: "United Arab Emirates",
+    zone: "Zone 5 (Middle East & North Africa)",
+    isEuIncluded: false,
+    dataRate: "£1.0900 per MB (£1.09/MB)",
+    callsMadeRate: "£0.520 per min (52p/min)",
+    callsReceivedRate: "£1.170 per min",
+    textsSentRate: "£0.70 each (70p)",
+    hasTravelPass: false,
+    passes: [],
+  },
 ];
 
 function CountryFlagBadge({
@@ -334,6 +358,29 @@ function CountryFlagBadge({
         <span className="w-full h-1/4 bg-[#C60B1E]" />
         <span className="w-full h-2/4 bg-[#FFC400]" />
         <span className="w-full h-1/4 bg-[#C60B1E]" />
+      </span>
+    );
+  }
+  if (countryId === "in") {
+    return (
+      <span className={`${dim} inline-flex flex-col overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}>
+        <span className="w-full h-1/3 bg-[#FF9933]" />
+        <span className="w-full h-1/3 bg-white flex items-center justify-center">
+          <span className="w-1 h-1 rounded-full bg-[#000080]" />
+        </span>
+        <span className="w-full h-1/3 bg-[#138808]" />
+      </span>
+    );
+  }
+  if (countryId === "ae") {
+    return (
+      <span className={`${dim} relative inline-flex overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}>
+        <span className="w-1/4 h-full bg-[#FF0000]" />
+        <span className="flex-1 flex flex-col h-full">
+          <span className="w-full h-1/3 bg-[#00732F]" />
+          <span className="w-full h-1/3 bg-white" />
+          <span className="w-full h-1/3 bg-black" />
+        </span>
       </span>
     );
   }
@@ -1562,6 +1609,13 @@ export default function RoamingAndTravelPage() {
                     <Clock className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
                     <span>Tariff checked {freshnessTime}</span>
                   </div>
+                  <a
+                    href="/roaming-and-coverage"
+                    className="mt-2 pt-2 border-t border-[#E5E8EF] flex items-center justify-between text-xs font-semibold text-[#E01C5B] hover:underline"
+                  >
+                    <span>View all roaming zones &amp; complete country rates table</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               </div>
             </div>
@@ -1575,9 +1629,14 @@ export default function RoamingAndTravelPage() {
                     <Wallet className="w-5 h-5 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
-                    <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                      Your roaming balance
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[#0D1935] text-lg font-bold leading-6">
+                        Your roaming balance
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                        Upcoming
+                      </span>
+                    </div>
                     <span className="text-[#54617E] text-xs font-normal leading-5">
                       Network records to {freshnessTime}
                     </span>
@@ -1637,9 +1696,14 @@ export default function RoamingAndTravelPage() {
                       <BarChart2 className="w-5 h-5 text-[#E01C5B]" />
                     </div>
                     <div>
-                      <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                        Roaming usage
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[#0D1935] text-lg font-bold leading-6">
+                          Roaming usage
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                          Upcoming
+                        </span>
+                      </div>
                       <span className="text-[#54617E] text-xs font-normal leading-4 block">
                         Usage was last updated at {freshnessTime}
                       </span>
@@ -1864,9 +1928,14 @@ export default function RoamingAndTravelPage() {
                     <MapPin className="w-5 h-5 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
-                    <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                      Where you&apos;ve roamed
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[#0D1935] text-lg font-bold leading-6">
+                        Where you&apos;ve roamed
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                        Upcoming
+                      </span>
+                    </div>
                     <span className="text-[#54617E] text-xs font-normal leading-5">
                       {currentLine.billingPeriodLabel}
                     </span>
@@ -2280,9 +2349,14 @@ export default function RoamingAndTravelPage() {
                       <Gauge className="w-4 h-4 text-[#E01C5B]" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Manage bill limit
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
+                          Manage bill limit
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                          Upcoming
+                        </span>
+                      </div>
                       <span className="text-[#54617E] text-xs font-normal leading-4">
                         Currently £{billLimit.toFixed(2)} a month
                       </span>
@@ -2407,9 +2481,14 @@ export default function RoamingAndTravelPage() {
                   <Gauge className="w-4 h-4 text-[#E01C5B]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#0D1935]">
-                    Monthly mobile bill limit
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[#0D1935]">
+                      Monthly mobile bill limit
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                      Upcoming
+                    </span>
+                  </div>
                   <p className="text-xs text-[#54617E]">
                     Covers roaming passes and charges outside your plan
                   </p>

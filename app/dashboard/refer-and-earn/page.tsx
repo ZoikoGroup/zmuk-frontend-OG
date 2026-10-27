@@ -268,13 +268,15 @@ export default function ReferAndEarnPage() {
 
         if (sortedPlans.length >= 2) {
           const litePlan = sortedPlans[0];
+          const otherPlans = sortedPlans.filter((p) => p.id !== litePlan.id);
           const maxPlan =
-            sortedPlans.find((p) => Number(p.price) >= 15) ||
-            sortedPlans[sortedPlans.length - 1];
+            otherPlans.find((p) => Number(p.price) >= 15) ||
+            otherPlans[otherPlans.length - 1] ||
+            sortedPlans[1];
 
           setQualifyingPlans([
             {
-              id: String(litePlan.id || "lite"),
+              id: `plan-lite-${litePlan.id || "1"}`,
               title: litePlan.title || "Zoiko Lite 10GB",
               description: `${
                 litePlan.data_allowance || "10 GB"
@@ -283,12 +285,12 @@ export default function ReferAndEarnPage() {
               rewardAmount: 5.0,
             },
             {
-              id: String(maxPlan.id || "max"),
-              title: maxPlan.title || "Zoiko Max 30GB",
+              id: `plan-max-${maxPlan?.id || "2"}`,
+              title: maxPlan?.title || "Zoiko Max 30GB",
               description: `${
-                maxPlan.data_allowance || "30 GB"
+                maxPlan?.data_allowance || "30 GB"
               } data · unlimited UK calls and texts · EU roaming`,
-              price: Number(maxPlan.price) || 19.99,
+              price: Number(maxPlan?.price) || 19.99,
               rewardAmount: 10.0,
             },
           ]);
@@ -1125,9 +1127,9 @@ export default function ReferAndEarnPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#121B34]/8 text-xs">
-                            {paginatedReferrals.map((refItem) => (
+                            {paginatedReferrals.map((refItem, idx) => (
                               <tr
-                                key={refItem.id}
+                                key={`${refItem.id}-${idx}`}
                                 onClick={() =>
                                   setSelectedReferralDetail(refItem)
                                 }
@@ -1463,9 +1465,9 @@ export default function ReferAndEarnPage() {
                     </div>
 
                     <div className="flex flex-col gap-2.5">
-                      {qualifyingPlans.map((plan) => (
+                      {qualifyingPlans.map((plan, idx) => (
                         <div
-                          key={plan.id}
+                          key={`${plan.id}-${idx}`}
                           className="p-3.5 rounded-2xl border border-[#121B34]/10 flex flex-col items-start gap-1.5"
                         >
                           <div className="text-base font-bold text-[#0D1935] leading-5">

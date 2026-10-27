@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 // NOTE: these two imports assume this file is app/page.tsx and your context/
 // components live at app/context and app/components (same as your /plans page,
@@ -307,61 +308,146 @@ function DeviceCard({ d }: { d: Product }) {
 
 // ─── SECTIONS ────────────────────────────────────────────────────────────────
 
-/** 1. HERO */
+// =========================================================================
+// OLD HERO / SECTION 1 (KEPT IN COMMENTS AS REQUESTED)
+// =========================================================================
+// function HeroOld() {
+//   return (
+//     <section className="bg-white dark:bg-gray-800">
+//       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-12 sm:px-6 md:px-8 lg:grid-cols-2 lg:gap-6 lg:py-16">
+//         {/* Text */}
+//         <div className="order-1">
+//           <h1 className="font-extrabold leading-tight text-[#c4007a] text-[clamp(2rem,5vw,3.25rem)]">
+//             Make the Smart Switch today!
+//           </h1>
+//           <p className="mt-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400 sm:text-base">
+//             Unlimited Data | Unlimited Calls | Roam Free in 30+ Countries
+//           </p>
+//
+//           <div className="mt-6 flex items-end gap-2">
+//             <span className="font-extrabold text-[#e6007e] text-[clamp(2.25rem,6vw,3.5rem)] leading-none">
+//               £0.00
+//             </span>
+//             <span className="mb-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+//               /Month For Up To 3 Months*
+//             </span>
+//           </div>
+//
+//           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+//             <a href="/switch-and-save">
+//               <button
+//                 type="button"
+//                 className="rounded-full bg-[#e6007e] px-8 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#c4007a]"
+//               >
+//                 Switch &amp; Save
+//               </button>
+//             </a>
+//             <a href="/plans">
+//               <button
+//                 type="button"
+//                 className="rounded-full border border-[#e6007e] px-8 py-3 text-sm font-semibold text-[#e6007e] transition-colors hover:bg-[#fff0f8] dark:hover:bg-[#e6007e]/10"
+//               >
+//                 View Plans
+//               </button>
+//             </a>
+//           </div>
+//         </div>
+//
+//         {/* Image collage — space reserved */}
+//         <div className="order-2">
+//           <div className="relative w-full overflow-hidden rounded-2xl aspect-[4/3] bg-gradient-to-br from-[#f3e8f7] via-[#e9c9e8] to-[#8e3a8c]">
+//             <Image
+//               src="/images/homepage/girl.png"
+//               alt="Happy Zoiko Mobile customers"
+//               fill
+//               priority
+//               sizes="(max-width: 1024px) 100vw, 50vw"
+//               className="object-contain"
+//             />
+//           </div>
+//         </div>
+//       </div>
+//     </section>
+//   );
+// }
+// =========================================================================
+
+/** 1. HERO - NEW SECTION 1 */
 function Hero() {
   return (
-    <section className="bg-white dark:bg-gray-800">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-12 sm:px-6 md:px-8 lg:grid-cols-2 lg:gap-6 lg:py-16">
-        {/* Text */}
-        <div className="order-1">
-          <h1 className="font-extrabold leading-tight text-[#c4007a] text-[clamp(2rem,5vw,3.25rem)]">
-            Make the Smart Switch today!
-          </h1>
-          <p className="mt-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400 sm:text-base">
-            Unlimited Data | Unlimited Calls | Roam Free in 30+ Countries
-          </p>
+    <section className="relative w-full overflow-hidden bg-white">
+      {/* Background Hero Banner using Frame 27.png */}
+      <div
+        className="relative min-h-[580px] md:min-h-[614px] w-full bg-cover bg-right md:bg-[center_right] bg-no-repeat flex items-center"
+        style={{
+          backgroundImage: "url('/images/new%20home%20and%20header/Frame%2027.png')",
+        }}
+      >
+        {/* Subtle overlay gradient on mobile/tablet for optimal text contrast */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-transparent md:from-white/70 md:via-white/20 md:to-transparent pointer-events-none" />
 
-          <div className="mt-6 flex items-end gap-2">
-            <span className="font-extrabold text-[#e6007e] text-[clamp(2.25rem,6vw,3.5rem)] leading-none">
-              £0.00
-            </span>
-            <span className="mb-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
-              /Month For Up To 3 Months*
-            </span>
-          </div>
+        <div className="relative z-10 mx-auto max-w-7xl w-full px-4 sm:px-8 lg:px-14 py-12 md:py-16">
+          <div className="max-w-xl lg:max-w-2xl">
+            {/* Eyebrow */}
+            <p className="text-xs sm:text-sm md:text-base font-semibold tracking-[0.2em] text-black/80 uppercase font-['Inter',sans-serif]">
+              THE ANIMAL &amp; MUSIC LOVING NETWORK
+            </p>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <a href="/switch-and-save">
-              {" "}
-              <button
-                type="button"
-                className="rounded-full bg-[#e6007e] px-8 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#c4007a]"
+            {/* Main Heading */}
+            <h1 className="mt-4 text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold text-black leading-[1.12] font-['Inter',sans-serif] tracking-tight">
+              Stay connected <br className="hidden sm:inline" />
+              to <span className="text-[#E01C5B]">what you love.</span>
+            </h1>
+
+            {/* Subheading */}
+            <p className="mt-4 text-base sm:text-lg text-black/70 leading-relaxed font-normal font-['Inter',sans-serif] max-w-lg">
+              Flexible mobile plans, easy switching and more freedom to stay connected across the UK and beyond.
+            </p>
+
+            {/* Offer Pill Card */}
+            <div className="mt-7 inline-flex items-center gap-4 sm:gap-6 bg-gradient-to-r from-pink-100 to-rose-100/70 border border-pink-200/80 rounded-3xl px-5 sm:px-6 py-3.5 shadow-sm">
+              <div>
+                <p className="text-xl sm:text-2xl font-bold text-[#E01C5B] leading-tight">
+                  30GB
+                </p>
+                <p className="text-xs sm:text-sm font-medium text-[#E01C5B]/90">
+                  Unlimited UK Calls &amp; Texts
+                </p>
+              </div>
+
+              <div className="w-px h-10 bg-[#E01C5B]/40" />
+
+              <div>
+                <p className="text-xs text-black/60 font-medium">From just</p>
+                <p className="leading-tight">
+                  <span className="text-xl sm:text-2xl font-bold text-[#E01C5B]">
+                    £4
+                  </span>
+                  <span className="text-sm font-medium text-[#E01C5B]/80">
+                    /month
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Link
+                href="/plans"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E01C5B] px-8 py-3.5 text-base font-medium text-white shadow-[0px_0px_4px_2px_rgba(224,28,91,0.15)] transition-all hover:bg-[#c8164f] hover:shadow-lg active:scale-95"
               >
-                Switch &amp; Save
-              </button>
-            </a>
-            <a href="/plans">
-              <button
-                type="button"
-                className="rounded-full border border-[#e6007e] px-8 py-3 text-sm font-semibold text-[#e6007e] transition-colors hover:bg-[#fff0f8] dark:hover:bg-[#e6007e]/10"
-              >
-                View Plans
-              </button>
-            </a>
-          </div>
-        </div>
+                <span>View Plans</span>
+                <ChevronRight className="h-5 w-5" />
+              </Link>
 
-        {/* Image collage — space reserved */}
-        <div className="order-2">
-          <div className="relative w-full overflow-hidden rounded-2xl aspect-[4/3] bg-gradient-to-br from-[#f3e8f7] via-[#e9c9e8] to-[#8e3a8c]">
-            <Image
-              src="/images/homepage/girl.png"
-              alt="Happy Zoiko Mobile customers"
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-contain"
-            />
+              <Link
+                href="/switch-and-save"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E01C5B] bg-white px-8 py-3.5 text-base font-medium text-[#E01C5B] shadow-[0px_0px_4px_2px_rgba(224,28,91,0.15)] transition-all hover:bg-rose-50 active:scale-95"
+              >
+                <span>Switch &amp; Save</span>
+                <ChevronRight className="h-5 w-5" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

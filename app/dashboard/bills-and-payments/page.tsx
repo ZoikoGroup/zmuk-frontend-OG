@@ -1264,6 +1264,7 @@ export default function BillsAndPaymentsPage() {
     setSavedCard(newCard);
     if (typeof window !== "undefined") {
       localStorage.setItem("zoiko_saved_card", JSON.stringify(newCard));
+      localStorage.setItem("zoiko_saved_cards", JSON.stringify([newCard]));
       window.dispatchEvent(new Event("zoiko-auth"));
     }
     setCardModalOpen(false);
@@ -1274,6 +1275,7 @@ export default function BillsAndPaymentsPage() {
     setSavedCard(null);
     if (typeof window !== "undefined") {
       localStorage.removeItem("zoiko_saved_card");
+      localStorage.removeItem("zoiko_saved_cards");
       window.dispatchEvent(new Event("zoiko-auth"));
     }
     setCardModalOpen(false);

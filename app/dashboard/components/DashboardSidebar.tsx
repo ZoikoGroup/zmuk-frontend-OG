@@ -77,6 +77,7 @@ export default function DashboardSidebar({
       id: "usage",
       label: "Usage & allowances",
       icon: BarChart2,
+      badge: "Upcoming",
       href: "/dashboard/usage-and-allowances",
     },
     {
@@ -191,7 +192,7 @@ export default function DashboardSidebar({
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <div className="relative w-24 sm:w-28 h-8">
               <Image
-                src="/images/logo.png"
+                src="/images/zmuk-logo.png"
                 alt="Zoiko Mobile"
                 fill
                 priority
@@ -314,10 +315,10 @@ export default function DashboardSidebar({
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.badge !== undefined && (
                             <span
-                              className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                 isActive
                                   ? "bg-white/20 text-white"
-                                  : "bg-slate-100 text-slate-600"
+                                  : typeof item.badge === "string" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-slate-100 text-slate-600"
                               }`}
                             >
                               {item.badge}
@@ -512,9 +513,11 @@ export default function DashboardSidebar({
                       )}
                       {!collapsed && item.badge !== undefined && (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                             isActive
                               ? "bg-white/20 text-white"
+                              : typeof item.badge === "string"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
                               : "bg-slate-100 text-slate-600 group-hover:bg-slate-200"
                           }`}
                         >
