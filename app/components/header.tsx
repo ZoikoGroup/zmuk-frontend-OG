@@ -109,8 +109,18 @@ export default function Header() {
     openChat();
   };
 
-  // Hide on dashboard pages
+  // Hide on dashboard and login pages
+  /* OLD CODE:
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    return null;
+  }
+  */
+  if (
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/login" ||
+    pathname.startsWith("/login/")
+  ) {
     return null;
   }
 

@@ -1890,7 +1890,7 @@ export default function MyMobileNumbersPage() {
               {/* Action 3: Replace lost or damaged SIM */}
               <button
                 type="button"
-                onClick={() => router.push("/dashboard/sim-and-esim")}
+                onClick={() => router.push("/dashboard/sim-and-esim/replace")}
                 className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
               >
                 <div className="flex items-center gap-3 min-w-0">

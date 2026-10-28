@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   RefreshCw,
   Loader2,
@@ -16,7 +17,7 @@ import {
   Plane,
   Search,
   Calendar,
-  Ticket,
+  ShieldCheck,
   Wallet,
   Plus,
   BarChart2,
@@ -80,178 +81,38 @@ export interface DestinationConfig {
   callsMadeRate: string;
   callsReceivedRate: string;
   textsSentRate: string;
-  hasTravelPass: boolean;
-  passes: {
-    id: string;
-    title: string;
-    subtitle: string;
-    price: number;
-    priceUnit: string;
-    bullets: { icon: "check" | "clock" | "info"; text: string }[];
-  }[];
-}
-
-export interface ActiveTravelPass {
-  id: string;
-  title: string;
-  destination: string;
-  price: number;
-  purchasedAt: string;
 }
 
 const DESTINATIONS_CATALOG: DestinationConfig[] = [
   {
-    id: "us",
-    name: "United States",
-    zone: "Zone 4 (North America)",
-    isEuIncluded: false,
-    dataRate: "£0.0800 per MB (8p/MB)",
-    callsMadeRate: "£0.065 per min (6.5p/min)",
-    callsReceivedRate: "£0.390 per min (39p/min)",
-    textsSentRate: "£0.35 each (35p)",
-    hasTravelPass: true,
-    passes: [
-      {
-        id: "world-day-pass-us",
-        title: "World Day Pass",
-        subtitle: "United States, Canada",
-        price: 6.0,
-        priceUnit: "per day used · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Uses your UK allowance" },
-          { icon: "check", text: "Each day you use your phone" },
-          {
-            icon: "clock",
-            text: "Charged only on days you use data, calls or texts in the USA or Canada",
-          },
-          {
-            icon: "info",
-            text: "Fair use 2 GB a day · Auto-renews: No — remove it any time",
-          },
-        ],
-      },
-      {
-        id: "usa-canada-7d",
-        title: "USA & Canada 7-day pass",
-        subtitle: "United States, Canada",
-        price: 15.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "5 GB data · 300 mins · 300 texts" },
-          { icon: "check", text: "7 days" },
-          {
-            icon: "clock",
-            text: "Starts when you first use your phone in the USA or Canada. Must start within 30 days.",
-          },
-          {
-            icon: "info",
-            text: "Calls and texts to UK, US and Canadian numbers · Auto-renews: No",
-          },
-        ],
-      },
-    ],
-  },
-  {
     id: "fr",
     name: "France",
-    zone: "Zone 2 (EU & EEA)",
+    zone: "Zone 1 (EU Member State)",
     isEuIncluded: true,
-    dataRate: "Included (Overage: £0.0160/MB)",
-    callsMadeRate: "Included in UK allowance",
+    dataRate: "Included in plan (Overage: £0.0160/MB)",
+    callsMadeRate: "Included in plan allowance",
     callsReceivedRate: "Free (£0.00)",
-    textsSentRate: "Included in UK allowance",
-    hasTravelPass: true,
-    passes: [
-      {
-        id: "eu-fair-use-boost",
-        title: "EU Extra 5GB Booster",
-        subtitle: "All 27 EU & EEA destinations",
-        price: 5.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Adds 5 GB extra EU roaming data" },
-          { icon: "check", text: "Valid until your current cycle renews" },
-          {
-            icon: "clock",
-            text: "Starts immediately once your included EU fair use allowance is reached",
-          },
-          {
-            icon: "info",
-            text: "Calls and texts remain unlimited · Auto-renews: No",
-          },
-        ],
-      },
-      {
-        id: "eu-fair-use-15gb",
-        title: "EU Extended 15GB Pass",
-        subtitle: "All 27 EU & EEA destinations",
-        price: 10.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Adds 15 GB extra EU roaming data" },
-          { icon: "check", text: "30 days validity" },
-          {
-            icon: "clock",
-            text: "Activates on first data session abroad after your included EU allowance",
-          },
-          {
-            icon: "info",
-            text: "High-speed 5G partner networks · Auto-renews: No",
-          },
-        ],
-      },
-    ],
+    textsSentRate: "Included in plan allowance",
   },
   {
     id: "es",
     name: "Spain",
-    zone: "Zone 2 (EU & EEA)",
+    zone: "Zone 1 (EU Member State)",
     isEuIncluded: true,
-    dataRate: "Included (Overage: £0.0160/MB)",
-    callsMadeRate: "Included in UK allowance",
+    dataRate: "Included in plan (Overage: £0.0160/MB)",
+    callsMadeRate: "Included in plan allowance",
     callsReceivedRate: "Free (£0.00)",
-    textsSentRate: "Included in UK allowance",
-    hasTravelPass: true,
-    passes: [
-      {
-        id: "es-eu-boost-5gb",
-        title: "EU Extra 5GB Booster",
-        subtitle: "Spain & all EU/EEA destinations",
-        price: 5.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Adds 5 GB extra EU roaming data" },
-          { icon: "check", text: "Valid until your current cycle renews" },
-          {
-            icon: "clock",
-            text: "Starts immediately once your included EU fair use allowance is reached",
-          },
-          {
-            icon: "info",
-            text: "Calls and texts remain unlimited · Auto-renews: No",
-          },
-        ],
-      },
-      {
-        id: "es-eu-boost-15gb",
-        title: "EU Extended 15GB Pass",
-        subtitle: "Spain & all EU/EEA destinations",
-        price: 10.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Adds 15 GB extra EU roaming data" },
-          { icon: "check", text: "30 days validity" },
-          {
-            icon: "clock",
-            text: "Activates on first data session abroad after your included EU allowance",
-          },
-          {
-            icon: "info",
-            text: "High-speed 5G partner networks · Auto-renews: No",
-          },
-        ],
-      },
-    ],
+    textsSentRate: "Included in plan allowance",
+  },
+  {
+    id: "ch",
+    name: "Switzerland",
+    zone: "Zone 2 (Non-EU Europe)",
+    isEuIncluded: false,
+    dataRate: "£0.1500 per MB (15p/MB)",
+    callsMadeRate: "£0.250 per min (25p/min)",
+    callsReceivedRate: "£0.150 per min (15p/min)",
+    textsSentRate: "£0.10 each (10p)",
   },
   {
     id: "tr",
@@ -262,47 +123,16 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
     callsMadeRate: "£0.065 per min (6.5p/min)",
     callsReceivedRate: "£0.052 per min (5.2p/min)",
     textsSentRate: "£0.10 each (10p)",
-    hasTravelPass: true,
-    passes: [
-      {
-        id: "tr-day-pass",
-        title: "World Day Pass",
-        subtitle: "Türkiye & 45+ global destinations",
-        price: 6.0,
-        priceUnit: "per day used · incl. VAT",
-        bullets: [
-          { icon: "check", text: "Uses your UK allowance" },
-          { icon: "check", text: "Each day you use your phone" },
-          {
-            icon: "clock",
-            text: "Charged only on days you use data, calls or texts in Türkiye",
-          },
-          {
-            icon: "info",
-            text: "Fair use 2 GB a day · Auto-renews: No — remove it any time",
-          },
-        ],
-      },
-      {
-        id: "tr-7d-pass",
-        title: "Türkiye 7-day Holiday Pass",
-        subtitle: "Türkiye",
-        price: 14.0,
-        priceUnit: "one-off · incl. VAT",
-        bullets: [
-          { icon: "check", text: "5 GB data · 250 mins · 250 texts" },
-          { icon: "check", text: "7 days" },
-          {
-            icon: "clock",
-            text: "Starts when you first use your phone in Türkiye. Must start within 30 days.",
-          },
-          {
-            icon: "info",
-            text: "Calls and texts to UK and Turkish numbers · Auto-renews: No",
-          },
-        ],
-      },
-    ],
+  },
+  {
+    id: "us",
+    name: "United States",
+    zone: "Zone 4 (North America)",
+    isEuIncluded: false,
+    dataRate: "£0.0800 per MB (8p/MB)",
+    callsMadeRate: "£0.065 per min (6.5p/min)",
+    callsReceivedRate: "£0.390 per min (39p/min)",
+    textsSentRate: "£0.35 each (35p)",
   },
   {
     id: "in",
@@ -313,8 +143,6 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
     callsMadeRate: "£0.065 per min (6.5p/min)",
     callsReceivedRate: "£0.033 per min (3.3p/min)",
     textsSentRate: "£0.16 each (16p)",
-    hasTravelPass: false,
-    passes: [],
   },
   {
     id: "ae",
@@ -325,8 +153,6 @@ const DESTINATIONS_CATALOG: DestinationConfig[] = [
     callsMadeRate: "£0.520 per min (52p/min)",
     callsReceivedRate: "£1.170 per min",
     textsSentRate: "£0.70 each (70p)",
-    hasTravelPass: false,
-    passes: [],
   },
 ];
 
@@ -381,6 +207,16 @@ function CountryFlagBadge({
           <span className="w-full h-1/3 bg-white" />
           <span className="w-full h-1/3 bg-black" />
         </span>
+      </span>
+    );
+  }
+  if (countryId === "ch") {
+    return (
+      <span
+        className={`${dim} relative inline-flex items-center justify-center bg-[#D52B1E] overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
+      >
+        <span className="w-1 h-3 bg-white absolute" />
+        <span className="w-3 h-1 bg-white absolute" />
       </span>
     );
   }
@@ -472,14 +308,11 @@ export default function RoamingAndTravelPage() {
   });
   const [travelDateError, setTravelDateError] = useState<string>("");
 
-  // ── Roaming Usage & Passes State ──
+  // ── Roaming Usage State ──
   const [usageRange, setUsageRange] = useState<"7d" | "30d">("7d");
   const [usageRangeDropdownOpen, setUsageRangeDropdownOpen] = useState<boolean>(false);
   const [usageTypeTab, setUsageTypeTab] = useState<"data" | "calls" | "texts">("data");
   const [showUsageTable, setShowUsageTable] = useState<boolean>(false);
-  const [activePassesByLine, setActivePassesByLine] = useState<Record<string, ActiveTravelPass[]>>(
-    {}
-  );
 
   // ── Bill Limit & Alerts State ──
   const [billLimit, setBillLimit] = useState<number>(100);
@@ -502,16 +335,6 @@ export default function RoamingAndTravelPage() {
     steps: string[];
   } | null>(null);
 
-  const [buyPassModal, setBuyPassModal] = useState<{
-    id: string;
-    title: string;
-    subtitle: string;
-    price: number;
-    priceUnit: string;
-  } | null>(null);
-  const [passPurchaseError, setPassPurchaseError] = useState<string>("");
-  const [isBuyingPass, setIsBuyingPass] = useState<boolean>(false);
-
   const [queryRoamingModalOpen, setQueryRoamingModalOpen] = useState<boolean>(false);
   const [queryRoamingNote, setQueryRoamingNote] = useState<string>("");
   const [queryError, setQueryError] = useState<string>("");
@@ -520,7 +343,6 @@ export default function RoamingAndTravelPage() {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
 
   const destinationSectionRef = useRef<HTMLDivElement>(null);
-  const passesSectionRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string, type: "success" | "info" = "success") => {
     setToast({ msg, type });
@@ -544,7 +366,7 @@ export default function RoamingAndTravelPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Load saved bill limit & passes from localStorage
+  // Load saved bill limit from localStorage
   useEffect(() => {
     try {
       const savedLimit = localStorage.getItem("zoiko_bill_limit");
@@ -560,10 +382,6 @@ export default function RoamingAndTravelPage() {
             setTempBillLimit(parsed.billLimit.toFixed(2));
           }
         }
-      }
-      const savedPasses = localStorage.getItem("zoiko_roaming_passes");
-      if (savedPasses) {
-        setActivePassesByLine(JSON.parse(savedPasses));
       }
     } catch {}
   }, []);
@@ -926,10 +744,6 @@ export default function RoamingAndTravelPage() {
     });
   }, [travelDate]);
 
-  const activeLinePasses = useMemo(() => {
-    return activePassesByLine[currentLine.id] || [];
-  }, [activePassesByLine, currentLine.id]);
-
   // Build 7-day timeline bars anchored to today
   const sevenDayUsageTimeline = useMemo(() => {
     const days: { dateLabel: string; isToday: boolean; gbUsed: number }[] = [];
@@ -992,86 +806,6 @@ export default function RoamingAndTravelPage() {
       setTravelDateError("Travel date cannot be in the past.");
     } else {
       setTravelDateError("");
-    }
-  };
-
-  const handleInitiateBuyPass = (pass: {
-    id: string;
-    title: string;
-    subtitle: string;
-    price: number;
-    priceUnit: string;
-  }) => {
-    if (!hasActiveLine) {
-      showToast("Please activate a SIM line before purchasing a travel pass.", "info");
-      return;
-    }
-    setPassPurchaseError("");
-    setBuyPassModal(pass);
-  };
-
-  const handleConfirmBuyPass = async () => {
-    if (!buyPassModal) return;
-    if (!hasActiveLine) {
-      showToast("You need an active SIM line to purchase a travel pass.", "info");
-      setBuyPassModal(null);
-      return;
-    }
-
-    if (buyPassModal.price > billLimit) {
-      setPassPurchaseError(
-        `This pass costs £${buyPassModal.price.toFixed(2)}, which exceeds your current monthly bill limit of £${billLimit.toFixed(2)}. Please increase your bill limit first.`
-      );
-      return;
-    }
-
-    setIsBuyingPass(true);
-    setPassPurchaseError("");
-
-    try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
-      if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            category: "roaming",
-            subject: `Travel Pass Purchase: ${buyPassModal.title} for ${currentLine.number}`,
-            message: `User purchased ${buyPassModal.title} (£${buyPassModal.price.toFixed(2)}) for destination ${buyPassModal.subtitle}.\nLine: ${currentLine.number} (ID: ${currentLine.id}).`,
-          }),
-        }).catch(() => {});
-      }
-
-      const newPass: ActiveTravelPass = {
-        id: `${buyPassModal.id}-${Date.now()}`,
-        title: buyPassModal.title,
-        destination: buyPassModal.subtitle,
-        price: buyPassModal.price,
-        purchasedAt: new Date().toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-        }),
-      };
-      const nextMap = {
-        ...activePassesByLine,
-        [currentLine.id]: [...(activePassesByLine[currentLine.id] || []), newPass],
-      };
-      setActivePassesByLine(nextMap);
-      try {
-        localStorage.setItem("zoiko_roaming_passes", JSON.stringify(nextMap));
-      } catch {}
-      setBuyPassModal(null);
-      showToast(
-        `Added ${buyPassModal.title} (£${buyPassModal.price.toFixed(2)}) to ${currentLine.number}!`,
-        "success"
-      );
-    } catch {
-      setPassPurchaseError("Unable to activate pass. Please try again or contact support.");
-    } finally {
-      setIsBuyingPass(false);
     }
   };
 
@@ -1524,7 +1258,7 @@ export default function RoamingAndTravelPage() {
 
               {/* Selected Country Details Box */}
               <div className="p-4 rounded-2xl border border-[#E5E8EF] flex flex-col gap-3">
-                {/* Country Title + Zone + Travel pass badge */}
+                {/* Country Title + Zone + Status badge */}
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-3">
                     <CountryFlagBadge countryId={currentDestination.id} size="lg" />
@@ -1537,20 +1271,29 @@ export default function RoamingAndTravelPage() {
                       </span>
                     </div>
                   </div>
-                  {currentDestination.isEuIncluded && (
+                  {currentDestination.isEuIncluded ? (
                     <span className="h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold bg-[#1E8E5A]/10 text-[#1E8E5A]">
-                      <Ticket className="w-3 h-3" />
+                      <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Included in your plan</span>
+                    </span>
+                  ) : (
+                    <span className="h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Standard roaming rates</span>
                     </span>
                   )}
                 </div>
 
-                {/* Plan Inclusion Description */}
-                <p className="text-[#3B4A68] text-sm font-normal leading-5">
-                  {currentDestination.isEuIncluded
-                    ? `EU roaming is included in your plan for ${currentDestination.name} up to your fair use allowance.`
-                    : `Roaming isn't included in your plan for ${currentDestination.name}. Review rates before using your phone there.`}
-                </p>
+                {/* Plan Inclusion Description — CT-01 Section 07 Approved Display Text */}
+                <div className="p-3 bg-[#F6F7FA] rounded-xl border border-[#E5E8EF]">
+                  <p className="text-[#3B4A68] text-xs sm:text-sm font-medium leading-5">
+                    {!hasActiveLine
+                      ? "Choose an active mobile number to see your personal roaming allowances and charges."
+                      : currentDestination.isEuIncluded
+                      ? `Roaming is included in ${currentDestination.name} with your ${currentLine.planName}, up to ${currentLine.euFairUseRemainingGb} GB. Charges may apply when your allowance runs out.`
+                      : `Roaming isn't included in your plan for ${currentDestination.name}. Check rates before you use your phone.`}
+                  </p>
+                </div>
 
                 {/* 2x2 Rate Cards Grid */}
                 <div className="grid grid-cols-2 gap-2">
@@ -1588,34 +1331,63 @@ export default function RoamingAndTravelPage() {
                   </div>
                 </div>
 
+                {/* Relevant Action Button — CT-01 Section 06 Rule 5 */}
+                <div className="pt-1">
+                  {!hasActiveLine ? (
+                    <button
+                      type="button"
+                      onClick={() => setLineDropdownOpen(true)}
+                      className="w-full py-2.5 px-4 bg-[#E01C5B] hover:bg-[#c81750] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      <span>Choose an active number</span>
+                    </button>
+                  ) : currentDestination.isEuIncluded ? (
+                    <Link
+                      href="/dashboard/usage-and-allowances/allowance-details"
+                      className="w-full py-2.5 px-4 bg-[#1E8E5A] hover:bg-[#18754a] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>View your roaming allowance</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/dashboard/rates-and-charges"
+                      className="w-full py-2.5 px-4 bg-[#0D1935] hover:bg-[#152852] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>View roaming rates</span>
+                    </Link>
+                  )}
+                </div>
+
                 {/* Tariff Footnotes */}
                 <div className="pt-1 flex flex-col gap-1.5 text-xs text-[#54617E]">
                   <div className="inline-flex items-center gap-1.5">
                     <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
                     <span>
                       {currentDestination.isEuIncluded
-                        ? "Fair use rules apply within the EU/EEA zone"
-                        : "Standard rates apply without a pass"}
+                        ? "Fair use rules apply within the 27 EU member states"
+                        : "Standard roaming rates apply outside plan allowance"}
                     </span>
                   </div>
                   <div className="inline-flex items-start gap-1.5">
                     <FileTextIcon className="w-3.5 h-3.5 text-[#54617E] shrink-0 mt-0.5" />
                     <span>
-                      Prices include VAT · data charged per KB, calls per second after the
-                      first minute
+                      Prices include 20% VAT · data charged per KB, calls per second after first minute
                     </span>
                   </div>
                   <div className="inline-flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
                     <span>Tariff checked {freshnessTime}</span>
                   </div>
-                  <a
-                    href="/roaming-and-coverage"
+                  <Link
+                    href="/dashboard/rates-and-charges"
                     className="mt-2 pt-2 border-t border-[#E5E8EF] flex items-center justify-between text-xs font-semibold text-[#E01C5B] hover:underline"
                   >
-                    <span>View all roaming zones &amp; complete country rates table</span>
+                    <span>View all roaming zones &amp; complete rates table</span>
                     <ChevronRight className="w-3.5 h-3.5" />
-                  </a>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -1642,8 +1414,6 @@ export default function RoamingAndTravelPage() {
                     </span>
                   </div>
                 </div>
-
-                {/* Active Travel Pass Status (commented out) */}
 
                 {/* EU Roaming Fair Use Box */}
                 <div className="p-3.5 bg-[#F6F7FA] rounded-2xl flex flex-col gap-2.5">
@@ -1680,7 +1450,14 @@ export default function RoamingAndTravelPage() {
                 </div>
               </div>
 
-              {/* Footer Button (Add travel pass commented out) */}
+              {/* Action link */}
+              <Link
+                href="/dashboard/usage-and-allowances/allowance-details"
+                className="w-full h-10 px-4 py-2.5 rounded-xl border border-[#E5E8EF] hover:border-[#E01C5B] text-xs font-semibold text-[#0D1935] hover:text-[#E01C5B] transition inline-flex items-center justify-between"
+              >
+                <span>View full allowance details</span>
+                <ChevronRight className="w-4 h-4 text-[#8F9BB3]" />
+              </Link>
             </div>
           </div>
 
@@ -2034,7 +1811,7 @@ export default function RoamingAndTravelPage() {
                         steps: [
                           "1. Your Zoiko line has network permission for international roaming enabled.",
                           "2. To use mobile data abroad, enable Data Roaming in your device settings upon arrival.",
-                          "3. To prevent any background data usage in non-EU countries, switch Data Roaming OFF in your phone settings and use Wi-Fi or a Travel Pass.",
+                          "3. To prevent unexpected background data usage in non-EU countries, switch Data Roaming OFF in your phone settings and use Wi-Fi or check standard roaming rates.",
                         ],
                       })
                     }
@@ -2112,7 +1889,7 @@ export default function RoamingAndTravelPage() {
                           Mobile bill limit
                         </span>
                         <span className="text-[#54617E] text-xs font-normal leading-4">
-                          Covers roaming passes and charges outside your plan
+                          Covers roaming charges outside your plan
                         </span>
                       </div>
                     </div>
@@ -2196,102 +1973,85 @@ export default function RoamingAndTravelPage() {
             </div>
           </div>
 
-          {/* ── ROW 3: 2-Column Grid (Travel passes for {Country} [8] + Quick actions [4]) ── */}
+          {/* ── ROW 3: 2-Column Grid (Safe Roaming Guidance [7] + Quick Actions [5]) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            {/* Card 7: Travel passes for Destination (commented out) */}
-            {false && (
-              <>
-{/* Card 7: Travel passes for {Destination} (lg:col-span-8) */}
-            <div
-              ref={passesSectionRef}
-              className="lg:col-span-8 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4"
-            >
-              {/* Header */}
-              <div className="inline-flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                  <Ticket className="w-5 h-5 text-[#E01C5B]" />
+            {/* Card 7: Safe Roaming Checklist & Tips (lg:col-span-7) */}
+            <div className="lg:col-span-7 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4">
+              <div className="flex flex-col gap-3.5">
+                {/* Header */}
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-[#E01C5B]" />
+                  </div>
+                  <div className="flex flex-col">
+                    <h3 className="text-[#0D1935] text-lg font-bold leading-6">
+                      Safe travel &amp; roaming checklist
+                    </h3>
+                    <span className="text-[#54617E] text-xs font-normal leading-5">
+                      Essential steps before travelling abroad with {currentLine.number}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                    Travel passes for {currentDestination.name}
-                  </h3>
-                  <span className="text-[#54617E] text-xs font-normal leading-5">
-                    Only passes this number can use · select a pass to review and add to{" "}
-                    {currentLine.number}
-                  </span>
+
+                {/* 4 Essential Checklist Items */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#1E8E5A] shrink-0" />
+                      <span className="text-xs font-bold text-[#0D1935]">1. EU Surcharge-Free Area</span>
+                    </div>
+                    <p className="text-[11px] text-[#54617E] leading-4">
+                      Surcharge-free roaming strictly applies to 27 EU member states up to your plan&apos;s fair-use limit.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-xs font-bold text-[#0D1935]">2. Non-EU Surcharge Zones</span>
+                    </div>
+                    <p className="text-[11px] text-[#54617E] leading-4">
+                      Switzerland, Türkiye, Monaco, Jersey &amp; Guernsey are not standard EU. Standard roaming rates apply.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Gauge className="w-4 h-4 text-[#E01C5B] shrink-0" />
+                      <span className="text-xs font-bold text-[#0D1935]">3. Spend Cap Protection</span>
+                    </div>
+                    <p className="text-[11px] text-[#54617E] leading-4">
+                      Your monthly mobile bill cap of £{billLimit.toFixed(2)} automatically blocks extra charges beyond your limit.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-[#203B7E] shrink-0" />
+                      <span className="text-xs font-bold text-[#0D1935]">4. Arrival SMS Welcome</span>
+                    </div>
+                    <p className="text-[11px] text-[#54617E] leading-4">
+                      When you land, we text you the exact verified tariff, included allowances, and emergency numbers.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* 2 Pass Cards Side-by-Side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1">
-                {currentDestination.passes.map((pass) => (
-                  <div
-                    key={pass.id}
-                    className="p-4 bg-white rounded-2xl border border-[#E5E8EF] flex flex-col justify-between gap-3"
-                  >
-                    <div className="flex flex-col gap-2.5">
-                      {/* Pass Title */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                          <Ticket className="w-5 h-5 text-[#E01C5B]" />
-                        </div>
-                        <div>
-                          <h4 className="text-[#0D1935] text-base font-bold leading-5">
-                            {pass.title}
-                          </h4>
-                          <span className="text-[#54617E] text-xs font-normal leading-4">
-                            {pass.subtitle}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Price */}
-                      <div className="inline-flex items-baseline gap-2 pt-0.5">
-                        <span className="text-[#0D1935] text-2xl font-extrabold leading-8">
-                          £{pass.price.toFixed(2)}
-                        </span>
-                        <span className="text-[#54617E] text-xs font-medium leading-4">
-                          {pass.priceUnit}
-                        </span>
-                      </div>
-
-                      {/* Bullet Points */}
-                      <div className="flex flex-col gap-1.5 pt-0.5">
-                        {pass.bullets.map((b, idx) => (
-                          <div
-                            key={idx}
-                            className="inline-flex items-start gap-1.5 text-xs text-[#3B4A68] leading-4"
-                          >
-                            {b.icon === "check" ? (
-                              <Check className="w-3.5 h-3.5 text-[#1E8E5A] shrink-0 mt-0.5" />
-                            ) : b.icon === "clock" ? (
-                              <Clock className="w-3.5 h-3.5 text-[#1E8E5A] shrink-0 mt-0.5" />
-                            ) : (
-                              <Info className="w-3.5 h-3.5 text-[#1E8E5A] shrink-0 mt-0.5" />
-                            )}
-                            <span>{b.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Review and buy button */}
-                    <button
-                      type="button"
-                      onClick={() => handleInitiateBuyPass(pass)}
-                      className="w-full h-9 py-2 bg-[#E01C5B] hover:bg-[#c81750] rounded-[10px] inline-flex items-center justify-center text-white text-xs font-semibold transition cursor-pointer"
-                    >
-                      Review and buy
-                    </button>
-                  </div>
-                ))}
+              {/* Bottom Notice */}
+              <div className="pt-2 border-t border-[#ECEFF5] flex items-center justify-between text-xs text-[#54617E]">
+                <span>Need complete country tariffs?</span>
+                <Link
+                  href="/dashboard/rates-and-charges"
+                  className="font-bold text-[#E01C5B] hover:underline flex items-center gap-1"
+                >
+                  <span>View Rates &amp; Charges</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
-              </>
-            )}
 
-            {/* Card 8: Quick actions (lg:col-span-4) */}
-            <div className="lg:col-span-12 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5">
+            {/* Card 8: Quick actions (lg:col-span-5) */}
+            <div className="lg:col-span-5 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5">
               {/* Header */}
               <div className="inline-flex items-center gap-3">
                 <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
@@ -2307,15 +2067,12 @@ export default function RoamingAndTravelPage() {
                 </div>
               </div>
 
-              {/* 5 Action Rows */}
+              {/* Action Rows */}
               <div className="flex flex-col">
                 {/* 1. Check rates */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    destinationSectionRef.current?.scrollIntoView({ behavior: "smooth" })
-                  }
-                  className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                <Link
+                  href="/dashboard/rates-and-charges"
+                  className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
@@ -2323,17 +2080,36 @@ export default function RoamingAndTravelPage() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Check rates
+                        Check rates &amp; tariffs
                       </span>
                       <span className="text-[#54617E] text-xs font-normal leading-4">
-                        For any destination
+                        For UK and all international destinations
                       </span>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </button>
+                </Link>
 
-                {/* 2. Add a travel pass (commented out) */}
+                {/* 2. View allowance details */}
+                <Link
+                  href="/dashboard/usage-and-allowances/allowance-details"
+                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
+                      <Wallet className="w-4 h-4 text-[#E01C5B]" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
+                        View allowance details
+                      </span>
+                      <span className="text-[#54617E] text-xs font-normal leading-4">
+                        EU roaming, UK data, calls &amp; text balances
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
+                </Link>
 
                 {/* 3. Manage bill limit */}
                 <button
@@ -2469,9 +2245,7 @@ export default function RoamingAndTravelPage() {
         </div>
       )}
 
-      {/* 2. Review & Buy Travel Pass Modal (commented out) */}
-
-      {/* 3. Manage Bill Limit Modal */}
+      {/* 2. Manage Bill Limit Modal */}
       {billLimitModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
@@ -2490,7 +2264,7 @@ export default function RoamingAndTravelPage() {
                     </span>
                   </div>
                   <p className="text-xs text-[#54617E]">
-                    Covers roaming passes and charges outside your plan
+                    Covers roaming charges outside your plan
                   </p>
                 </div>
               </div>
@@ -2628,7 +2402,7 @@ export default function RoamingAndTravelPage() {
                     Email roaming summary
                   </div>
                   <div className="text-[#54617E]">
-                    Send an email whenever a travel pass activates abroad
+                    Send an email when roaming spend reaches 80% of limit
                   </div>
                 </div>
                 <input
@@ -2702,7 +2476,7 @@ export default function RoamingAndTravelPage() {
                     setQueryRoamingNote(e.target.value);
                     if (queryError) setQueryError("");
                   }}
-                  placeholder="e.g. Border roaming near Northern Ireland or unexpected pass charge..."
+                  placeholder="e.g. Border roaming near Northern Ireland or unexpected roaming charge..."
                   className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-[#0D1935] focus:outline-none transition ${
                     queryError
                       ? "border-red-400 bg-red-50/20 focus:border-red-500"

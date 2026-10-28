@@ -207,8 +207,14 @@ export default function DashboardPage() {
         localStorage.removeItem("zoiko_custom_lines");
       } catch {}
 
-      // If no auth token, redirect to login or show empty state
+      // If no auth token, redirect to login immediately
       if (!token || !email) {
+        /* OLD CODE (Returned without redirect):
+        setIsDemo(false);
+        setLines([]);
+        ...
+        return;
+        */
         setIsDemo(false);
         setLines([]);
         setDataMetrics({});
@@ -219,6 +225,7 @@ export default function DashboardPage() {
         setCycleDaysLeft(0);
         setLastPaymentAmount(0);
         setLastPaymentDate("—");
+        router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
 

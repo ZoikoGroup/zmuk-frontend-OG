@@ -952,9 +952,10 @@ export default function ZoikoMobileHome() {
   return (
     <main className="font-sans">
       <Hero />
+       <Plans />
       <JoinZoiko />
       <WhyChoose />
-      <Plans />
+     
       <ReasonsToTrustSection />
       <Devices />
       <CustomerCare />
