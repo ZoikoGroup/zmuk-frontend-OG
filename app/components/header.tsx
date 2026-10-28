@@ -201,7 +201,7 @@ export default function Header() {
           {/* Center-Right Actions */}
           <div className="hidden md:flex items-center gap-3 lg:gap-4 ml-auto">
             {/* Search Pill */}
-            <form onSubmit={handleSearchSubmit} className="relative w-48 lg:w-72">
+            {/* <form onSubmit={handleSearchSubmit} className="relative w-48 lg:w-72">
               <input
                 type="text"
                 placeholder="Search..."
@@ -216,7 +216,7 @@ export default function Header() {
               >
                 <Search className="h-4 w-4" />
               </button>
-            </form>
+            </form> */}
 
             {/* My Zoiko Pill */}
             {isLoggedIn ? (
