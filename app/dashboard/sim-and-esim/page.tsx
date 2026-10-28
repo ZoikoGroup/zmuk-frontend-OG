@@ -1214,7 +1214,7 @@ export default function SimAndEsimPage() {
                         <div className="mt-2.5 flex flex-col gap-2 w-full max-w-[210px]">
                           <button
                             type="button"
-                            onClick={() => router.push("/sim-check")}
+                            onClick={() => router.push("/dashboard/sim-and-esim/replace")}
                             className="h-8.5 px-3 bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold rounded-[9px] transition cursor-pointer"
                           >
                             Activate an eSIM code
@@ -1339,7 +1339,7 @@ export default function SimAndEsimPage() {
                             showToast("Please activate a SIM before requesting a replacement.", "info");
                             return;
                           }
-                          router.push("/sim-check");
+                          router.push("/dashboard/sim-and-esim/replace");
                         }}
                         className="w-full py-2.5 flex items-center gap-3 text-left hover:bg-slate-50/70 transition cursor-pointer"
                       >
@@ -1662,7 +1662,7 @@ export default function SimAndEsimPage() {
                     {/* Setting 4: Calls to other countries */}
                     <button
                       type="button"
-                      onClick={() => router.push("/dashboard/support")}
+                      onClick={() => router.push("/dashboard/sim-and-esim/change-type")}
                       className="w-full py-2.5 flex items-center gap-3 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
@@ -1746,7 +1746,7 @@ export default function SimAndEsimPage() {
 
                     <button
                       type="button"
-                      onClick={() => router.push("/sim-check")}
+                      onClick={() => router.push("/dashboard/sim-and-esim/replace")}
                       className="w-full py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <ArrowLeftRight className="w-4 h-4 text-[#E01C5B] shrink-0" />
@@ -1763,7 +1763,7 @@ export default function SimAndEsimPage() {
 
                     <button
                       type="button"
-                      onClick={() => router.push("/dashboard/support")}
+                      onClick={() => router.push("/dashboard/sim-and-esim/change-type")}
                       className="w-full py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <Cpu className="w-4 h-4 text-[#E01C5B] shrink-0" />

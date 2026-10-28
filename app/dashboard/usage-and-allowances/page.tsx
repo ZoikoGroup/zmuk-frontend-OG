@@ -1425,13 +1425,21 @@ export default function UsageAndAllowancesPage() {
 
                   <div className="flex flex-col gap-3.5">
                     {/* Card Header */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/16 rounded-xl flex items-center justify-center">
-                        <Database className="w-5 h-5 text-white" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/16 rounded-xl flex items-center justify-center">
+                          <Database className="w-5 h-5 text-white" />
+                        </div>
+                        <h2 className="text-lg font-bold text-white leading-7">
+                          Data
+                        </h2>
                       </div>
-                      <h2 className="text-lg font-bold text-white leading-7">
-                        Data
-                      </h2>
+                      {!ZOIKONEX_CONFIG.IS_CONNECTED && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white border border-white/30 backdrop-blur-xs flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Upcoming CDR
+                        </span>
+                      )}
                     </div>
 
                     {/* Donut Gauge + Right Metrics */}
@@ -1628,7 +1636,7 @@ export default function UsageAndAllowancesPage() {
                   {/* Footer Link */}
                   <div className="pt-2">
                     <Link
-                      href="/international-calling"
+                      href="/dashboard/rates-and-charges?tab=calls"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline"
                     >
                       <span>View call rates</span>
@@ -1701,7 +1709,7 @@ export default function UsageAndAllowancesPage() {
                   {/* Footer Link */}
                   <div className="pt-2">
                     <Link
-                      href="/zero-cost-sms"
+                      href="/dashboard/rates-and-charges?tab=texts"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline"
                     >
                       <span>View text rates</span>
@@ -2368,14 +2376,11 @@ export default function UsageAndAllowancesPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (currentLine.id) {
-                          router.push(`/dashboard/plan-usages/${currentLine.id}`);
-                        } else {
-                          showToast(
-                            "Select an active mobile line to inspect full service balances.",
-                            "info"
-                          );
-                        }
+                        router.push(
+                          currentLine.id
+                            ? `/dashboard/usage-and-allowances/allowance-details?lineId=${currentLine.id}`
+                            : "/dashboard/usage-and-allowances/allowance-details"
+                        );
                       }}
                       className="w-full h-11 rounded-xl border border-[#F5C2D3] bg-white text-[#B8144A] text-sm font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-[#FFF5F8] transition cursor-pointer"
                     >

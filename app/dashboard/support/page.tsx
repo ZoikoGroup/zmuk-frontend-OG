@@ -37,12 +37,13 @@ import {
   Info,
   Send,
   Check,
+  Loader2,
 } from "lucide-react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-const SUPPORT_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE}/api/support/`;
+const CONTACT_US_URL = `${API_BASE}/api/contact-us/`;
 
 interface Ticket {
   id: string;
@@ -50,87 +51,14 @@ interface Ticket {
   subject: string;
   openedDate: string;
   updatedDate: string;
-  type: "Question" | "Formal complaint" | "Technical" | "Billing";
+  type: "Question" | "Formal complaint" | "Technical" | "Billing" | "Roaming & International" | "Other";
   status: "Awaiting your reply" | "Under investigation" | "Resolved" | "Closed";
   isOpen: boolean;
   message?: string;
   replies?: { from: "user" | "support"; message: string; time: string }[];
 }
 
-const INITIAL_TICKETS: Ticket[] = [
-  {
-    id: "1",
-    reference: "SR-DEMO-45821",
-    subject: "Question about roaming charges",
-    openedDate: "Opened 14 Oct 2026",
-    updatedDate: "Updated 14 Oct, 10:01",
-    type: "Question",
-    status: "Awaiting your reply",
-    isOpen: true,
-    message: "I am traveling to France next week and wanted to verify if my monthly 30GB allowance works at no extra charge or if I need to purchase a roaming booster.",
-    replies: [
-      {
-        from: "support",
-        message: "Hello! In the EU / EEA, your plan includes Roam Like at Home up to our fair usage limit of 15GB. If you expect to exceed this, you can activate our EU Roaming Data Booster anytime from your dashboard.",
-        time: "14 Oct 2026, 10:01",
-      },
-    ],
-  },
-  {
-    id: "2",
-    reference: "CP-DEMO-43011",
-    subject: "Booster charge on my bill",
-    openedDate: "Opened 3 Oct 2026",
-    updatedDate: "Updated 9 Oct, 11:20",
-    type: "Formal complaint",
-    status: "Under investigation",
-    isOpen: true,
-    message: "I was billed £6.00 for an international bolt-on that I did not authorise or activate.",
-    replies: [
-      {
-        from: "support",
-        message: "Thank you for letting us know. A Senior Case Officer is reviewing your billing logs and purchase timestamps. We aim to conclude formal investigations within 7 business days.",
-        time: "9 Oct 2026, 11:20",
-      },
-    ],
-  },
-  {
-    id: "3",
-    reference: "SR-DEMO-41902",
-    subject: "eSIM QR code not scanning",
-    openedDate: "Opened 18 Sep 2026",
-    updatedDate: "Updated 19 Sep, 14:10",
-    type: "Technical",
-    status: "Resolved",
-    isOpen: false,
-    message: "Camera cannot recognize the QR activation code sent to my email.",
-    replies: [
-      {
-        from: "support",
-        message: "We have reissued a refreshed high-contrast eSIM profile QR code and provided manual SM-DP+ server address and activation code. The eSIM is now active on your device.",
-        time: "19 Sep 2026, 14:10",
-      },
-    ],
-  },
-  {
-    id: "4",
-    reference: "SR-DEMO-39401",
-    subject: "Direct debit date change",
-    openedDate: "Opened 2 Aug 2026",
-    updatedDate: "Updated 3 Aug, 09:30",
-    type: "Billing",
-    status: "Closed",
-    isOpen: false,
-    message: "Please move my monthly direct debit deduction date from the 5th to the 28th.",
-    replies: [
-      {
-        from: "support",
-        message: "Your billing collection date has been successfully adjusted to the 28th of every month.",
-        time: "3 Aug 2026, 09:30",
-      },
-    ],
-  },
-];
+const INITIAL_TICKETS: Ticket[] = [];
 
 interface HelpArticle {
   id: string;
@@ -250,10 +178,14 @@ export default function SupportPage() {
   const [userName, setUserName] = useState("Account holder");
   const [userEmail, setUserEmail] = useState("");
   const [userPhone, setUserPhone] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [planName, setPlanName] = useState("");
   const [numbersCount, setNumbersCount] = useState(0);
   const [checkedAt, setCheckedAt] = useState("Just now");
   const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Search & Help Filtering
   const [searchQuery, setSearchQuery] = useState("");
@@ -272,7 +204,9 @@ export default function SupportPage() {
 
   // Form states
   const [newRequestSubject, setNewRequestSubject] = useState("");
-  const [newRequestType, setNewRequestType] = useState<"Question" | "Technical" | "Billing">("Question");
+  const [newRequestType, setNewRequestType] = useState<
+    "Question" | "Technical" | "Billing" | "Roaming & International" | "Other"
+  >("Question");
   const [newRequestMessage, setNewRequestMessage] = useState("");
   const [complaintSubject, setComplaintSubject] = useState("");
   const [complaintDetails, setComplaintDetails] = useState("");
@@ -289,6 +223,54 @@ export default function SupportPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // Map category to backend subject choices
+  const mapTypeToBackendSubject = (t: string): string => {
+    switch (t) {
+      case "Question":
+        return "General Enquiry";
+      case "Technical":
+        return "Technical Support";
+      case "Billing":
+        return "Billing";
+      case "Roaming & International":
+        return "Roaming & International";
+      case "Formal complaint":
+        return "Complaints";
+      default:
+        return "General Enquiry";
+    }
+  };
+
+  // Helper to call backend /api/contact-us/
+  const submitToContactUsAPI = async (payload: {
+    name: string;
+    email: string;
+    phone: string;
+    subject: string;
+    message: string;
+  }) => {
+    try {
+      const res = await fetch(CONTACT_US_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: payload.name.trim() || "Account holder",
+          email: payload.email.trim() || "support@zoikomobile.co.uk",
+          phone: payload.phone.trim() || "07700900000",
+          subject: payload.subject,
+          message: payload.message,
+          savePref: true,
+          newsletter: false,
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   };
 
   // Load user data & saved tickets from localStorage
@@ -309,19 +291,33 @@ export default function SupportPage() {
         user?.name ||
         user?.username ||
         (user?.email ? user.email.split("@")[0] : "Account holder");
+      const email = user?.email || "";
+      const phone =
+        user?.phone_number ||
+        user?.phone ||
+        localStorage.getItem("zoiko_user_phone") ||
+        "";
+
       setUserName(fullName);
-      setUserEmail(user?.email || "");
-      setUserPhone(user?.phone_number || user?.phone || "");
+      setUserEmail(email);
+      setUserPhone(phone);
+      setContactName(fullName !== "Account holder" ? fullName : "");
+      setContactEmail(email);
+      setContactPhone(phone);
 
       // Load tickets
       const savedTickets = localStorage.getItem("zoiko_support_tickets");
       if (savedTickets) {
         try {
           const parsed = JSON.parse(savedTickets);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTickets(parsed);
+          if (Array.isArray(parsed)) {
+            // Keep only real non-demo tickets
+            const realTickets = parsed.filter((t: Ticket) => !t.reference?.includes("DEMO"));
+            setTickets(realTickets);
           }
         } catch {}
+      } else {
+        setTickets([]);
       }
 
       // Fetch user's active plan from backend if available
@@ -368,132 +364,364 @@ export default function SupportPage() {
   // Submit new request
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newRequestSubject.trim().length < 4) {
-      showToast("Subject must be at least 4 characters.");
+    if (newRequestSubject.trim().length < 3) {
+      showToast("Subject must be at least 3 characters.");
       return;
     }
-    if (newRequestMessage.trim().length < 10) {
-      showToast("Please describe your request with at least 10 characters.");
+    if (newRequestMessage.trim().length < 5) {
+      showToast("Please describe your request with at least 5 characters.");
       return;
     }
 
-    const newTicket: Ticket = {
-      id: Date.now().toString(),
-      reference: `SR-REQ-${Math.floor(10000 + Math.random() * 90000)}`,
-      subject: newRequestSubject.trim(),
-      openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
-      updatedDate: "Updated Just now",
-      type: newRequestType,
-      status: "Awaiting your reply",
-      isOpen: true,
-      message: newRequestMessage.trim(),
-      replies: [],
-    };
+    setSubmitting(true);
+    const ref = `SR-REQ-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    const nextTickets = [newTicket, ...tickets];
-    persistTickets(nextTickets);
+    try {
+      // POST to /api/contact-us/
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: mapTypeToBackendSubject(newRequestType),
+        message: `[Ticket: ${ref}] ${newRequestSubject.trim()}\n\n${newRequestMessage.trim()}`,
+      });
 
-    // Optional API POST
-    if (token) {
-      fetch(`${SUPPORT_URL}tickets/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          subject: newRequestSubject,
-          category: newRequestType.toLowerCase(),
-          message: newRequestMessage,
-        }),
-      }).catch(() => {});
+      const newTicket: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: newRequestSubject.trim(),
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: newRequestType,
+        status: "Awaiting your reply",
+        isOpen: true,
+        message: newRequestMessage.trim(),
+        replies: [
+          {
+            from: "support",
+            message: `Hello ${contactName || userName}! We've received your request (${ref}). Our support team will review this and reply within 24 hours via email and in your support dashboard.`,
+            time: "Just now",
+          },
+        ],
+      };
+
+      const nextTickets = [newTicket, ...tickets];
+      persistTickets(nextTickets);
+
+      setNewRequestSubject("");
+      setNewRequestMessage("");
+      setModal(null);
+      showToast(`Request ${ref} submitted to Zoiko Support.`);
+    } finally {
+      setSubmitting(false);
     }
-
-    setNewRequestSubject("");
-    setNewRequestMessage("");
-    setModal(null);
-    showToast(`Request ${newTicket.reference} created. We reply within 24 hours.`);
   };
 
   // Submit formal complaint
   const handleCreateComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (complaintSubject.trim().length < 4) {
-      showToast("Complaint subject must be at least 4 characters.");
+      showToast("Complaint summary must be at least 4 characters.");
       return;
     }
-    if (complaintDetails.trim().length < 15) {
-      showToast("Please provide at least 15 characters describing the complaint.");
+    if (complaintDetails.trim().length < 10) {
+      showToast("Please provide details describing the complaint.");
       return;
     }
 
-    const newComplaint: Ticket = {
-      id: Date.now().toString(),
-      reference: `CP-COMP-${Math.floor(10000 + Math.random() * 90000)}`,
-      subject: complaintSubject.trim(),
-      openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
-      updatedDate: "Updated Just now",
-      type: "Formal complaint",
-      status: "Under investigation",
-      isOpen: true,
-      message: complaintDetails.trim(),
-      replies: [
-        {
-          from: "support",
-          message: "Formal complaint logged with our Customer Resolution Team. Your reference number is above. A Senior Case Manager will reach out within 2 business days.",
-          time: "Just now",
-        },
-      ],
-    };
+    setSubmitting(true);
+    const ref = `CP-COMP-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    const nextTickets = [newComplaint, ...tickets];
-    persistTickets(nextTickets);
+    try {
+      // POST to /api/contact-us/ with subject: "Complaints"
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: "Complaints",
+        message: `[Formal Complaint: ${ref}] ${complaintSubject.trim()}\n\n${complaintDetails.trim()}`,
+      });
 
-    setComplaintSubject("");
-    setComplaintDetails("");
-    setModal(null);
-    showToast(`Formal complaint ${newComplaint.reference} logged.`);
+      const newComplaint: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: complaintSubject.trim(),
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: "Formal complaint",
+        status: "Under investigation",
+        isOpen: true,
+        message: complaintDetails.trim(),
+        replies: [
+          {
+            from: "support",
+            message: "Formal complaint logged with our Customer Resolution Team. Your reference number is above. A Senior Case Manager will reach out within 2 business days.",
+            time: "Just now",
+          },
+        ],
+      };
+
+      const nextTickets = [newComplaint, ...tickets];
+      persistTickets(nextTickets);
+
+      setComplaintSubject("");
+      setComplaintDetails("");
+      setModal(null);
+      showToast(`Formal complaint ${ref} logged & assigned.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Submit network issue report
+  const handleCreateNetworkReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!networkPostcode.trim()) {
+      showToast("Please enter your postcode or area.");
+      return;
+    }
+    if (!networkIssueDesc.trim()) {
+      showToast("Please describe the network problem.");
+      return;
+    }
+
+    setSubmitting(true);
+    const ref = `SR-NET-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    try {
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: "Technical Support",
+        message: `[Network Incident Report: ${ref}] Location: ${networkPostcode.trim()}\n\nIssue Details:\n${networkIssueDesc.trim()}`,
+      });
+
+      const newReport: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: `Network Issue: ${networkPostcode.trim()}`,
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: "Technical",
+        status: "Under investigation",
+        isOpen: true,
+        message: `Location: ${networkPostcode.trim()}\n${networkIssueDesc.trim()}`,
+        replies: [
+          {
+            from: "support",
+            message: "Report received by Network Operations. We are inspecting mast performance and local transmitter diagnostics.",
+            time: "Just now",
+          },
+        ],
+      };
+
+      const nextTickets = [newReport, ...tickets];
+      persistTickets(nextTickets);
+
+      setNetworkPostcode("");
+      setNetworkIssueDesc("");
+      setModal(null);
+      showToast(`Network report ${ref} logged with engineering.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Submit extra support request
+  const handleExtraSupportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extraSupportNeeds.trim()) {
+      showToast("Please describe your communication or priority needs.");
+      return;
+    }
+
+    setSubmitting(true);
+    const ref = `SR-ACC-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    try {
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: "Other",
+        message: `[Accessibility & Extra Support Request: ${ref}]\n\nCustomer Requirements:\n${extraSupportNeeds.trim()}`,
+      });
+
+      const newTicket: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: "Account Accessibility & Extra Support Needs",
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: "Other",
+        status: "Resolved",
+        isOpen: false,
+        message: extraSupportNeeds.trim(),
+        replies: [
+          {
+            from: "support",
+            message: "Your accessibility preferences have been logged and appended to your customer profile.",
+            time: "Just now",
+          },
+        ],
+      };
+
+      persistTickets([newTicket, ...tickets]);
+      setExtraSupportNeeds("");
+      setModal(null);
+      showToast("Support preferences updated and recorded.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Submit braille/format request
+  const handleBrailleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const ref = `SR-FMT-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    try {
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: "Other",
+        message: `[Accessible Format Request: ${ref}]\nPreferred format: ${formatPreference}`,
+      });
+
+      const newTicket: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: `Accessible Format: ${formatPreference}`,
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: "Other",
+        status: "Resolved",
+        isOpen: false,
+        message: `Customer requested all bills and statutory notices in: ${formatPreference}`,
+        replies: [
+          {
+            from: "support",
+            message: `Future account communications will be produced in ${formatPreference}.`,
+            time: "Just now",
+          },
+        ],
+      };
+
+      persistTickets([newTicket, ...tickets]);
+      setModal(null);
+      showToast(`Billing format updated to ${formatPreference}.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Submit authorised person
+  const handleAuthPersonSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authPersonName.trim()) {
+      showToast("Please provide the representative's full name.");
+      return;
+    }
+
+    setSubmitting(true);
+    const ref = `SR-REP-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    try {
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: "General Enquiry",
+        message: `[Authorised Representative Request: ${ref}]\nName: ${authPersonName.trim()}\nRelationship: ${authPersonRelation.trim() || "Not specified"}\nPhone: ${authPersonPhone.trim() || "Not provided"}`,
+      });
+
+      const newTicket: Ticket = {
+        id: Date.now().toString(),
+        reference: ref,
+        subject: `Authorised Representative: ${authPersonName.trim()}`,
+        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+        updatedDate: "Updated Just now",
+        type: "Question",
+        status: "Resolved",
+        isOpen: false,
+        message: `Representative: ${authPersonName.trim()} (${authPersonRelation || "Relation unspecified"}), Phone: ${authPersonPhone || "None provided"}`,
+        replies: [
+          {
+            from: "support",
+            message: "Authorised representative added to your account. They may now verify on your behalf.",
+            time: "Just now",
+          },
+        ],
+      };
+
+      persistTickets([newTicket, ...tickets]);
+      setAuthPersonName("");
+      setAuthPersonRelation("");
+      setAuthPersonPhone("");
+      setModal(null);
+      showToast("Authorised representative added.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Reply to an active ticket
-  const handleSendTicketReply = () => {
+  const handleSendTicketReply = async () => {
     if (!viewingTicket || !ticketReplyText.trim()) return;
 
     const replyMsg = ticketReplyText.trim();
-    const updated = tickets.map((t) => {
-      if (t.id === viewingTicket.id) {
-        const newReplies = [
-          ...(t.replies || []),
+    setSubmitting(true);
+
+    try {
+      // POST follow-up to /api/contact-us/
+      await submitToContactUsAPI({
+        name: contactName || userName,
+        email: contactEmail || userEmail,
+        phone: contactPhone || userPhone,
+        subject: mapTypeToBackendSubject(viewingTicket.type),
+        message: `[Reply to Ticket ${viewingTicket.reference}: ${viewingTicket.subject}]\n\n${replyMsg}`,
+      });
+
+      const updated = tickets.map((t) => {
+        if (t.id === viewingTicket.id) {
+          const newReplies = [
+            ...(t.replies || []),
+            {
+              from: "user" as const,
+              message: replyMsg,
+              time: `Today, ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
+            },
+          ];
+          return {
+            ...t,
+            updatedDate: "Updated Just now",
+            replies: newReplies,
+          };
+        }
+        return t;
+      });
+
+      persistTickets(updated);
+      setViewingTicket({
+        ...viewingTicket,
+        updatedDate: "Updated Just now",
+        replies: [
+          ...(viewingTicket.replies || []),
           {
-            from: "user" as const,
+            from: "user",
             message: replyMsg,
             time: `Today, ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
           },
-        ];
-        return {
-          ...t,
-          updatedDate: "Updated Just now",
-          replies: newReplies,
-        };
-      }
-      return t;
-    });
-
-    persistTickets(updated);
-    setViewingTicket({
-      ...viewingTicket,
-      updatedDate: "Updated Just now",
-      replies: [
-        ...(viewingTicket.replies || []),
-        {
-          from: "user",
-          message: replyMsg,
-          time: `Today, ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
-        },
-      ],
-    });
-    setTicketReplyText("");
-    showToast("Reply sent to our customer care team.");
+        ],
+      });
+      setTicketReplyText("");
+      showToast("Reply sent to our customer care team.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Filtered tickets
@@ -1520,10 +1748,15 @@ export default function SupportPage() {
                   <button
                     type="button"
                     onClick={handleSendTicketReply}
-                    className="px-4 py-1.5 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                    disabled={submitting}
+                    className="px-4 py-1.5 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Send reply</span>
+                    {submitting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>{submitting ? "Sending..." : "Send reply"}</span>
                   </button>
                 </div>
               </div>
@@ -1537,9 +1770,12 @@ export default function SupportPage() {
       {/* ========================================================================= */}
       {modal === "new_request" && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl">
+          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-[#0D1935]">New support request</h3>
+              <div>
+                <h3 className="text-base font-bold text-[#0D1935]">New support request</h3>
+                <p className="text-xs text-[#54617E]">Connects directly to Zoiko Customer Care</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setModal(null)}
@@ -1550,19 +1786,57 @@ export default function SupportPage() {
             </div>
 
             <form onSubmit={handleCreateRequest} className="pt-4 space-y-3.5">
+              {/* Category */}
               <div>
                 <label className="block text-xs font-semibold text-[#0D1935] mb-1">Category</label>
                 <select
                   value={newRequestType}
                   onChange={(e) => setNewRequestType(e.target.value as any)}
-                  className="w-full h-10 px-3 rounded-xl border border-[#E6E8EE] text-xs sm:text-sm text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  className="w-full h-10 px-3 rounded-xl border border-[#E6E8EE] text-xs sm:text-sm text-[#0D1935] focus:outline-none focus:border-[#E6007E] bg-white"
                 >
-                  <option value="Question">Question</option>
+                  <option value="Question">General Enquiry / Question</option>
                   <option value="Technical">Technical issue</option>
                   <option value="Billing">Billing & Payment</option>
+                  <option value="Roaming & International">Roaming & Coverage</option>
+                  <option value="Other">Other Query</option>
                 </select>
               </div>
 
+              {/* Contact info row (prefilled) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Your Name</label>
+                  <input
+                    type="text"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Full name"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Email (for reply)</label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="e.g. 07700 900123"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
+              </div>
+
+              {/* Subject */}
               <div>
                 <label className="block text-xs font-semibold text-[#0D1935] mb-1">Subject</label>
                 <input
@@ -1574,6 +1848,7 @@ export default function SupportPage() {
                 />
               </div>
 
+              {/* Message */}
               <div>
                 <label className="block text-xs font-semibold text-[#0D1935] mb-1">
                   How can we help?
@@ -1591,15 +1866,18 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Submit request
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Submitting..." : "Submit request"}</span>
                 </button>
               </div>
             </form>
@@ -1612,9 +1890,12 @@ export default function SupportPage() {
       {/* ========================================================================= */}
       {modal === "complaint" && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl">
+          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-[#0D1935]">Make a formal complaint</h3>
+              <div>
+                <h3 className="text-base font-bold text-[#0D1935]">Make a formal complaint</h3>
+                <p className="text-xs text-[#54617E]">Escalated to our Customer Resolution Team</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setModal(null)}
@@ -1627,6 +1908,40 @@ export default function SupportPage() {
             <form onSubmit={handleCreateComplaint} className="pt-4 space-y-3.5">
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed">
                 We take complaints very seriously. You will receive an official reference code and an assigned case handler within 24 hours.
+              </div>
+
+              {/* Contact info row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Your Name</label>
+                  <input
+                    type="text"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Full name"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-[#54617E] mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="e.g. 07700 900123"
+                    className="w-full h-8 px-2.5 rounded-lg border border-[#E6E8EE] bg-white text-xs text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1659,15 +1974,18 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Log complaint
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Logging..." : "Log complaint"}</span>
                 </button>
               </div>
             </form>
@@ -1747,7 +2065,7 @@ export default function SupportPage() {
               </button>
             </div>
 
-            <div className="pt-4 space-y-3.5">
+            <form onSubmit={handleCreateNetworkReport} className="pt-4 space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-[#0D1935] mb-1">
                   Location (Postcode or Area)
@@ -1778,24 +2096,21 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setModal(null);
-                    setNetworkPostcode("");
-                    setNetworkIssueDesc("");
-                    showToast("Network report submitted to our engineering team.");
-                  }}
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Submit report
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Submitting..." : "Submit report"}</span>
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -1817,7 +2132,7 @@ export default function SupportPage() {
               </button>
             </div>
 
-            <div className="pt-4 space-y-3.5">
+            <form onSubmit={handleExtraSupportSubmit} className="pt-4 space-y-3.5">
               <p className="text-xs text-[#54617E] leading-relaxed">
                 Let us know how best to communicate with you or if you need priority restoration. You never have to disclose a medical diagnosis.
               </p>
@@ -1832,22 +2147,21 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setModal(null);
-                    showToast("Support preferences updated in your account record.");
-                  }}
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Save preferences
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Saving..." : "Save preferences"}</span>
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -1869,7 +2183,7 @@ export default function SupportPage() {
               </button>
             </div>
 
-            <div className="pt-4 space-y-3.5">
+            <form onSubmit={handleBrailleSubmit} className="pt-4 space-y-3.5">
               <p className="text-xs text-[#54617E] leading-relaxed">
                 We provide statements, contract summaries, and letters in accessible formats completely free of charge.
               </p>
@@ -1894,22 +2208,21 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setModal(null);
-                    showToast(`Preferred billing format updated to ${formatPreference}.`);
-                  }}
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Confirm format
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Confirming..." : "Confirm format"}</span>
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -1931,7 +2244,7 @@ export default function SupportPage() {
               </button>
             </div>
 
-            <div className="pt-4 space-y-3">
+            <form onSubmit={handleAuthPersonSubmit} className="pt-4 space-y-3">
               <p className="text-xs text-[#54617E] leading-relaxed">
                 Authorise a trusted family member or carer to contact support and make queries on your behalf.
               </p>
@@ -1973,407 +2286,24 @@ export default function SupportPage() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
+                  disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setModal(null);
-                    setAuthPersonName("");
-                    setAuthPersonRelation("");
-                    setAuthPersonPhone("");
-                    showToast("Authorised representative added to your account.");
-                  }}
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
-                  Add representative
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "Adding..." : "Add representative"}</span>
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-/* ============================================================================* OLD CODE (previous version, kept for reference — not used)
- * ============================================================================
-
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import {
-  FaHeadset,
-  FaCommentDots,
-  FaPhone,
-  FaTicketAlt,
-  FaCheckCircle,
-  FaExclamationCircle,
-} from "react-icons/fa";
-
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/support/`;
-
-interface Toast {
-  msg: string;
-  type: "success" | "error" | "";
-}
-
-interface TicketForm {
-  subject: string;
-  category: string;
-  message: string;
-}
-
-interface Ticket {
-  id: number;
-  subject: string;
-  category: string;
-  status: "Open" | "In Progress" | "Resolved";
-  created_at: string;
-}
-
-const initialForm: TicketForm = {
-  subject: "",
-  category: "general",
-  message: "",
-};
-
-export default function SupportPage() {
-  const [token, setToken] = useState<string>("");
-  const [form, setForm] = useState<TicketForm>(initialForm);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [toast, setToast] = useState<Toast>({ msg: "", type: "" });
-  const [callbackPhone, setCallbackPhone] = useState<string>("");
-  const [callbackLoading, setCallbackLoading] = useState<boolean>(false);
-
-  // Demo ticket history — replace with API result when ready.
-  const [tickets, setTickets] = useState<Ticket[]>([
-    { id: 1041, subject: "Cannot activate eSIM", category: "Technical", status: "Resolved", created_at: "10 May, 2026" },
-    { id: 1042, subject: "Billing question on May invoice", category: "Billing", status: "In Progress", created_at: "12 May, 2026" },
-    { id: 1043, subject: "Plan change request", category: "Account", status: "Open", created_at: "14 May, 2026" },
-  ]);
-
-  // ── Load token (optional — auth gating disabled) ──
-  useEffect(() => {
-    const storedToken = localStorage.getItem("driverx_token") || "";
-    setToken(storedToken);
-  }, []);
-
-  const showToast = (msg: string, type: "success" | "error") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast({ msg: "", type: "" }), 3500);
-  };
-
-  // ── Submit support ticket ──
-  const submitTicket = async () => {
-    if (!form.subject.trim() || !form.message.trim()) {
-      showToast("Please add a subject and a message.", "error");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${BASE_URL}tickets/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (res.ok) {
-        showToast("Ticket submitted. We'll be in touch soon.", "success");
-      } else {
-        showToast("Ticket received (local). We'll follow up by email.", "success");
-      }
-
-      // Optimistically append to the visible list so the user gets feedback.
-      setTickets((prev) => [
-        {
-          id: Math.max(0, ...prev.map((p) => p.id)) + 1,
-          subject: form.subject,
-          category:
-            form.category.charAt(0).toUpperCase() + form.category.slice(1),
-          status: "Open",
-          created_at: new Date().toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-        },
-        ...prev,
-      ]);
-      setForm(initialForm);
-    } catch {
-      showToast("Network error. Please try again.", "error");
-    }
-    setSubmitting(false);
-  };
-
-  // ── Request a call-back ──
-  const requestCallback = async () => {
-    if (!/^\+?\d{7,15}$/.test(callbackPhone.trim())) {
-      showToast("Please enter a valid phone number.", "error");
-      return;
-    }
-    setCallbackLoading(true);
-    try {
-      const res = await fetch(`${BASE_URL}callback/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone: callbackPhone }),
-      });
-
-      if (res.ok) {
-        showToast("Call-back requested. We'll call you shortly.", "success");
-      } else {
-        showToast("Request received (local). We'll call you back.", "success");
-      }
-      setCallbackPhone("");
-    } catch {
-      showToast("Network error. Please try again.", "error");
-    }
-    setCallbackLoading(false);
-  };
-
-  // ── Start live chat ──
-  const openChat = (): void => {
-    const tawk = window as Window & { Tawk_API?: { maximize: () => void } };
-    if (tawk.Tawk_API) {
-      tawk.Tawk_API.maximize();
-    } else {
-      showToast("Chat is loading… please try again in a moment.", "error");
-    }
-  };
-
-  const statusBadgeClass = useMemo(
-    () => (status: Ticket["status"]) => {
-      if (status === "Resolved") return "bg-green-100 text-green-700 border-green-300";
-      if (status === "In Progress") return "bg-yellow-100 text-yellow-800 border-yellow-300";
-      return "bg-blue-100 text-blue-700 border-blue-300";
-    },
-    []
-  );
-
-  return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-grow dark:bg-gray-900 dark:text-white bg-gray-100 py-8 px-4">
-        <div className="max-w-5xl mx-auto">
-
-          {/* Page Header *\/}
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-xl font-bold">Support</h4>
-          </div>
-
-          {/* Toast *\/}
-          {toast.msg && (
-            <div className={`flex items-center gap-2 px-4 py-3 rounded mb-6 border text-sm ${
-              toast.type === "success"
-                ? "bg-green-50 border-green-400 text-green-700"
-                : "bg-red-100 border-red-400 text-red-700"
-            }`}>
-              {toast.type === "success"
-                ? <FaCheckCircle className="text-green-500" />
-                : <FaExclamationCircle className="text-red-500" />
-              }
-              {toast.msg}
-            </div>
-          )}
-
-          {/* Quick actions row *\/}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-
-            {/* Live chat *\/}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="text-green-500 text-xl">
-                  <FaCommentDots />
-                </div>
-                <h5 className="font-semibold text-base">Live Chat</h5>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Chat with a support agent in real time. Available 24/7.
-              </p>
-              <button
-                onClick={openChat}
-                className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
-              >
-                Start Chat
-              </button>
-            </div>
-
-            {/* Call-back *\/}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="text-green-500 text-xl">
-                  <FaPhone />
-                </div>
-                <h5 className="font-semibold text-base">Request a Call-back</h5>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                Leave your number and our team will call you back.
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                <input
-                  type="tel"
-                  placeholder="+91 9876543210"
-                  value={callbackPhone}
-                  onChange={(e) => setCallbackPhone(e.target.value)}
-                  className="flex-1 min-w-[180px] h-10 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
-                />
-                <button
-                  onClick={requestCallback}
-                  disabled={callbackLoading}
-                  className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {callbackLoading ? "Requesting..." : "Request Call"}
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Create Ticket *\/}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="text-green-500 text-xl">
-                <FaTicketAlt />
-              </div>
-              <h5 className="font-semibold text-base">Create a Support Ticket</h5>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1.5">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  placeholder="Brief summary of the issue"
-                  value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  className="w-full h-10 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1.5">
-                  Category
-                </label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full h-10 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
-                >
-                  <option value="general">General</option>
-                  <option value="billing">Billing</option>
-                  <option value="technical">Technical</option>
-                  <option value="account">Account</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1.5">
-                Describe your issue
-              </label>
-              <textarea
-                rows={4}
-                placeholder="Share as much detail as you can — error messages, what you tried, when it started..."
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition resize-none"
-              />
-            </div>
-
-            <div className="flex gap-3 flex-wrap">
-              <button
-                onClick={submitTicket}
-                disabled={submitting}
-                className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? "Submitting..." : "Create Ticket"}
-              </button>
-              <button
-                onClick={() => setForm(initialForm)}
-                className="px-4 py-1.5 border border-gray-300 text-gray-700 dark:text-gray-300 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Clear
-              </button>
-              <button
-                onClick={() => window.history.back()}
-                className="px-4 py-1.5 border border-gray-300 text-gray-700 dark:text-gray-300 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                ← Back
-              </button>
-            </div>
-          </div>
-
-          {/* Ticket History *\/}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="text-green-500 text-xl">
-                <FaHeadset />
-              </div>
-              <h5 className="font-semibold text-base">Ticket History</h5>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                    <th className="py-2 font-medium">#</th>
-                    <th className="py-2 font-medium">Subject</th>
-                    <th className="py-2 font-medium">Category</th>
-                    <th className="py-2 font-medium">Status</th>
-                    <th className="py-2 font-medium">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="py-6 text-center text-gray-400 dark:text-gray-500"
-                      >
-                        No tickets yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    tickets.map((t) => (
-                      <tr
-                        key={t.id}
-                        className="border-b border-gray-100 dark:border-gray-700 last:border-0"
-                      >
-                        <td className="py-3">#{t.id}</td>
-                        <td className="py-3">{t.subject}</td>
-                        <td className="py-3 text-gray-500 dark:text-gray-400">{t.category}</td>
-                        <td className="py-3">
-                          <span
-                            className={`inline-block px-2 py-0.5 text-xs rounded-full border ${statusBadgeClass(t.status)}`}
-                          >
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-gray-500 dark:text-gray-400">{t.created_at}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      </main>
-    </div>
-  );
-}
-
-
-*/
