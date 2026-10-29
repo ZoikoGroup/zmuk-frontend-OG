@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -224,7 +224,9 @@ export default function EditProfilePage() {
   const [preferredName, setPreferredName] = useState("");
   const [email, setEmail] = useState("");
   const [contactMobile, setContactMobile] = useState("");
-  const [dob, setDob] = useState("Not specified");
+  const [dob, setDob] = useState("Not on file");
+  const [isDobVerified, setIsDobVerified] = useState(false);
+  const [isIdentityVerified, setIsIdentityVerified] = useState(false);
   const [accountNumber, setAccountNumber] = useState("—");
   const [customerSince, setCustomerSince] = useState("Active member");
   const [planName, setPlanName] = useState("No active plan");
@@ -232,6 +234,7 @@ export default function EditProfilePage() {
   // Dynamic Billing & Account details
   const [nextCollectionAmount, setNextCollectionAmount] = useState("0.00");
   const [collectionDate, setCollectionDate] = useState("Monthly rolling");
+  const [paymentMethodSummary, setPaymentMethodSummary] = useState("Direct Debit");
   const [contactPreference, setContactPreference] = useState("Email");
   const [marketingMessages, setMarketingMessages] = useState("Off");
   const [billingAddress, setBillingAddress] = useState("No billing address on file");
@@ -353,6 +356,29 @@ export default function EditProfilePage() {
         localStorage.getItem("zoiko_user_phone") ||
         "";
       if (phone) setContactMobile(phone);
+
+      // Date of birth from backend User/Profile
+      const rawDob = user?.date_of_birth || user?.dob || "";
+      if (rawDob) {
+        setDob(String(rawDob));
+        setIsDobVerified(true);
+      } else {
+        setDob("Not on file");
+        setIsDobVerified(false);
+      }
+
+      // Identity verification status from backend or active account status
+      const isIdDone = Boolean(user?.identity_verified || user?.is_verified || user?.verified);
+      setIsIdentityVerified(isIdDone);
+
+      // Payment method details from backend user profile if present
+      if (user?.payment_details?.last4) {
+        setPaymentMethodSummary(
+          `${user.payment_details.method_type || "Card"} ••${user.payment_details.last4}`
+        );
+      } else if (user?.payment_method) {
+        setPaymentMethodSummary(String(user.payment_method));
+      }
 
       // Account number from user ID / subscriber ID
       setAccountNumber(deriveAccountNumber(user, userEmail));
@@ -559,6 +585,27 @@ export default function EditProfilePage() {
               }
             }
           }
+
+          // Query live payment methods from BeQuick
+          if (subId && beQuick?.getPaymentMethods) {
+            try {
+              const pmRes = (await beQuick.getPaymentMethods(subId)) as any;
+              const pms = pmRes?.payment_methods || pmRes?.data || [];
+              if (Array.isArray(pms) && pms.length > 0) {
+                const cardPm =
+                  pms.find((m: any) => m.last_four || m.card_number || m.brand) || pms[0];
+                const last4 = String(
+                  cardPm.last_four ||
+                    cardPm.card_last4 ||
+                    (cardPm.card_number ? String(cardPm.card_number).slice(-4) : "")
+                );
+                const brand = cardPm.brand || cardPm.card_type || "Card";
+                if (last4) {
+                  setPaymentMethodSummary(`${brand} ••${last4}`);
+                }
+              }
+            } catch {}
+          }
         } catch {}
 
         if (fetchedNumbers.length > 0) {
@@ -664,8 +711,8 @@ export default function EditProfilePage() {
     }
   };
 
-  // Save Preferred Name
-  const handleSavePreferredName = (e: React.FormEvent) => {
+  // Save Preferred Name (Dispatches to backend API and local sync)
+  const handleSavePreferredName = async (e: React.FormEvent) => {
     e.preventDefault();
     const prefCheck = validateName(editPrefName, "Preferred name");
     if (!prefCheck.isValid) {
@@ -673,11 +720,32 @@ export default function EditProfilePage() {
       return;
     }
     const cleanPref = prefCheck.cleaned || editPrefName.trim();
-    setPreferredName(cleanPref);
-    localStorage.setItem("zoiko_preferred_name", cleanPref);
-    window.dispatchEvent(new Event("zoiko-auth"));
-    setModal(null);
-    showToast(`We’ll call you ${cleanPref} across the site and emails.`);
+    setSavingLoading(true);
+    try {
+      if (token) {
+        // Attempt update on backend User Profile API
+        await fetch(UPDATE_PROFILE_URL, {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ preferred_name: cleanPref }),
+        }).catch(() => {});
+      }
+      setPreferredName(cleanPref);
+      localStorage.setItem("zoiko_preferred_name", cleanPref);
+      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+      localStorage.setItem(
+        "zoiko_user",
+        JSON.stringify({ ...user, preferred_name: cleanPref })
+      );
+      window.dispatchEvent(new Event("zoiko-auth"));
+      setModal(null);
+      showToast(`We’ll call you ${cleanPref} across the site and emails.`);
+    } finally {
+      setSavingLoading(false);
+    }
   };
 
   // Save Email (Validated and connected to backend API)
@@ -733,7 +801,7 @@ export default function EditProfilePage() {
     }
   };
 
-  // Save Mobile (Validated and logged to backend support)
+  // Save Mobile (Dispatches to backend User API and support ticket)
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     const phoneCheck = validateUkMobile(editPhone);
@@ -746,6 +814,20 @@ export default function EditProfilePage() {
     setSavingLoading(true);
     try {
       if (token) {
+        // 1. Attempt direct update on backend User Profile API
+        await fetch(UPDATE_PROFILE_URL, {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            phone_number: cleanPhone,
+            phone: cleanPhone,
+          }),
+        }).catch(() => {});
+
+        // 2. Also log audit support ticket
         await fetch(`${API_BASE}/api/support/tickets/`, {
           method: "POST",
           headers: {
@@ -764,7 +846,7 @@ export default function EditProfilePage() {
       const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
       localStorage.setItem(
         "zoiko_user",
-        JSON.stringify({ ...user, phone: cleanPhone })
+        JSON.stringify({ ...user, phone: cleanPhone, phone_number: cleanPhone })
       );
       localStorage.setItem("zoiko_user_phone", cleanPhone);
       setModal(null);
@@ -774,7 +856,7 @@ export default function EditProfilePage() {
     }
   };
 
-  // Save Billing Address (Validated and dispatched to backend)
+  // Save Billing Address (Dispatches to backend User API and support ticket)
   const handleSaveBilling = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = editBillingAddr.trim();
@@ -786,6 +868,20 @@ export default function EditProfilePage() {
     setSavingLoading(true);
     try {
       if (token) {
+        // 1. Attempt direct update on backend User Profile API
+        await fetch(UPDATE_PROFILE_URL, {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            billing_address: trimmed,
+            address: trimmed,
+          }),
+        }).catch(() => {});
+
+        // 2. Also log audit support ticket
         await fetch(`${API_BASE}/api/support/tickets/`, {
           method: "POST",
           headers: {
@@ -814,7 +910,7 @@ export default function EditProfilePage() {
     }
   };
 
-  // Save Delivery Address (Validated and dispatched to backend)
+  // Save Delivery Address (Dispatches to backend User API and support ticket)
   const handleSaveDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = editDeliveryAddr.trim();
@@ -826,6 +922,19 @@ export default function EditProfilePage() {
     setSavingLoading(true);
     try {
       if (token) {
+        // 1. Attempt direct update on backend User Profile API
+        await fetch(UPDATE_PROFILE_URL, {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            delivery_address: trimmed,
+          }),
+        }).catch(() => {});
+
+        // 2. Also log audit support ticket
         await fetch(`${API_BASE}/api/support/tickets/`, {
           method: "POST",
           headers: {
@@ -1183,19 +1292,31 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Date of birth</div>
                     <div className="text-sm font-semibold text-[#0D1935]">{dob}</div>
-                    <div className="text-[11px] text-[#54617E]">Partly hidden for your security</div>
+                    <div className="text-[11px] text-[#54617E]">
+                      {isDobVerified ? "Partly hidden for your security" : "Not yet recorded on account"}
+                    </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1 shrink-0">
-                    <Check className="w-3 h-3" />
-                    <span>Checked</span>
-                  </span>
+                  {isDobVerified ? (
+                    <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1 shrink-0">
+                      <Check className="w-3 h-3" />
+                      <span>Checked</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-medium shrink-0">
+                      Optional
+                    </span>
+                  )}
                 </div>
 
                 {/* Identity check */}
                 <div className="py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Identity check</div>
-                    <div className="text-sm font-semibold text-[#0D1935]">Completed {customerSince}</div>
+                    <div className="text-sm font-semibold text-[#0D1935]">
+                      {isIdentityVerified || numbersList.length > 0
+                        ? `Completed · ${customerSince}`
+                        : "Standard account"}
+                    </div>
                     <div className="text-[11px] text-[#54617E]">For your mobile account</div>
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1 shrink-0">
@@ -1472,7 +1593,8 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Billing account</div>
                     <div className="text-sm font-semibold text-[#0D1935] group-hover:text-[#E6007E] transition truncate">
-                      ••{accountNumber} · Direct Debit ••42
+                      ••{accountNumber} · {paymentMethodSummary}
+                      {/* PREVIOUS CODE: ••{accountNumber} · Direct Debit ••42 */}
                     </div>
                     <div className="text-[11px] text-[#54617E]">
                       Next collection £{nextCollectionAmount} on {collectionDate}
