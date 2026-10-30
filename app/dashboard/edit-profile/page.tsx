@@ -52,6 +52,20 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const UPDATE_PROFILE_URL = `${API_BASE}/api/accounts/update-profile/`;
 const CHANGE_PASSWORD_URL = `${API_BASE}/api/accounts/change-password/`;
 
+const CONTACT_LABELS: Record<string, string> = {
+  email: "Email",
+  sms: "SMS",
+  phone: "Phone call",
+  post: "Post",
+};
+
+const CONTACT_OPTIONS: { key: string; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "sms", label: "SMS" },
+  { key: "phone", label: "Phone call" },
+  { key: "post", label: "Post" },
+];
+
 interface NumberItem {
   id: string;
   msisdn: string;
@@ -280,6 +294,7 @@ export default function EditProfilePage() {
   const [editPrefName, setEditPrefName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [editBillingAddr, setEditBillingAddr] = useState("");
   const [editDeliveryAddr, setEditDeliveryAddr] = useState("");
   const [newAuthName, setNewAuthName] = useState("");
@@ -287,6 +302,45 @@ export default function EditProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingLoading, setSavingLoading] = useState(false);
+
+  // Shared save helper for PUT /api/accounts/update-profile/
+  const saveProfile = async (fields: Record<string, unknown>) => {
+    const storedToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || ""
+        : "");
+
+    const res = await fetch(UPDATE_PROFILE_URL, {
+      method: "PUT",
+      headers: {
+        Authorization: `Token ${storedToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(fields),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const first: any = Object.values(data)[0];
+      const msg = Array.isArray(first)
+        ? first[0]
+        : first && typeof first === "object"
+          ? (Object.values(first)[0] as string[])[0]
+          : "Could not save. Please try again.";
+      throw new Error(msg);
+    }
+
+    if (data?.user && typeof window !== "undefined") {
+      try {
+        const curUser = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
+        localStorage.setItem("zoiko_user", JSON.stringify({ ...curUser, ...data.user }));
+      } catch {}
+      window.dispatchEvent(new Event("zoiko-auth"));
+    }
+
+    return data.user;
+  };
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -325,14 +379,29 @@ export default function EditProfilePage() {
             const backendUser = await userRes.json();
             if (backendUser && (backendUser.email || backendUser.username)) {
               user = { ...user, ...backendUser };
-              try {
-                localStorage.setItem("zoiko_user", JSON.stringify(user));
-              } catch {}
             }
           }
         } catch (err) {
           console.warn("Could not fetch user dashboard:", err);
         }
+
+        try {
+          const profRes = await fetch(UPDATE_PROFILE_URL, {
+            headers: { Authorization: `Token ${storedToken}` },
+          });
+          if (profRes.ok) {
+            const profData = await profRes.json();
+            if (profData) {
+              user = { ...user, ...profData };
+            }
+          }
+        } catch (err) {
+          console.warn("Could not fetch update-profile:", err);
+        }
+
+        try {
+          localStorage.setItem("zoiko_user", JSON.stringify(user));
+        } catch {}
       }
 
       const resolved = resolveUserNames(user);
@@ -341,21 +410,11 @@ export default function EditProfilePage() {
       setLegalLastName(resolved.last);
       setEmail(userEmail);
 
-      const pref =
-        localStorage.getItem("zoiko_preferred_name") ||
-        user?.preferred_name ||
-        resolved.first ||
-        "Member";
+      // Backend profile fields (database-backed, no localStorage fallback)
+      const pref = user?.preferred_name || resolved.first || "Member";
+      const phone = user?.phone_number || user?.phone || "";
       setPreferredName(pref);
-
-      const phone =
-        user?.phone_number ||
-        user?.phone ||
-        user?.contact_number ||
-        user?.mobile ||
-        localStorage.getItem("zoiko_user_phone") ||
-        "";
-      if (phone) setContactMobile(phone);
+      setContactMobile(phone);
 
       // Date of birth from backend User/Profile
       const rawDob = user?.date_of_birth || user?.dob || "";
@@ -386,23 +445,13 @@ export default function EditProfilePage() {
       // Customer since date from user registration
       setCustomerSince(deriveCustomerSince(user));
 
-      // Persisted preferences
-      const savedContactMethod = localStorage.getItem("zoiko_preferred_contact");
-      if (savedContactMethod) setContactPreference(savedContactMethod);
-
-      const savedBilling =
-        localStorage.getItem("zoiko_billing_address") ||
-        user?.billing_address ||
-        user?.address;
-      if (savedBilling) setBillingAddress(savedBilling);
-
-      const savedDelivery =
-        localStorage.getItem("zoiko_delivery_address") ||
-        user?.delivery_address;
-      if (savedDelivery) setDeliveryAddress(savedDelivery);
-
-      const savedNeeds = localStorage.getItem("zoiko_support_needs");
-      if (savedNeeds) setSupportNeeds(savedNeeds);
+      // Backend addresses and preferences (no localStorage fallback)
+      setBillingAddress(user?.billing_address || "No billing address on file");
+      setDeliveryAddress(user?.delivery_address || "Same as billing");
+      const savedMethodKey = (user?.preferences?.contact_method || "").toLowerCase();
+      setContactPreference(CONTACT_LABELS[savedMethodKey] || "Email");
+      setAccessibilityDisplay(user?.preferences?.accessibility || "Default display");
+      setSupportNeeds(user?.preferences?.support_needs || "None recorded");
 
       const savedColorName = localStorage.getItem("zoiko_profile_color");
       if (savedColorName) {
@@ -676,73 +725,40 @@ export default function EditProfilePage() {
     }
     setSavingLoading(true);
     try {
-      if (token) {
-        await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            first_name: firstCheck.cleaned,
-            last_name: lastCheck.cleaned,
-          }),
-        }).catch(() => {});
-      }
-
-      setLegalFirstName(firstCheck.cleaned || "");
-      setLegalLastName(lastCheck.cleaned || "");
-
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({
-          ...user,
-          first_name: firstCheck.cleaned,
-          last_name: lastCheck.cleaned,
-        })
-      );
-
+      const savedUser = await saveProfile({
+        first_name: firstCheck.cleaned,
+        last_name: lastCheck.cleaned,
+      });
+      setLegalFirstName(savedUser.first_name || firstCheck.cleaned || "");
+      setLegalLastName(savedUser.last_name || lastCheck.cleaned || "");
       setModal(null);
-      window.dispatchEvent(new Event("zoiko-auth"));
       showToast("Legal name updated successfully.");
+    } catch (err) {
+      showToast((err as Error).message);
     } finally {
       setSavingLoading(false);
     }
   };
 
-  // Save Preferred Name (Dispatches to backend API and local sync)
+  // Save Preferred Name (Connected to PUT /api/accounts/update-profile/)
   const handleSavePreferredName = async (e: React.FormEvent) => {
     e.preventDefault();
-    const prefCheck = validateName(editPrefName, "Preferred name");
-    if (!prefCheck.isValid) {
-      showToast(prefCheck.error || "Preferred name is invalid.");
-      return;
+    const cleanPref = editPrefName.trim();
+    if (cleanPref) {
+      const prefCheck = validateName(cleanPref, "Preferred name");
+      if (!prefCheck.isValid) {
+        showToast(prefCheck.error || "Preferred name is invalid.");
+        return;
+      }
     }
-    const cleanPref = prefCheck.cleaned || editPrefName.trim();
     setSavingLoading(true);
     try {
-      if (token) {
-        // Attempt update on backend User Profile API
-        await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ preferred_name: cleanPref }),
-        }).catch(() => {});
-      }
-      setPreferredName(cleanPref);
-      localStorage.setItem("zoiko_preferred_name", cleanPref);
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({ ...user, preferred_name: cleanPref })
-      );
-      window.dispatchEvent(new Event("zoiko-auth"));
+      const savedUser = await saveProfile({ preferred_name: cleanPref });
+      setPreferredName(savedUser.preferred_name || legalFirstName || "Member");
       setModal(null);
-      showToast(`We’ll call you ${cleanPref} across the site and emails.`);
+      showToast(cleanPref ? `We’ll call you ${cleanPref} across the site and emails.` : "Preferred name cleared.");
+    } catch (err) {
+      showToast((err as Error).message);
     } finally {
       setSavingLoading(false);
     }
@@ -801,163 +817,111 @@ export default function EditProfilePage() {
     }
   };
 
-  // Save Mobile (Dispatches to backend User API and support ticket)
+  // Save Mobile (Connected to PUT /api/accounts/update-profile/)
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneCheck = validateUkMobile(editPhone);
-    if (!phoneCheck.isValid) {
-      showToast(phoneCheck.error || "Please enter a valid UK mobile number.");
-      return;
-    }
-    const cleanPhone = phoneCheck.formatted || editPhone.trim();
+    setPhoneError("");
+    const cleanPhone = editPhone.trim();
 
     setSavingLoading(true);
     try {
-      if (token) {
-        // 1. Attempt direct update on backend User Profile API
-        await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            phone_number: cleanPhone,
-            phone: cleanPhone,
-          }),
-        }).catch(() => {});
-
-        // 2. Also log audit support ticket
-        await fetch(`${API_BASE}/api/support/tickets/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            category: "general",
-            subject: `Contact Number Updated: ${cleanPhone}`,
-            message: `User updated account contact mobile number to ${cleanPhone}. Previous: ${contactMobile || "None"}`,
-          }),
-        }).catch(() => {});
-      }
-
-      setContactMobile(cleanPhone);
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({ ...user, phone: cleanPhone, phone_number: cleanPhone })
-      );
-      localStorage.setItem("zoiko_user_phone", cleanPhone);
+      const savedUser = await saveProfile({ phone_number: cleanPhone });
+      setContactMobile(savedUser.phone_number || cleanPhone);
+      setPhoneError("");
       setModal(null);
       showToast("Contact mobile number updated.");
+    } catch (err: any) {
+      const errMsg = err?.message || "Please enter a valid UK mobile number.";
+      setPhoneError(errMsg);
+      showToast(errMsg);
     } finally {
       setSavingLoading(false);
     }
   };
 
-  // Save Billing Address (Dispatches to backend User API and support ticket)
+  // Save Billing Address (Connected to PUT /api/accounts/update-profile/)
   const handleSaveBilling = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = editBillingAddr.trim();
-    if (!trimmed || trimmed.length < 5) {
-      showToast("Please enter a valid address (at least 5 characters).");
+    if (trimmed && (trimmed.length < 5 || trimmed.length > 300)) {
+      showToast("Please enter an address between 5 and 300 characters.");
       return;
     }
-
     setSavingLoading(true);
     try {
-      if (token) {
-        // 1. Attempt direct update on backend User Profile API
-        await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            billing_address: trimmed,
-            address: trimmed,
-          }),
-        }).catch(() => {});
-
-        // 2. Also log audit support ticket
-        await fetch(`${API_BASE}/api/support/tickets/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            category: "billing",
-            subject: "Billing Address Update",
-            message: `Customer updated billing address to: ${trimmed}`,
-          }),
-        }).catch(() => {});
-      }
-
-      setBillingAddress(trimmed);
-      localStorage.setItem("zoiko_billing_address", trimmed);
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({ ...user, billing_address: trimmed, address: trimmed })
-      );
+      const savedUser = await saveProfile({ billing_address: trimmed });
+      setBillingAddress(savedUser.billing_address || "No billing address on file");
       setModal(null);
       showToast("Billing address updated successfully.");
+    } catch (err) {
+      showToast((err as Error).message);
     } finally {
       setSavingLoading(false);
     }
   };
 
-  // Save Delivery Address (Dispatches to backend User API and support ticket)
+  // Save Delivery Address (Connected to PUT /api/accounts/update-profile/)
   const handleSaveDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = editDeliveryAddr.trim();
-    if (!trimmed || trimmed.length < 5) {
-      showToast("Please enter a valid address (at least 5 characters).");
+    if (trimmed && (trimmed.length < 5 || trimmed.length > 300)) {
+      showToast("Please enter an address between 5 and 300 characters.");
       return;
     }
-
     setSavingLoading(true);
     try {
-      if (token) {
-        // 1. Attempt direct update on backend User Profile API
-        await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            delivery_address: trimmed,
-          }),
-        }).catch(() => {});
-
-        // 2. Also log audit support ticket
-        await fetch(`${API_BASE}/api/support/tickets/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            category: "general",
-            subject: "Delivery Address Update",
-            message: `Customer updated SIM & delivery address to: ${trimmed}`,
-          }),
-        }).catch(() => {});
-      }
-
-      setDeliveryAddress(trimmed);
-      localStorage.setItem("zoiko_delivery_address", trimmed);
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({ ...user, delivery_address: trimmed })
-      );
+      // Send "" for "Same as billing"
+      const payloadAddr = trimmed.toLowerCase() === "same as billing" ? "" : trimmed;
+      const savedUser = await saveProfile({ delivery_address: payloadAddr });
+      setDeliveryAddress(savedUser.delivery_address || "Same as billing");
       setModal(null);
       showToast("Delivery address updated successfully.");
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setSavingLoading(false);
+    }
+  };
+
+  // Preference handlers (Connected to PUT /api/accounts/update-profile/)
+  const handleSelectContactMethod = async (key: string) => {
+    setSavingLoading(true);
+    try {
+      const savedUser = await saveProfile({ preferences: { contact_method: key } });
+      const methodKey = (savedUser.preferences?.contact_method || key).toLowerCase();
+      setContactPreference(CONTACT_LABELS[methodKey] || "Email");
+      setModal(null);
+      showToast(`Contact channel changed to ${CONTACT_LABELS[methodKey] || methodKey}.`);
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setSavingLoading(false);
+    }
+  };
+
+  const handleSelectAccessibility = async (opt: string) => {
+    setSavingLoading(true);
+    try {
+      const savedUser = await saveProfile({ preferences: { accessibility: opt } });
+      setAccessibilityDisplay(savedUser.preferences?.accessibility || opt);
+      setModal(null);
+      showToast(`Accessibility preference set to ${opt}.`);
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setSavingLoading(false);
+    }
+  };
+
+  const handleSaveSupportNeeds = async (val: string) => {
+    setSavingLoading(true);
+    try {
+      const savedUser = await saveProfile({ preferences: { support_needs: val } });
+      setSupportNeeds(savedUser.preferences?.support_needs || "None recorded");
+      setModal(null);
+      showToast("Support needs saved to your profile.");
+    } catch (err) {
+      showToast((err as Error).message);
     } finally {
       setSavingLoading(false);
     }
@@ -1367,21 +1331,21 @@ export default function EditProfilePage() {
                 <div className="py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Contact mobile</div>
-                    <div className="text-sm font-semibold text-[#0D1935]">{maskPhone(contactMobile)}</div>
-                    <div className="text-[11px] text-[#54617E]">Verified · used for texts</div>
+                    <div className="text-sm font-semibold text-[#0D1935]">
+                      {contactMobile ? formatUkNumber(contactMobile) : "No contact number added"}
+                    </div>
+                    <div className="text-[11px] text-[#54617E]">Used for texts and service updates</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setEditPhone(contactMobile);
+                      setPhoneError("");
                       setModal("phone");
                     }}
-                    className="flex items-center gap-1.5 cursor-pointer shrink-0"
+                    className="flex items-center gap-1 text-xs font-semibold text-[#0D1935] hover:text-[#E6007E] cursor-pointer shrink-0"
                   >
-                    <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      <span>Verified</span>
-                    </span>
+                    <span>Change</span>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </div>
@@ -1991,6 +1955,7 @@ export default function EditProfilePage() {
                 </label>
                 <input
                   type="text"
+                  maxLength={50}
                   value={editPrefName}
                   onChange={(e) => setEditPrefName(e.target.value)}
                   placeholder={`e.g. ${preferredName || "Alex"}`}
@@ -2078,7 +2043,10 @@ export default function EditProfilePage() {
               <h3 className="text-base font-bold text-[#0D1935]">Update contact mobile</h3>
               <button
                 type="button"
-                onClick={() => setModal(null)}
+                onClick={() => {
+                  setModal(null);
+                  setPhoneError("");
+                }}
                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -2092,23 +2060,41 @@ export default function EditProfilePage() {
                 <input
                   type="tel"
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-[#E6E8EE] text-xs sm:text-sm text-[#0D1935] focus:outline-none focus:border-[#E6007E]"
+                  onChange={(e) => {
+                    setEditPhone(e.target.value);
+                    if (phoneError) setPhoneError("");
+                  }}
+                  placeholder="e.g. 07123 456789"
+                  className={`w-full h-10 px-3 rounded-xl border text-xs sm:text-sm text-[#0D1935] focus:outline-none transition ${
+                    phoneError
+                      ? "border-red-500 bg-red-50/20 focus:border-red-500"
+                      : "border-[#E6E8EE] focus:border-[#E6007E]"
+                  }`}
                 />
+                {phoneError && (
+                  <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 font-medium">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{phoneError}</span>
+                  </div>
+                )}
               </div>
               <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setModal(null)}
+                  onClick={() => {
+                    setModal(null);
+                    setPhoneError("");
+                  }}
                   className="px-4 py-2 text-xs font-semibold text-[#54617E] hover:text-[#0D1935]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  disabled={savingLoading}
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer disabled:opacity-50"
                 >
-                  Save number
+                  {savingLoading ? "Saving..." : "Save mobile"}
                 </button>
               </div>
             </form>
@@ -2136,24 +2122,20 @@ export default function EditProfilePage() {
               <p className="text-xs text-[#54617E]">
                 Choose how you want to receive network updates, allowance notifications, and account alerts.
               </p>
-              {["Email", "SMS / Text message"].map((method) => (
+              {CONTACT_OPTIONS.map(({ key, label }) => (
                 <button
-                  key={method}
+                  key={key}
                   type="button"
-                  onClick={() => {
-                    setContactPreference(method);
-                    localStorage.setItem("zoiko_preferred_contact", method);
-                    setModal(null);
-                    showToast(`Contact channel changed to ${method}.`);
-                  }}
+                  disabled={savingLoading}
+                  onClick={() => handleSelectContactMethod(key)}
                   className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between cursor-pointer transition ${
-                    contactPreference === method
+                    contactPreference === label
                       ? "border-[#E6007E] bg-[#FFF5F8]"
                       : "border-[#E6E8EE] hover:bg-slate-50"
                   }`}
                 >
-                  <span className="text-xs sm:text-sm font-semibold text-[#0D1935]">{method}</span>
-                  {contactPreference === method && (
+                  <span className="text-xs sm:text-sm font-semibold text-[#0D1935]">{label}</span>
+                  {contactPreference === label && (
                     <CheckCircle2 className="w-4 h-4 text-[#E6007E]" />
                   )}
                 </button>
@@ -2186,6 +2168,7 @@ export default function EditProfilePage() {
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={300}
                   value={editBillingAddr}
                   onChange={(e) => setEditBillingAddr(e.target.value)}
                   placeholder="Street address, city, postcode..."
@@ -2235,9 +2218,10 @@ export default function EditProfilePage() {
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={300}
                   value={editDeliveryAddr}
                   onChange={(e) => setEditDeliveryAddr(e.target.value)}
-                  placeholder="Street address, city, postcode..."
+                  placeholder="Street address, city, postcode (leave blank for same as billing)..."
                   className="w-full p-3 rounded-xl border border-[#E6E8EE] text-xs sm:text-sm text-[#0D1935] focus:outline-none focus:border-[#E6007E] resize-none"
                 />
               </div>
@@ -2339,11 +2323,8 @@ export default function EditProfilePage() {
                 <button
                   key={opt}
                   type="button"
-                  onClick={() => {
-                    setAccessibilityDisplay(opt);
-                    setModal(null);
-                    showToast(`Accessibility preference set to ${opt}.`);
-                  }}
+                  disabled={savingLoading}
+                  onClick={() => handleSelectAccessibility(opt)}
                   className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between cursor-pointer transition ${
                     accessibilityDisplay === opt
                       ? "border-[#E6007E] bg-[#FFF5F8]"
@@ -2383,6 +2364,7 @@ export default function EditProfilePage() {
               </p>
               <textarea
                 rows={3}
+                maxLength={500}
                 placeholder="e.g. Please allow extra time for answers, prefer email over calls..."
                 defaultValue={supportNeeds === "None recorded" ? "" : supportNeeds}
                 id="supportNeedsInput"
@@ -2398,17 +2380,15 @@ export default function EditProfilePage() {
                 </button>
                 <button
                   type="button"
+                  disabled={savingLoading}
                   onClick={() => {
                     const el = document.getElementById("supportNeedsInput") as HTMLTextAreaElement;
-                    const val = el?.value?.trim() || "None recorded";
-                    setSupportNeeds(val);
-                    localStorage.setItem("zoiko_support_needs", val);
-                    setModal(null);
-                    showToast("Support needs saved to your profile.");
+                    const val = el?.value?.trim() || "";
+                    handleSaveSupportNeeds(val);
                   }}
-                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
+                  className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer disabled:opacity-50"
                 >
-                  Save needs
+                  {savingLoading ? "Saving..." : "Save needs"}
                 </button>
               </div>
             </div>

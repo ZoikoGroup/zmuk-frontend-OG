@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 
@@ -110,7 +111,7 @@ const BuyButton = ({ onClick }: { onClick: () => void }) => (
 function SliderCard({ plan, duration, onBuyNow }: { plan: Plan; duration: Duration; onBuyNow: (plan: Plan) => void }) {
   return (
     <div
-      className={`relative flex w-[320px] shrink-0 snap-center flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${plan.is_popular ? "border-2 border-teal-400 lg:scale-105" : "border border-gray-100 dark:border-gray-700"
+      className={`relative flex w-[320px] shrink-0 snap-start flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${plan.is_popular ? "border-2 border-teal-400 lg:scale-105" : "border border-gray-100 dark:border-gray-700"
         }`}
     >
       <div className="flex min-h-[64px] flex-col items-center justify-center text-center">
@@ -242,12 +243,78 @@ function Allplans() {
     })();
   }, []);
 
-  const simPlans = useMemo(() => plans.filter((p) => p.category?.slug === SIM_SLUG), [plans]);
+  const simPlans = useMemo(() => {
+    return plans.filter((p) => {
+      const s = (p.category?.slug ?? "").toLowerCase();
+      if (s === BUSINESS_SLUG || s === ROAMING_SLUG) return false;
+      return s === SIM_SLUG || s.includes("sim") || s.includes("saver");
+    });
+  }, [plans]);
   const businessPlans = useMemo(() => plans.filter((p) => p.category?.slug === BUSINESS_SLUG), [plans]);
   const roamingPlans = useMemo(() => plans.filter((p) => p.category?.slug === ROAMING_SLUG), [plans]);
 
-  const scrollBy = (dir: 1 | -1) => {
-    scroller.current?.scrollBy({ left: dir * 344, behavior: "smooth" });
+  // Track if items overflow container width
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  const checkScrollState = useCallback(() => {
+    if (!scroller.current) return;
+    const { scrollWidth, clientWidth } = scroller.current;
+    setHasOverflow(scrollWidth > clientWidth + 8);
+  }, []);
+
+  useEffect(() => {
+    checkScrollState();
+    const el = scroller.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkScrollState, { passive: true });
+    window.addEventListener("resize", checkScrollState);
+    return () => {
+      el.removeEventListener("scroll", checkScrollState);
+      window.removeEventListener("resize", checkScrollState);
+    };
+  }, [simPlans, checkScrollState]);
+
+  const handleScroll = (dir: 1 | -1) => {
+    if (!scroller.current) return;
+    const el = scroller.current;
+    const card = el.querySelector<HTMLElement>(':scope > div');
+    const scrollAmount = card ? card.offsetWidth + 24 : 344;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 5) return;
+
+    // Loop around if reaching the edges
+    if (dir === 1 && el.scrollLeft >= maxScroll - 15) {
+      el.scrollTo({ left: 0, behavior: "smooth" });
+      return;
+    }
+    if (dir === -1 && el.scrollLeft <= 15) {
+      el.scrollTo({ left: maxScroll, behavior: "smooth" });
+      return;
+    }
+
+    el.scrollBy({ left: dir * scrollAmount, behavior: "smooth" });
+  };
+
+  // Mouse drag to scroll
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeftStart = useRef(0);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!scroller.current || !hasOverflow) return;
+    isDragging.current = true;
+    startX.current = e.pageX - scroller.current.offsetLeft;
+    scrollLeftStart.current = scroller.current.scrollLeft;
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scroller.current) return;
+    e.preventDefault();
+    const x = e.pageX - scroller.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    scroller.current.scrollLeft = scrollLeftStart.current - walk;
+  };
+  const onMouseUpOrLeave = () => {
+    isDragging.current = false;
   };
 
   // "Buy this plan" now opens the Choose SIM Type modal first (eSIM / pSIM),
@@ -301,35 +368,45 @@ function Allplans() {
 
         {!loading && !error && (
           <>
-            {/* ── SIM Only slider ── */}
+            {/* ── SIM Only slider / carousel ── */}
             {simPlans.length > 0 && (
               <div className="relative mb-20">
-                <button
-                  type="button"
-                  onClick={() => scrollBy(-1)}
-                  aria-label="Previous"
-                  className="absolute -left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-md hover:bg-gray-50 md:flex dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  &#8249;
-                </button>
+                {hasOverflow && (
+                  <button
+                    type="button"
+                    onClick={() => handleScroll(-1)}
+                    aria-label="Previous plans"
+                    className="absolute -left-3 lg:-left-5 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-700 shadow-lg hover:bg-white hover:scale-105 active:scale-95 transition cursor-pointer dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  >
+                    <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                )}
 
                 <div
                   ref={scroller}
-                  className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-1 pb-4 pt-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  onMouseDown={onMouseDown}
+                  onMouseMove={onMouseMove}
+                  onMouseUp={onMouseUpOrLeave}
+                  onMouseLeave={onMouseUpOrLeave}
+                  className={`flex snap-x gap-6 overflow-x-auto px-2 pb-6 pt-3 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+                    !hasOverflow ? "justify-center" : "scroll-smooth cursor-grab active:cursor-grabbing"
+                  }`}
                 >
                   {simPlans.map((plan) => (
                     <SliderCard key={plan.id} plan={plan} duration={simDuration} onBuyNow={handleBuyNow} />
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => scrollBy(1)}
-                  aria-label="Next"
-                  className="absolute -right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-md hover:bg-gray-50 md:flex dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  &#8250;
-                </button>
+                {hasOverflow && (
+                  <button
+                    type="button"
+                    onClick={() => handleScroll(1)}
+                    aria-label="Next plans"
+                    className="absolute -right-3 lg:-right-5 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-700 shadow-lg hover:bg-white hover:scale-105 active:scale-95 transition cursor-pointer dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  >
+                    <ChevronRight className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                )}
               </div>
             )}
 

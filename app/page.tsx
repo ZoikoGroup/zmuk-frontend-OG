@@ -631,36 +631,47 @@ function Plans() {
           </p>
         )}
 
-        {/* Plan cards */}
+        {/* Plan cards - perfectly aligned across tops, content, and buttons */}
         {!loading && !error && simPlans.length > 0 && (
-          <div className="mt-10 grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 items-stretch gap-6 md:grid-cols-2 lg:grid-cols-3">
             {simPlans.map((plan) => (
               <div
                 key={plan.id}
-                className={`relative flex flex-col rounded-2xl bg-white p-6 sm:p-7 dark:bg-gray-800 ${
+                className={`relative flex h-full flex-col rounded-2xl bg-white p-6 sm:p-7 dark:bg-gray-800 transition-shadow ${
                   plan.is_popular
-                    ? "border-2 border-[#e6007e] shadow-xl lg:-translate-y-3"
-                    : "border border-gray-200 shadow-sm dark:border-gray-700"
+                    ? "border-2 border-[#e6007e] shadow-xl"
+                    : "border border-gray-200 shadow-sm dark:border-gray-700 hover:shadow-md"
                 }`}
               >
                 {plan.is_popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#e6007e] px-4 py-1 text-xs font-semibold text-white">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#e6007e] px-4 py-1 text-xs font-semibold text-white shadow-sm">
                     Most Popular
                   </span>
                 )}
 
-                <span className="mx-auto rounded-full bg-[#fde4f2] px-4 py-1 text-xs font-semibold text-[#c4007a]">
-                  {plan.tier_label ?? plan.name}
-                </span>
+                {/* Tier Label / Plan Name (fixed min-height for uniform alignment) */}
+                <div className="flex min-h-[32px] items-center justify-center">
+                  <span className="rounded-full bg-[#fde4f2] px-4 py-1 text-xs font-semibold text-[#c4007a] text-center">
+                    {plan.tier_label ?? plan.name}
+                  </span>
+                </div>
 
-                {plan.data_allowance && (
-                  <p className="mt-5 text-center font-extrabold text-[#00a859] text-[clamp(1.75rem,4vw,2.25rem)]">
-                    {plan.data_allowance}
-                  </p>
-                )}
+                {/* Data Allowance (fixed height for uniform alignment) */}
+                <div className="mt-5 flex min-h-[48px] items-center justify-center">
+                  {plan.data_allowance ? (
+                    <p className="text-center font-extrabold text-[#00a859] text-[clamp(1.75rem,4vw,2.25rem)] leading-none">
+                      {plan.data_allowance}
+                    </p>
+                  ) : (
+                    <p className="text-center font-bold text-gray-400 text-lg">
+                      Data Plan
+                    </p>
+                  )}
+                </div>
 
-                <div className="mt-2 text-center">
-                  <span className="font-extrabold text-[#e6007e] text-[clamp(1.75rem,4vw,2.25rem)]">
+                {/* Price (fixed height for uniform alignment) */}
+                <div className="mt-2 flex min-h-[40px] items-baseline justify-center text-center">
+                  <span className="font-extrabold text-[#e6007e] text-[clamp(1.75rem,4vw,2.25rem)] leading-none">
                     £{priceFor(plan, duration)}
                   </span>
                   <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">
@@ -668,6 +679,7 @@ function Plans() {
                   </span>
                 </div>
 
+                {/* Features List (flex-1 to push button to exact bottom alignment) */}
                 <ul className="mt-6 flex flex-1 flex-col gap-3">
                   {bullets(plan).map((feat, i) => (
                     <li
@@ -680,13 +692,16 @@ function Plans() {
                   ))}
                 </ul>
 
-                <button
-                  type="button"
-                  onClick={() => handleBuyNow(plan)}
-                  className="mt-6 rounded-full bg-[#e6007e] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a]"
-                >
-                  Buy this plan
-                </button>
+                {/* Action Button (mt-auto ensures all buttons align at the exact bottom baseline) */}
+                <div className="mt-auto pt-6">
+                  <button
+                    type="button"
+                    onClick={() => handleBuyNow(plan)}
+                    className="w-full rounded-full bg-[#e6007e] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#c4007a] cursor-pointer"
+                  >
+                    Buy this plan
+                  </button>
+                </div>
               </div>
             ))}
           </div>
