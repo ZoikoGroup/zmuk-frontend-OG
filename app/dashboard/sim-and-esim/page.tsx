@@ -37,6 +37,16 @@ import {
 
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import SimOrderHistoryCard from "../components/SimOrderHistoryCard";
+import {
+  getMySimOrders,
+  SimOrder,
+  SimDetail,
+  SimEsimDetails,
+  findSimForLine,
+  formatUkDateTime as formatUkTimeUtc,
+  normalizeMsisdn,
+} from "../../services/simOrderHistoryApi";
 import {
   BoosterModal,
   ReportActivityModal,
@@ -197,6 +207,42 @@ export default function SimAndEsimPage() {
   const [reportOpen, setReportOpen] = useState<boolean>(false);
   const [comparePlansOpen, setComparePlansOpen] = useState<boolean>(false);
   const [pacModalOpen, setPacModalOpen] = useState<boolean>(false);
+  // ── SIM & eSIM Order History State (GET /api/v1/sims/my-orders/) ──
+  const [simOrders, setSimOrders] = useState<SimOrder[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState<boolean>(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+
+  // eSIM QR modal state (when user clicks "Show eSIM QR code" in the upper SIM history card)
+  const [selectedEsim, setSelectedEsim] = useState<{
+    esim: SimEsimDetails;
+    orderRef?: string;
+  } | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [revealCode, setRevealCode] = useState<boolean>(false);
+
+  const handleCopyEsim = (text: string, key: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }
+  };
+
+  const loadSimOrders = useCallback(async () => {
+    setIsOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      const res = await getMySimOrders();
+      setSimOrders(res);
+    } catch (err: any) {
+      if (err?.message !== "NOT_LOGGED_IN") {
+        setOrdersError("Could not load your SIM orders. Please check your connection.");
+      }
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  }, []);
+
   const [deviceNicknameModalOpen, setDeviceNicknameModalOpen] = useState<boolean>(false);
   const [tempDeviceNickname, setTempDeviceNickname] = useState<string>("");
   const [guideModal, setGuideModal] = useState<{
@@ -585,18 +631,22 @@ export default function SimAndEsimPage() {
 
   useEffect(() => {
     loadSimData();
-    const handleSync = () => loadSimData();
+    loadSimOrders();
+    const handleSync = () => {
+      loadSimData();
+      loadSimOrders();
+    };
     window.addEventListener("zoiko-booster-updated", handleSync);
     window.addEventListener("zoiko-auth", handleSync);
     return () => {
       window.removeEventListener("zoiko-booster-updated", handleSync);
       window.removeEventListener("zoiko-auth", handleSync);
     };
-  }, [loadSimData]);
+  }, [loadSimData, loadSimOrders]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await loadSimData();
+    await Promise.all([loadSimData(), loadSimOrders()]);
     setTimeout(() => {
       setIsRefreshing(false);
       showToast("SIM & eSIM status confirmed with network partner", "info");
@@ -632,6 +682,50 @@ export default function SimAndEsimPage() {
       currentLine.status !== "Inactive"
     );
   }, [currentLine]);
+
+  // ── Match current line to SIM Order History (GET /api/v1/sims/my-orders/) ──
+  const matchedOrderAndSim = useMemo(() => {
+    if (!simOrders || simOrders.length === 0) return null;
+    const targetNum = normalizeMsisdn(currentLine.number);
+    const targetIccidDigits = (currentLine.iccidMasked || "").replace(/\D/g, "");
+
+    for (const ord of simOrders) {
+      if (!Array.isArray(ord.sims)) continue;
+      for (const sim of ord.sims) {
+        if (targetNum && normalizeMsisdn(sim.msisdn) === targetNum) {
+          return { order: ord, sim };
+        }
+        if (
+          targetIccidDigits &&
+          sim.iccid &&
+          (sim.iccid.endsWith(targetIccidDigits) ||
+            targetIccidDigits.endsWith(sim.iccid.slice(-4)))
+        ) {
+          return { order: ord, sim };
+        }
+      }
+    }
+    // Fallback: If no direct MSISDN/ICCID match, connect to newest order's first SIM so customer sees confirmed events
+    if (simOrders[0]?.sims && simOrders[0].sims.length > 0) {
+      return { order: simOrders[0], sim: simOrders[0].sims[0] };
+    }
+    return null;
+  }, [simOrders, currentLine.number, currentLine.iccidMasked]);
+
+  const matchedSimFromOrders = useMemo(() => {
+    return matchedOrderAndSim?.sim || null;
+  }, [matchedOrderAndSim]);
+
+  const displaySimHistoryEvents = useMemo(() => {
+    if (matchedSimFromOrders?.events && matchedSimFromOrders.events.length > 0) {
+      return matchedSimFromOrders.events.map((ev, idx) => ({
+        id: `api-ev-${idx}-${ev.type}`,
+        title: ev.label,
+        subtitle: formatUkTimeUtc(ev.at),
+      }));
+    }
+    return currentLine.historyEvents || [];
+  }, [matchedSimFromOrders, currentLine.historyEvents]);
 
   // ── Action Handlers ──
   const handleTransferEsim = async (e: React.FormEvent) => {
@@ -951,6 +1045,30 @@ export default function SimAndEsimPage() {
             >
               Report lost or stolen
             </button>
+          </div>
+
+          {/* Quick jump to SIM Order History */}
+          <div className="flex items-center justify-between text-xs text-[#5E6E8C] pt-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-[#0D1935]">Quick access:</span>
+              <a
+                href="#order-history"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E5E8EF] rounded-full text-[#B8144A] hover:bg-[#FAF1F4] font-medium transition cursor-pointer shadow-2xs"
+              >
+                <span>SIM &amp; eSIM order history</span>
+                {simOrders.length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-[#FAF1F4] text-[#E01C5B] font-bold rounded-full text-[10px]">
+                    {simOrders.length}
+                  </span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </a>
+            </div>
+            {simOrders.length > 0 && (
+              <span className="text-[11px] text-[#5E6E8C] hidden sm:inline">
+                Latest order: <strong className="text-[#0D1935]">{simOrders[0].order_reference}</strong> ({simOrders[0].status_label})
+              </span>
+            )}
           </div>
 
           {/* Loading Skeleton */}
@@ -1489,28 +1607,72 @@ export default function SimAndEsimPage() {
                   </div>
                 </div>
 
-                {/* 2. SIM HISTORY CARD */}
+                {/* 2. SIM HISTORY CARD (Connected to GET /api/v1/sims/my-orders/) */}
                 <div className="p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start">
-                  <div className="pb-3 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                      <Clock className="w-5 h-5 text-[#E01C5B]" />
+                  <div className="pb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
+                        <Clock className="w-5 h-5 text-[#E01C5B]" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#0D1935] leading-6">
+                          SIM history
+                        </h3>
+                        <p className="text-xs text-[#5E6E8C] leading-5">
+                          Confirmed events only · UK time
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-[#0D1935] leading-6">
-                        SIM history
-                      </h3>
-                      <p className="text-xs text-[#5E6E8C] leading-5">
-                        Confirmed events only · UK time
-                      </p>
-                    </div>
+                    {/* Refresh SIM history button */}
+                    <button
+                      type="button"
+                      onClick={() => loadSimOrders()}
+                      title="Refresh SIM history"
+                      className="p-1.5 text-slate-400 hover:text-[#E01C5B] transition rounded-lg hover:bg-slate-50 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isOrdersLoading ? "animate-spin text-[#E01C5B]" : ""}`} />
+                    </button>
                   </div>
 
-                  {/* Timeline List */}
+                  {/* Connected Order reference badge if available */}
+                  {matchedOrderAndSim?.order && (
+                    <div className="mb-3 px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-[#0D1935] truncate">
+                        Order #{matchedOrderAndSim.order.order_reference}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 uppercase">
+                        {matchedOrderAndSim.order.status_label || matchedOrderAndSim.order.status}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Timeline List (Live from GET /api/v1/sims/my-orders/) */}
                   <div className="flex flex-col pt-1">
+                    {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
                     {currentLine.historyEvents.length > 0 ? (
                       currentLine.historyEvents.map((ev, index) => {
+                        const isLast = index === currentLine.historyEvents.length - 1;
+                        return (
+                          <div key={ev.id} className="pb-3 relative flex items-start gap-2.5">
+                            {!isLast && <div className="w-0.5 top-5 bottom-0 left-[9px] absolute bg-[#E5E8EF]" />}
+                            <div className="w-5 h-5 bg-[#16A34A] rounded-full flex items-center justify-center shrink-0 relative z-10">
+                              <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-bold text-[#0D1935] leading-5">{ev.title}</div>
+                              <div className="text-xs text-[#5E6E8C] leading-4">{ev.subtitle}</div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-xs text-[#5E6E8C] py-4">No confirmed SIM history events yet for this line.</div>
+                    )}
+                    */}
+                    {displaySimHistoryEvents.length > 0 ? (
+                      displaySimHistoryEvents.map((ev, index) => {
                         const isLast =
-                          index === currentLine.historyEvents.length - 1;
+                          index === displaySimHistoryEvents.length - 1;
                         return (
                           <div
                             key={ev.id}
@@ -1541,6 +1703,25 @@ export default function SimAndEsimPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Connected eSIM QR code action button if eSIM is ready */}
+                  {matchedSimFromOrders?.esim?.ready && (
+                    <div className="mt-2 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedEsim({
+                            esim: matchedSimFromOrders.esim!,
+                            orderRef: matchedOrderAndSim?.order?.order_reference,
+                          })
+                        }
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-[#E01C5B] bg-[#FAF1F4] hover:bg-[#F5E5EC] rounded-xl transition border border-[#E01C5B]/20 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>Show eSIM QR code</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. OTHER SETTINGS CARD */}
@@ -1707,6 +1888,19 @@ export default function SimAndEsimPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ── SIM & eSIM ORDER HISTORY SECTION (Integrated into upper SIM history card) ── */}
+              {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
+              <div className="pb-2">
+                <SimOrderHistoryCard
+                  orders={simOrders}
+                  isLoading={isOrdersLoading}
+                  error={ordersError}
+                  onRetry={loadSimOrders}
+                  onOpenComparePlans={() => setComparePlansOpen(true)}
+                />
+              </div>
+              */}
 
               {/* ── ROW 3: NEW SIM OR eSIM | SIM HELP AND GUIDES | NEED MORE HELP? ── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pb-6 items-stretch">
@@ -2482,6 +2676,153 @@ export default function SimAndEsimPage() {
                 className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c9144e] text-xs font-semibold text-white cursor-pointer"
               >
                 Contact support
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: eSIM Activation QR (Connected directly to SIM history card) ── */}
+      {selectedEsim && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#FAF1F4] flex items-center justify-center">
+                  <QrCode className="w-5 h-5 text-[#E01C5B]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0D1935]">
+                    eSIM Activation QR
+                  </h3>
+                  <p className="text-xs text-[#5E6E8C]">
+                    {selectedEsim.orderRef ? `Order #${selectedEsim.orderRef}` : "Scan with your phone camera"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEsim(null);
+                  setRevealCode(false);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* QR Image */}
+              {selectedEsim.esim.qr_image_url ? (
+                <div className="flex justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={selectedEsim.esim.qr_image_url}
+                    alt="eSIM Activation QR Code"
+                    className="w-48 h-48 object-contain rounded-lg bg-white p-2 shadow-sm"
+                  />
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200/80 rounded-2xl text-xs text-amber-800">
+                  QR image is being generated. You can use the manual activation code below.
+                </div>
+              )}
+
+              {/* SMDP Address */}
+              {selectedEsim.esim.smdp_address && (
+                <div>
+                  <label className="text-[11px] font-semibold text-[#5E6E8C] uppercase tracking-wider block mb-1">
+                    SM-DP+ Address
+                  </label>
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <span className="font-mono text-xs text-[#0D1935] flex-1 truncate">
+                      {selectedEsim.esim.smdp_address}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyEsim(selectedEsim.esim.smdp_address!, "smdp")}
+                      className="text-xs font-semibold text-[#E01C5B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === "smdp" ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" /> Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Activation Code / LPA */}
+              {(selectedEsim.esim.activation_code || selectedEsim.esim.lpa) && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-[#5E6E8C] uppercase tracking-wider">
+                      Activation Code (LPA)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setRevealCode(!revealCode)}
+                      className="text-[11px] font-semibold text-[#E01C5B] hover:underline cursor-pointer"
+                    >
+                      {revealCode ? "Mask" : "Reveal full"}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <span className="font-mono text-xs text-[#0D1935] flex-1 truncate">
+                      {revealCode
+                        ? (selectedEsim.esim.activation_code || selectedEsim.esim.lpa)
+                        : (selectedEsim.esim.activation_code || selectedEsim.esim.lpa)?.slice(0, 10) + "••••••••"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopyEsim(
+                          selectedEsim.esim.activation_code || selectedEsim.esim.lpa || "",
+                          "activation"
+                        )
+                      }
+                      className="text-xs font-semibold text-[#E01C5B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === "activation" ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" /> Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-3 bg-[#FAF1F4]/70 border border-[#E01C5B]/20 rounded-xl text-xs text-[#3B4A68] space-y-1">
+                <div className="font-semibold text-[#0D1935]">How to install:</div>
+                <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-[#5E6E8C]">
+                  <li>Open phone Settings &gt; Mobile Service (or Cellular).</li>
+                  <li>Tap &quot;Add eSIM&quot; or &quot;Use QR Code&quot;.</li>
+                  <li>Scan the code above while connected to Wi-Fi.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEsim(null);
+                  setRevealCode(false);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>
