@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import { getMySimOrders } from "../../services/simOrderHistoryApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const SECURITY_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE}/api/security/`;
@@ -322,6 +323,12 @@ export default function SecurityPage() {
           const userRes = await fetch(`${API_BASE}/api/accounts/dashboard/`, {
             headers: { Authorization: `Token ${storedToken}` },
           });
+          if (userRes.status === 401) {
+            localStorage.removeItem("zoiko_token");
+            localStorage.removeItem("zoiko_user");
+            window.location.href = "/login";
+            return;
+          }
           if (userRes.ok) {
             const backendUser = await userRes.json();
             if (backendUser && (backendUser.email || backendUser.username)) {
@@ -329,6 +336,12 @@ export default function SecurityPage() {
               try {
                 localStorage.setItem("zoiko_user", JSON.stringify(user));
               } catch {}
+              if (backendUser.last_password_change || backendUser.password_changed_at) {
+                setPasswordChangedAt(backendUser.last_password_change || backendUser.password_changed_at);
+              }
+              if (backendUser.last_login) {
+                persist("zoiko_session_started", backendUser.last_login);
+              }
             }
           }
         } catch {}
@@ -414,6 +427,34 @@ export default function SecurityPage() {
         } catch {}
       }
       if (!phone && user?.phone) setPhone(formatMsisdn(user.phone));
+
+      // Also check confirmed SIM orders from backend if numbersCount is still 0
+      if (storedToken) {
+        try {
+          const simOrders = await getMySimOrders();
+          if (Array.isArray(simOrders) && simOrders.length > 0) {
+            let simCount = 0;
+            let discoveredPhone = "";
+            let discoveredPlan = "";
+            for (const ord of simOrders) {
+              if (Array.isArray(ord.sims)) {
+                simCount += ord.sims.length;
+                for (const s of ord.sims) {
+                  if (!discoveredPhone && s.msisdn) {
+                    discoveredPhone = formatMsisdn(s.msisdn);
+                  }
+                }
+              }
+              if (!discoveredPlan && ord.items?.[0]?.name) {
+                discoveredPlan = ord.items[0].name;
+              }
+            }
+            setNumbersCount((prev) => (prev > 0 ? prev : simCount));
+            if (!phone && discoveredPhone) setPhone(discoveredPhone);
+            if (!planName && discoveredPlan) setPlanName(discoveredPlan);
+          }
+        } catch {}
+      }
 
       // 2FA - Two-factor authentication (Temporarily commented out)
       /*
@@ -982,12 +1023,14 @@ export default function SecurityPage() {
                 subtitle="Fix your details or object to a use"
                 onClick={() => router.push("/dashboard/support")}
               />
+              {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
               <Row
                 icon={Trash2}
                 title="Close your account"
                 subtitle="Options for your service, login and data"
                 onClick={() => setModal("close")}
               />
+              */}
             </div>
           </div>
 
@@ -1249,6 +1292,7 @@ export default function SecurityPage() {
         </Modal>
       )}
 
+      {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
       {modal === "close" && (
         <Modal title="Close your account" onClose={() => setModal(null)}>
           <p className="text-xs text-[#54617E] mb-4">
@@ -1273,6 +1317,7 @@ export default function SecurityPage() {
           </div>
         </Modal>
       )}
+      */}
     </div>
   );
 }

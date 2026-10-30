@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
 import beQuick from "../../utils/dasdbeQuickApi";
+import { getMySimOrders, formatUkDateTime } from "../../services/simOrderHistoryApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -97,6 +98,31 @@ export default function OrdersPage() {
                   });
                 }
               });
+            }
+          } catch {}
+        }
+
+        // 1b. Fetch from GET /api/v1/sims/my-orders/ (Closing Task 04 / Guide)
+        if (token) {
+          try {
+            const simOrders = await getMySimOrders();
+            if (Array.isArray(simOrders)) {
+              for (const so of simOrders) {
+                const alreadyExists = combinedOrders.some(
+                  (o) => String(o.id) === String(so.order_reference)
+                );
+                if (!alreadyExists) {
+                  combinedOrders.push({
+                    id: so.order_reference,
+                    created_at: formatUkDateTime(so.placed_at),
+                    description:
+                      so.items?.map((it) => it.name).join(", ") ||
+                      `${so.sims?.length || 1}x SIM Order`,
+                    total: "Confirmed",
+                    status: so.status || "completed",
+                  });
+                }
+              }
             }
           } catch {}
         }
