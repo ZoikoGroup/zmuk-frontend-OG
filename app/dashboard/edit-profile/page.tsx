@@ -412,7 +412,7 @@ export default function EditProfilePage() {
 
       // Backend profile fields (database-backed, no localStorage fallback)
       const pref = user?.preferred_name || resolved.first || "Member";
-      const phone = user?.phone_number || user?.phone || "";
+      const phone = user?.phone_number || "";
       setPreferredName(pref);
       setContactMobile(phone);
 

@@ -443,7 +443,7 @@ export default function Header() {
                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-rose-600 dark:group-hover:text-rose-400" />
                     </Link>
 
-                    <Link
+                    {/* <Link
                       href="/activate-your-sim"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
@@ -461,7 +461,7 @@ export default function Header() {
                         </div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-rose-600 dark:group-hover:text-rose-400" />
-                    </Link>
+                    </Link> */}
 
                     <Link
                       href="/30-day-plan"
