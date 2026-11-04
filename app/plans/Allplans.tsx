@@ -690,7 +690,7 @@ export function Allplans() {
                       </label>
 
                       <Link
-                        href={`/dashboard/compare-plans`}
+                        href={`/dashboard/compare-plans?plans=${plan.id}`}
                         className="text-[#E01C5B] hover:underline flex items-center gap-1 text-sm font-bold"
                       >
                         <span>Full plan details</span>
@@ -838,6 +838,36 @@ export function Allplans() {
           </div>
         </section>
       </main>
+
+      {/* Floating Compare Dock */}
+      {selectedForCompare.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#0D1935] text-white px-5 sm:px-6 py-3.5 rounded-2xl shadow-2xl flex items-center justify-between gap-4 sm:gap-6 border border-white/10 max-w-md w-[calc(100%-2rem)] animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-full bg-[#E01C5B] text-white text-xs font-bold flex items-center justify-center shrink-0">
+              {selectedForCompare.length}
+            </span>
+            <span className="text-xs sm:text-sm font-bold">
+              {selectedForCompare.length} plan{selectedForCompare.length > 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedForCompare([])}
+              className="text-xs text-slate-300 hover:text-white underline cursor-pointer"
+            >
+              Clear
+            </button>
+            <Link
+              href={`/dashboard/compare-plans?plans=${selectedForCompare.join(",")}`}
+              className="bg-[#E01C5B] hover:bg-[#c9144e] text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+            >
+              <span>Compare Plans</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

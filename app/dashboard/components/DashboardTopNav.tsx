@@ -104,13 +104,16 @@ export default function DashboardTopNav({
     } catch {}
   }, []);
 
-  const firstName = userName.split(" ")[0] || "Alex";
-  const initials = userName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase())
-    .join("") || "AM";
+  const isGeneric = !userName || userName.toLowerCase() === "account holder" || userName.toLowerCase() === "account";
+  const firstName = isGeneric ? "" : (userName.split(" ")[0] || "");
+  const initials = isGeneric
+    ? "ZM"
+    : (userName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((n) => n[0]?.toUpperCase())
+        .join("") || "ZM");
 
   const notifications: {
     id: number;
@@ -220,7 +223,7 @@ export default function DashboardTopNav({
       {/* Left: Greeting & Date (or Custom Title & Subtitle) */}
       <div className="flex flex-col gap-1 w-full lg:max-w-[480px] min-w-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0D1935] leading-tight tracking-tight break-words">
-          {customTitle || `${greeting}, ${firstName}`}
+          {customTitle || (firstName ? `${greeting}, ${firstName}` : greeting)}
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs sm:text-sm lg:text-base text-[#3B4866] font-normal leading-5">

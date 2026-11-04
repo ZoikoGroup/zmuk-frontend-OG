@@ -43,6 +43,16 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
 import {
+  getLines,
+  submitClaim,
+  getClaims,
+  submitPort,
+  LinesResponse,
+  AddLineOrder,
+  Line,
+  PortRequest,
+} from "../add-new-number/addLineApi";
+import {
   getFallbackUserLine,
   getBoosterSummary,
   recordBoosterPurchase,
@@ -71,6 +81,9 @@ export interface MobileNumberLine {
   callsLabel: string;
   textsLabel: string;
   roamingIncluded: boolean;
+  port_request?: PortRequest | null;
+  source?: "add_line" | "legacy_claim";
+  order_reference?: string | null;
 }
 
 export interface LineUsageMetrics {
@@ -164,6 +177,15 @@ export default function MyMobileNumbersPage() {
   const [lines, setLines] = useState<MobileNumberLine[]>([]);
   const [activeLineId, setActiveLineId] = useState<string>("");
   const [usageMetrics, setUsageMetrics] = useState<Record<string, LineUsageMetrics>>({});
+  const [capacity, setCapacity] = useState<{ used: number; limit: number; remaining: number } | null>(null);
+  const [pendingOrders, setPendingOrders] = useState<AddLineOrder[]>([]);
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimIccid, setClaimIccid] = useState("");
+  const [claimMsisdn, setClaimMsisdn] = useState("");
+  const [claimOrderRef, setClaimOrderRef] = useState("");
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+  const [claimMessage, setClaimMessage] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   // ── Dynamic Account Billing ──
   const [nextCollectionAmount, setNextCollectionAmount] = useState<number>(0);
@@ -298,6 +320,74 @@ export default function MyMobileNumbersPage() {
       }
 
       let foundSubscriberId: string | number | null = userData?.subscriber_id || null;
+
+      // 0. Primary Source of Truth: Fetch lines and pending orders from /api/v1/lines/ (§10)
+      if (token) {
+        try {
+          const linesData = await getLines();
+          if (linesData) {
+            setCapacity(linesData.capacity);
+            setPendingOrders(linesData.pending_orders || []);
+
+            if (Array.isArray(linesData.lines) && linesData.lines.length > 0) {
+              const mappedLines: MobileNumberLine[] = linesData.lines.map((l: Line, idx: number) => {
+                const rawM = l.msisdn || "";
+                const formatted = rawM
+                  ? (rawM.startsWith("44") ? "0" + rawM.slice(2) : rawM)
+                  : "Number on its way";
+                const numWithSpace =
+                  formatted.length === 11 && formatted.startsWith("0")
+                    ? `${formatted.slice(0, 5)} ${formatted.slice(5)}`
+                    : formatted;
+
+                const stLabel =
+                  l.status === "pending_activation"
+                    ? "Setting up"
+                    : l.status === "active"
+                    ? "Active"
+                    : l.status === "suspended"
+                    ? "Suspended"
+                    : "Closed";
+
+                return {
+                  id: l.id,
+                  number: numWithSpace,
+                  planName: l.plan?.name || "Zoiko SIM Plan",
+                  simType: l.sim?.type === "esim" ? "eSIM" : "Physical SIM",
+                  status: stLabel,
+                  renewDate: "Monthly renewal",
+                  activationDate: l.activated_at
+                    ? new Date(l.activated_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Pending",
+                  contractType: l.term ? `${l.term} Plan` : "Monthly Rolling",
+                  networkTechnology: "5G",
+                  price: l.plan?.price != null ? Number(l.plan.price) : 0,
+                  isPrimary: idx === 0,
+                  callsLabel: "Unlimited",
+                  textsLabel: "Unlimited",
+                  roamingIncluded: true,
+                  port_request: l.port_request,
+                  source: l.source,
+                  order_reference: l.order_reference,
+                };
+              });
+
+              setLines(mappedLines);
+              if (mappedLines[0]) {
+                setActiveLineId(mappedLines[0].id);
+              }
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Could not query /api/v1/lines/:", err);
+        }
+      }
 
       // 1. Check Django bqorders for subscriber_id & latest payment
       if (token && email) {
@@ -775,24 +865,6 @@ export default function MyMobileNumbersPage() {
           if (sumPrices > 0) {
             setNextCollectionAmount(Number(sumPrices.toFixed(2)));
           }
-
-          // Merge any user added lines from Add New Number wizard
-          try {
-            const storedAdded = localStorage.getItem("zoiko_added_lines");
-            if (storedAdded) {
-              const parsedAdded: MobileNumberLine[] = JSON.parse(storedAdded);
-              if (Array.isArray(parsedAdded) && parsedAdded.length > 0) {
-                const existingIds = new Set(combined.map((p) => p.id));
-                const existingNumbers = new Set(combined.map((p) => p.number.replace(/\D/g, "")));
-                const toAdd = parsedAdded.filter(
-                  (l) => !existingIds.has(l.id) && !existingNumbers.has(l.number.replace(/\D/g, ""))
-                );
-                if (toAdd.length > 0) {
-                  return [...combined, ...toAdd];
-                }
-              }
-            }
-          } catch {}
 
           return combined;
         }

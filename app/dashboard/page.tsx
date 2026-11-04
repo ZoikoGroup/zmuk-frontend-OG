@@ -570,38 +570,6 @@ export default function DashboardPage() {
           return [primaryLine];
         }
 
-        // Merge any user added lines from Add New Number wizard
-        try {
-          const storedAdded = localStorage.getItem("zoiko_added_lines");
-          if (storedAdded) {
-            const parsedAdded = JSON.parse(storedAdded);
-            if (Array.isArray(parsedAdded) && parsedAdded.length > 0) {
-              const existingIds = new Set(current.map((p) => p.id));
-              const existingNumbers = new Set(current.map((p) => p.number.replace(/\D/g, "")));
-              const toAdd = parsedAdded.filter(
-                (l: any) => !existingIds.has(l.id) && !existingNumbers.has(l.number.replace(/\D/g, ""))
-              );
-              if (toAdd.length > 0) {
-                setDataMetrics((prevMetrics) => {
-                  const updated = { ...prevMetrics };
-                  toAdd.forEach((line: any) => {
-                    if (!updated[line.id]) {
-                      const gb = line.planGb || (line.planName.toLowerCase().includes("unlimited") ? 100 : 30);
-                      updated[line.id] = {
-                        total: gb,
-                        remaining: gb,
-                        used: 0,
-                      };
-                    }
-                  });
-                  return updated;
-                });
-                return [...current, ...toAdd];
-              }
-            }
-          }
-        } catch {}
-
         return current;
       });
 
