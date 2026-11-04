@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Clock,
   RotateCw,
@@ -100,7 +100,7 @@ function mapApiPlanToItem(p: any): PlanItem {
   const gb = parseGb(rawDataAllowance, p.name || "");
   const formattedData = formatDataAllowance(rawDataAllowance, p.name || "");
 
-  const priceNum = Number(p.final_price ?? p.sale_price ?? p.price_30 ?? p.price ?? 19.99);
+  const priceNum = Number(p.final_price ?? p.sale_price ?? p.price_30 ?? p.price ?? 0);
   const standardPrice = Number(p.price ?? priceNum);
   const isDiscounted = standardPrice > priceNum;
 
@@ -112,30 +112,26 @@ function mapApiPlanToItem(p: any): PlanItem {
   const desc = String(p.short_description || p.description || "").toLowerCase();
   const allText = [p.name, p.tier_label, desc, ...featuresList].join(" ").toLowerCase();
 
-  const is5G = allText.includes("5g") || p.is_5g === true || true;
+  const is5G = allText.includes("5g") || p.is_5g === true;
 
+  const roamingFeature = featuresList.find((f) => f.toLowerCase().includes("roaming"));
   const roamingIncluded =
-    allText.includes("roaming") &&
-    !allText.includes("no roaming") &&
-    !allText.includes("roaming not included");
+    !!roamingFeature ||
+    (allText.includes("roaming") &&
+      !allText.includes("no roaming") &&
+      !allText.includes("roaming not included"));
 
-  const roamingStr = roamingIncluded
-    ? featuresList.find((f) => f.toLowerCase().includes("roaming")) || "Included in 8 EU countries"
-    : "Not included";
+  const roamingStr = roamingFeature || (roamingIncluded ? "EU roaming included" : "Not included");
 
   const roamingDetailsStr = roamingIncluded
-    ? "15 GB fair use"
-    : "EU Day Pass £2.50 per day used";
+    ? "Fair use policy applies"
+    : "EU Day Pass available";
 
-  const hasCalls = allText.includes("call");
-  const callsStr = hasCalls
-    ? allText.includes("unlimited") ? "Unlimited UK calls" : (featuresList.find((f) => f.toLowerCase().includes("call")) || "Unlimited UK calls")
-    : "Unlimited UK calls";
+  const callsFeature = featuresList.find((f) => f.toLowerCase().includes("call"));
+  const callsStr = callsFeature || "Unlimited UK calls";
 
-  const hasTexts = allText.includes("text");
-  const textsStr = hasTexts
-    ? allText.includes("unlimited") ? "Unlimited UK texts" : (featuresList.find((f) => f.toLowerCase().includes("text")) || "Unlimited UK texts")
-    : "Unlimited UK texts";
+  const textsFeature = featuresList.find((f) => f.toLowerCase().includes("text"));
+  const textsStr = textsFeature || "Unlimited UK texts";
 
   const tier: "5G" | "4G" = is5G ? "5G" : "4G";
 
@@ -163,62 +159,6 @@ function mapApiPlanToItem(p: any): PlanItem {
   };
 }
 
-const DEFAULT_PLANS: PlanItem[] = [
-  {
-    id: "plan-max",
-    name: "Zoiko Max 30GB",
-    shortName: "Zoiko Max",
-    tier: "5G",
-    subtitle: "More data and EU roaming",
-    price: 19.99,
-    billingCycle: "a month",
-    dataAllowance: "30 GB",
-    dataAmountGb: 30,
-    calls: "Unlimited UK calls",
-    texts: "Unlimited UK texts",
-    roaming: "Included in 8 EU countries",
-    roamingDetails: "15 GB fair use",
-    is5G: true,
-    terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
-  },
-  {
-    id: "plan-lite",
-    name: "Zoiko Lite 10GB",
-    shortName: "Zoiko Lite",
-    tier: "4G",
-    subtitle: "For lighter use",
-    price: 9.99,
-    billingCycle: "a month",
-    dataAllowance: "10 GB",
-    dataAmountGb: 10,
-    calls: "Unlimited UK calls",
-    texts: "Unlimited UK texts",
-    roaming: "Not included",
-    roamingDetails: "EU Day Pass £2.50 per day used",
-    is5G: false,
-    terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
-  },
-  {
-    id: "plan-unlimited",
-    name: "Zoiko Unlimited",
-    shortName: "Zoiko Unlimited",
-    tier: "5G",
-    subtitle: "For heavy data users",
-    price: 19.99,
-    billingCycle: "a month",
-    promoSubtext: "for 3 months, then £24.99 a month",
-    promoNotice: computeDynamicPromoNotice(),
-    dataAllowance: "Unlimited",
-    dataAmountGb: 999,
-    dataDetails: "Fair use policy applies",
-    calls: "Unlimited UK calls",
-    texts: "Unlimited UK texts",
-    roaming: "Included in 8 EU countries",
-    roamingDetails: "15 GB fair use",
-    is5G: true,
-    terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
-  },
-];
 
 function computeDynamicRenewalDate(dateStr?: string | Date): string {
   const base = dateStr ? new Date(dateStr) : new Date();
@@ -315,6 +255,7 @@ function resolveUserNames(user: any) {
 
 export default function ComparePlansPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Layout & Sidebar
   const [activeTab, setActiveTab] = useState("compare-plans");
@@ -342,7 +283,7 @@ export default function ComparePlansPage() {
   });
 
   // Plans & Lines
-  const [plans, setPlans] = useState<PlanItem[]>(DEFAULT_PLANS);
+  const [plans, setPlans] = useState<PlanItem[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [lines, setLines] = useState<UserLine[]>(() => {
     if (typeof window === "undefined") return [];
@@ -385,6 +326,20 @@ export default function ComparePlansPage() {
 
   // Selected compare checkboxes (IDs of additional plans selected to compare with current plan)
   const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([]);
+
+  // Pre-populate compare checkboxes from URL query (?plans=1,2 or ?plan=1)
+  useEffect(() => {
+    const planQuery = searchParams?.get("plans") || searchParams?.get("plan");
+    if (planQuery) {
+      const ids = planQuery
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (ids.length > 0) {
+        setSelectedCompareIds(ids.slice(0, 2));
+      }
+    }
+  }, [searchParams]);
 
   // Modals
   const [modal, setModal] = useState<
@@ -638,16 +593,34 @@ export default function ComparePlansPage() {
   }, [lines, selectedLineId, plans]);
 
   // Current active plan object for this line
-  const currentPlan = useMemo(() => {
-    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
-    let found = list.find(
+  const currentPlan = useMemo((): PlanItem => {
+    if (plans.length === 0) {
+      return {
+        id: currentLine.planId || "loading",
+        name: currentLine.planName || "Current Plan",
+        shortName: currentLine.planName || "Current Plan",
+        tier: "5G",
+        subtitle: "Flexible mobile plan",
+        price: 0,
+        billingCycle: "a month",
+        dataAllowance: "Loading...",
+        dataAmountGb: 0,
+        calls: "Unlimited UK calls",
+        texts: "Unlimited UK texts",
+        roaming: "Roaming available",
+        roamingDetails: "",
+        is5G: true,
+        terms: "Monthly rolling · no exit fee",
+      };
+    }
+    let found = plans.find(
       (p) =>
         p.id === currentLine.planId ||
         p.name.toLowerCase() === currentLine.planName.toLowerCase()
     );
     if (!found) {
       const lower = currentLine.planName.toLowerCase();
-      found = list.find((p) => {
+      found = plans.find((p) => {
         const pLower = p.name.toLowerCase();
         if (lower.includes("unlimited") && pLower.includes("unlimited")) return true;
         if (lower.includes("max") && pLower.includes("max")) return true;
@@ -655,7 +628,7 @@ export default function ComparePlansPage() {
         return false;
       });
     }
-    return found || list[0] || DEFAULT_PLANS[0];
+    return found || plans[0];
   }, [plans, currentLine]);
 
   // Dynamic average data usage for this line based on storage or plan baseline
@@ -674,18 +647,17 @@ export default function ComparePlansPage() {
 
   // Dynamic recommendation based on actual usage
   const recommendedPlan = useMemo(() => {
-    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
-    if (list.length <= 1) return list[0] || DEFAULT_PLANS[0];
+    if (plans.length === 0) return currentPlan;
+    if (plans.length <= 1) return plans[0];
 
-    const sorted = [...list].sort((a, b) => a.dataAmountGb - b.dataAmountGb);
+    const sorted = [...plans].sort((a, b) => a.dataAmountGb - b.dataAmountGb);
     const suitable = sorted.find((p) => p.dataAmountGb >= averageUsageGb * 1.2);
     return suitable || sorted[sorted.length - 1];
-  }, [plans, averageUsageGb]);
+  }, [plans, averageUsageGb, currentPlan]);
 
   // Filter non-current plans
   const filteredOtherPlans = useMemo(() => {
-    const list = plans.length > 0 ? plans : DEFAULT_PLANS;
-    return list.filter((p) => {
+    return plans.filter((p) => {
       if (p.id === currentPlan.id) return false;
 
       // Data filter

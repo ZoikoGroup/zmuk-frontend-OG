@@ -17,8 +17,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zoiko Mobile",
+  title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
   description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  openGraph: {
+    title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
+    description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
+    description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  },
 };
 
 export default function RootLayout({
