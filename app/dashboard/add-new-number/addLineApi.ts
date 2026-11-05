@@ -147,6 +147,7 @@ export interface AddLineOrder {
   line: OrderLine | null;
   created_at: string;
   paid_at: string | null;
+  payment_error: { code: string; message: string; at: string } | null;
 }
 
 export type PortStatus =

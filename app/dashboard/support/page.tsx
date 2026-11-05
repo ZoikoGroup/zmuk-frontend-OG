@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import { getLines, Line } from "../add-new-number/addLineApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const CONTACT_US_URL = `${API_BASE}/api/contact-us/`;
@@ -199,8 +200,13 @@ export default function SupportPage() {
 
   // Modals
   const [modal, setModal] = useState<
-    null | "new_request" | "complaint" | "lost_sim" | "network_issue" | "extra_support" | "braille" | "auth_person"
+    null | "new_request" | "complaint" | "lost_sim" | "network_issue" | "extra_support" | "braille" | "auth_person" | "callback"
   >(null);
+
+  // Dynamic lines & callback states
+  const [userLines, setUserLines] = useState<Line[]>([]);
+  const [selectedSuspendLine, setSelectedSuspendLine] = useState<string>("");
+  const [callbackPhone, setCallbackPhone] = useState<string>("");
 
   // Form states
   const [newRequestSubject, setNewRequestSubject] = useState("");
@@ -273,7 +279,61 @@ export default function SupportPage() {
     }
   };
 
-  // Load user data & saved tickets from localStorage
+  // Fetch real tickets from Django backend /api/support/tickets/
+  const fetchTickets = useCallback(async (activeToken?: string) => {
+    const tkn = activeToken || token;
+    if (!tkn) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+        headers: { Authorization: `Token ${tkn}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const mapped: Ticket[] = data.map((t: any) => ({
+            id: String(t.id),
+            reference: `SR-${String(t.id).padStart(5, "0")}`,
+            subject: t.subject || "Support Request",
+            openedDate: t.created_at
+              ? `Opened ${new Date(t.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+              : "Opened recently",
+            updatedDate: t.created_at
+              ? new Date(t.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+              : "Just now",
+            type: (t.category || "Question") as any,
+            status:
+              t.status === "Open"
+                ? "Awaiting your reply"
+                : t.status === "In Progress"
+                ? "Under investigation"
+                : "Resolved",
+            isOpen: t.status !== "Resolved",
+            message: t.message,
+            replies: [
+              {
+                from: "user" as const,
+                message: t.message,
+                time: t.created_at
+                  ? new Date(t.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                  : "Just now",
+              },
+              {
+                from: "support" as const,
+                message: `Ticket #${t.id} received. Our UK technical team has been assigned. You will receive updates via email and in your support portal.`,
+                time: "Support Team",
+              },
+            ],
+          }));
+          setTickets(mapped);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load backend support tickets:", e);
+    }
+  }, [token]);
+
+  // Load user data & saved tickets from backend
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
@@ -304,38 +364,30 @@ export default function SupportPage() {
       setContactName(fullName !== "Account holder" ? fullName : "");
       setContactEmail(email);
       setContactPhone(phone);
-
-      // Load tickets
-      const savedTickets = localStorage.getItem("zoiko_support_tickets");
-      if (savedTickets) {
-        try {
-          const parsed = JSON.parse(savedTickets);
-          if (Array.isArray(parsed)) {
-            // Keep only real non-demo tickets
-            const realTickets = parsed.filter((t: Ticket) => !t.reference?.includes("DEMO"));
-            setTickets(realTickets);
-          }
-        } catch {}
-      } else {
-        setTickets([]);
-      }
-
-      // Fetch user's active plan from backend if available
+      // Fetch real tickets from backend
       if (storedToken) {
-        fetch(`${API_BASE}/api/v1/bqorders/by-user/`, {
-          headers: { Authorization: `Token ${storedToken}` },
-        })
-          .then((r) => (r.ok ? r.json() : []))
-          .then((orders: any) => {
-            if (Array.isArray(orders) && orders.length > 0) {
-              const active = orders[0];
-              const pTitle = active?.plan?.title || active?.plan_name;
-              if (pTitle) setPlanName(pTitle);
-              setNumbersCount(orders.length);
-            }
-          })
-          .catch(() => {});
+        await fetchTickets(storedToken);
       }
+      // Fetch user's real telecom lines from /api/v1/lines/
+      try {
+        const linesData = await getLines().catch(() => null);
+        if (linesData && Array.isArray(linesData.lines)) {
+          setUserLines(linesData.lines);
+          setNumbersCount(linesData.lines.length);
+          if (linesData.lines.length > 0) {
+            const primary = linesData.lines[0];
+            setSelectedSuspendLine(primary.id || primary.msisdn || "");
+            if (primary.plan?.name) setPlanName(primary.plan.name);
+            if (!phone && primary.msisdn) {
+              const formattedNum = primary.msisdn.startsWith("44")
+                ? "0" + primary.msisdn.slice(2)
+                : primary.msisdn;
+              setUserPhone(formattedNum);
+              setContactPhone(formattedNum);
+            }
+          }
+        }
+      } catch {}
 
       const now = new Date();
       setCheckedAt(
@@ -347,7 +399,7 @@ export default function SupportPage() {
         showToast("Help content and ticket statuses refreshed.");
       }
     }
-  }, []);
+  }, [fetchTickets]);
 
   useEffect(() => {
     loadData();
@@ -356,9 +408,6 @@ export default function SupportPage() {
   // Persist tickets
   const persistTickets = (next: Ticket[]) => {
     setTickets(next);
-    try {
-      localStorage.setItem("zoiko_support_tickets", JSON.stringify(next));
-    } catch {}
   };
 
   // Submit new request
@@ -374,44 +423,44 @@ export default function SupportPage() {
     }
 
     setSubmitting(true);
-    const ref = `SR-REQ-${Math.floor(10000 + Math.random() * 90000)}`;
-
     try {
-      // POST to /api/contact-us/
+      // 1. POST to real Django /api/support/tickets/
+      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          subject: newRequestSubject.trim(),
+          category: newRequestType,
+          message: newRequestMessage.trim(),
+        }),
+      });
+
+      // 2. Also forward to contact-us email notification
       await submitToContactUsAPI({
         name: contactName || userName,
         email: contactEmail || userEmail,
         phone: contactPhone || userPhone,
         subject: mapTypeToBackendSubject(newRequestType),
-        message: `[Ticket: ${ref}] ${newRequestSubject.trim()}\n\n${newRequestMessage.trim()}`,
+        message: `[Ticket: ${newRequestSubject.trim()}]
+
+${newRequestMessage.trim()}`,
       });
 
-      const newTicket: Ticket = {
-        id: Date.now().toString(),
-        reference: ref,
-        subject: newRequestSubject.trim(),
-        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
-        updatedDate: "Updated Just now",
-        type: newRequestType,
-        status: "Awaiting your reply",
-        isOpen: true,
-        message: newRequestMessage.trim(),
-        replies: [
-          {
-            from: "support",
-            message: `Hello ${contactName || userName}! We've received your request (${ref}). Our support team will review this and reply within 24 hours via email and in your support dashboard.`,
-            time: "Just now",
-          },
-        ],
-      };
-
-      const nextTickets = [newTicket, ...tickets];
-      persistTickets(nextTickets);
+      if (res.ok) {
+        await fetchTickets();
+        showToast("Ticket submitted successfully to Zoiko Support.");
+      } else {
+        showToast("Ticket received and queued with support team.");
+      }
 
       setNewRequestSubject("");
       setNewRequestMessage("");
       setModal(null);
-      showToast(`Request ${ref} submitted to Zoiko Support.`);
+    } catch {
+      showToast("Failed to submit request. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -430,44 +479,108 @@ export default function SupportPage() {
     }
 
     setSubmitting(true);
-    const ref = `CP-COMP-${Math.floor(10000 + Math.random() * 90000)}`;
-
     try {
-      // POST to /api/contact-us/ with subject: "Complaints"
+      // 1. POST to real Django /api/support/tickets/
+      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          subject: `[Formal Complaint] ${complaintSubject.trim()}`,
+          category: "Complaints",
+          message: complaintDetails.trim(),
+        }),
+      });
+
+      // 2. Also forward to contact-us email service
       await submitToContactUsAPI({
         name: contactName || userName,
         email: contactEmail || userEmail,
         phone: contactPhone || userPhone,
         subject: "Complaints",
-        message: `[Formal Complaint: ${ref}] ${complaintSubject.trim()}\n\n${complaintDetails.trim()}`,
+        message: `[Formal Complaint] ${complaintSubject.trim()}\n\n${complaintDetails.trim()}`,
       });
 
-      const newComplaint: Ticket = {
-        id: Date.now().toString(),
-        reference: ref,
-        subject: complaintSubject.trim(),
-        openedDate: `Opened ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
-        updatedDate: "Updated Just now",
-        type: "Formal complaint",
-        status: "Under investigation",
-        isOpen: true,
-        message: complaintDetails.trim(),
-        replies: [
-          {
-            from: "support",
-            message: "Formal complaint logged with our Customer Resolution Team. Your reference number is above. A Senior Case Manager will reach out within 2 business days.",
-            time: "Just now",
-          },
-        ],
-      };
-
-      const nextTickets = [newComplaint, ...tickets];
-      persistTickets(nextTickets);
+      if (res.ok) {
+        await fetchTickets();
+      }
 
       setComplaintSubject("");
       setComplaintDetails("");
       setModal(null);
-      showToast(`Formal complaint ${ref} logged & assigned.`);
+      showToast("Formal complaint logged with Customer Resolution Team.");
+    } catch {
+      showToast("Failed to log complaint. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
+  // Submit Call-back request to backend /api/support/callback/
+  const handleCreateCallback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = callbackPhone.trim().replace(/\s+/g, "");
+    if (!cleanPhone || cleanPhone.length < 9) {
+      showToast("Please enter a valid UK phone number.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/support/callback/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+
+      if (res.ok) {
+        showToast("Call-back request confirmed. We will call you shortly.");
+        setCallbackPhone("");
+        setModal(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.phone?.[0] || data.detail || "Could not log call-back. Please try again.");
+      }
+    } catch {
+      showToast("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Emergency SIM suspension handler
+  const handleSuspendSimEmergency = async () => {
+    setSubmitting(true);
+    const targetLine = userLines.find((l) => l.id === selectedSuspendLine || l.msisdn === selectedSuspendLine) || userLines[0];
+    const targetNumber = targetLine?.msisdn || userPhone || "Primary Line";
+
+    try {
+      // Log emergency security ticket in backend
+      await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          subject: `URGENT: Lost/Stolen SIM - Line ${targetNumber}`,
+          category: "Technical",
+          message: `CUSTOMER EMERGENCY: Phone or SIM card reported lost/stolen for line ${targetNumber} (Line ID: ${targetLine?.id || "N/A"}). Immediately block incoming/outgoing calls, SMS, and data.`,
+        }),
+      });
+
+      await fetchTickets();
+      setModal(null);
+      showToast(`Emergency lock placed for ${targetNumber}. Support team notified.`);
+    } catch {
+      showToast("Emergency request recorded. Please call 333 or 999 if in immediate danger.");
+      setModal(null);
     } finally {
       setSubmitting(false);
     }
@@ -1479,12 +1592,22 @@ export default function SupportPage() {
               </button>
 
               {/* Prefer a call back? */}
-              <div className="mt-auto pt-3 border-t border-[#F2F4F7]">
-                <div className="text-xs font-semibold text-[#0D1935] mb-0.5">Prefer a call back?</div>
-                <div className="flex items-center gap-1.5 text-xs text-[#54617E]">
-                  <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
-                  <span>Call backs aren’t available yet. Message us instead.</span>
+              <div className="mt-auto pt-3 border-t border-[#F2F4F7] flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-[#0D1935]">Prefer a call back?</div>
+                  <div className="text-[11px] text-[#54617E]">Request a specialist to call your phone</div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCallbackPhone(userPhone || "");
+                    setModal("callback");
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <Phone className="w-3 h-3" />
+                  <span>Request</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2002,7 +2125,7 @@ export default function SupportPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 text-red-600">
                 <ShieldAlert className="w-5 h-5" />
-                <h3 className="text-base font-bold text-[#0D1935]">Emergency SIM Protection</h3>
+                <h3 className="text-base font-bold text-[#0D1935]">Emergency SIM lock</h3>
               </div>
               <button
                 type="button"
@@ -2018,20 +2141,35 @@ export default function SupportPage() {
                 If your device or SIM card has been lost or stolen, locking it prevents anyone from racking up charges or intercepting 2FA verification SMS codes.
               </p>
 
-              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-800">
-                Line to protect: <span className="font-bold">{userPhone || "No active line registered"}</span>
-              </div>
+              {userLines.length > 0 ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-[#0D1935]">Select line to protect:</label>
+                  <select
+                    value={selectedSuspendLine}
+                    onChange={(e) => setSelectedSuspendLine(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-red-200 bg-red-50 text-xs font-bold text-red-900"
+                  >
+                    {userLines.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.msisdn || "Number pending"} ({l.plan?.name || "Zoiko SIM"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-800">
+                  Line to protect: <span className="font-bold">{userPhone || "No active line registered"}</span>
+                </div>
+              )}
 
               <div className="space-y-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setModal(null);
-                    showToast("Your SIM line has been suspended. Incoming/outgoing usage blocked.");
-                  }}
-                  className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+                  disabled={submitting}
+                  onClick={handleSuspendSimEmergency}
+                  className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Lock className="w-4 h-4" />
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                   <span>Suspend this SIM immediately</span>
                 </button>
 

@@ -34,6 +34,13 @@ import StripePaymentForm, { StripePaymentFormRef } from "@/app/components/Stripe
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
 import {
+  validateUkMobile,
+  validateEmail,
+  validateUkPostcode,
+  validatePacCode,
+  validateStacCode,
+} from "@/app/utils/validators";
+import {
   getEligibility,
   checkPac,
   getQuote,
@@ -78,6 +85,33 @@ function formatUk(m: string | null | undefined): string {
   const raw = String(m).replace(/\D/g, "");
   const local = raw.startsWith("44") ? "0" + raw.slice(2) : raw;
   return local.length === 11 ? `${local.slice(0, 5)} ${local.slice(5)}` : local;
+}
+
+function validateTransferDate(dateStr: string): { isValid: boolean; warning?: string; error?: string } {
+  if (!dateStr) return { isValid: true };
+  const d = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  if (d < now) {
+    return { isValid: false, error: "Preferred transfer date cannot be in the past." };
+  }
+
+  const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays > 30) {
+    return { isValid: false, error: "Preferred transfer date must be within 30 days." };
+  }
+
+  const dayOfWeek = d.getDay(); // 0 = Sunday, 6 = Saturday
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return {
+      isValid: true,
+      warning:
+        "UK network transfers take place on working days (Mon–Fri). If you choose a weekend, the transfer will take place on the next working day.",
+    };
+  }
+
+  return { isValid: true };
 }
 
 function AddNewNumberContent() {
@@ -125,6 +159,9 @@ function AddNewNumberContent() {
   const [portChecking, setPortChecking] = useState<boolean>(false);
   const [portCheckError, setPortCheckError] = useState<string | null>(null);
   const [portFormatOkMessage, setPortFormatOkMessage] = useState<string | null>(null);
+  const [portNumberError, setPortNumberError] = useState<string | null>(null);
+  const [portCodeError, setPortCodeError] = useState<string | null>(null);
+  const [portDateError, setPortDateError] = useState<string | null>(null);
   const [addCodeLater, setAddCodeLater] = useState<boolean>(false);
 
   // ── Step 4: SIM Type ──
@@ -165,6 +202,7 @@ function AddNewNumberContent() {
   const [orderReference, setOrderReference] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>("0.00");
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
   const formRef = useRef<StripePaymentFormRef>(null);
 
   // ── Step 7 & 8: Activation & Polling ──
@@ -220,12 +258,22 @@ function AddNewNumberContent() {
 
       if (refToResume) {
         setOrderReference(refToResume);
-        setStep(7);
         try {
           const ord = await confirmOrder(refToResume).catch(() => getOrder(refToResume));
-          if (active) setOrder(ord);
+          if (active) {
+            setOrder(ord);
+            // v1.1: If returning after a card decline, stay on Step 6 with error notice
+            if (ord.payment_status === "pending" && ord.payment_error) {
+              setStep(6);
+              setPaymentNotice(ord.payment_error.message);
+            } else if (ord.fulfilment_status === "cancelled") {
+              setStep(8);
+            } else {
+              setStep(7);
+            }
+          }
         } catch {
-          // fallback to polling
+          if (active) setStep(7);
         }
       }
 
@@ -301,12 +349,23 @@ function AddNewNumberContent() {
           plan_id: selectedPlanId,
           term,
           sim_type: simType,
-          promo_code: promoToUse ?? appliedPromoCode,
+          promo_code: promoToUse !== undefined ? promoToUse : appliedPromoCode,
         });
         setQuoteResponse(resp);
       } catch (err: any) {
         if (promoToUse) {
-          setPromoError(err.message || "Promo code not eligible.");
+          setPromoError("Promo code is not available.");
+          setAppliedPromoCode("");
+          // Keep regular quote without promo so user stays on the page
+          try {
+            const fallback = await getQuote({
+              plan_id: selectedPlanId,
+              term,
+              sim_type: simType,
+              promo_code: "",
+            });
+            setQuoteResponse(fallback);
+          } catch {}
         } else {
           setQuoteError(err.message || "Could not retrieve price quote.");
         }
@@ -424,24 +483,46 @@ function AddNewNumberContent() {
       return;
     }
 
-    if (!portOldNumber.trim()) {
-      setPortCheckError("Please enter your current mobile number.");
-      return;
-    }
-    if (!portCode.trim()) {
-      setPortCheckError(`Please enter your 9-character ${switchChoice.toUpperCase()} code.`);
-      return;
-    }
-
-    setPortChecking(true);
+    setPortNumberError(null);
+    setPortCodeError(null);
+    setPortDateError(null);
     setPortCheckError(null);
     setPortFormatOkMessage(null);
+
+    let hasError = false;
+
+    // Validate UK mobile number
+    const numVal = validateUkMobile(portOldNumber);
+    if (!numVal.isValid) {
+      setPortNumberError(numVal.error || "Enter a valid 11-digit UK mobile number.");
+      hasError = true;
+    }
+
+    // Validate PAC or STAC code format
+    const codeVal = switchChoice === "pac" ? validatePacCode(portCode) : validateStacCode(portCode);
+    if (!codeVal.isValid) {
+      setPortCodeError(codeVal.error || `Please enter a valid 9-character ${switchChoice.toUpperCase()} code.`);
+      hasError = true;
+    }
+
+    // Validate preferred date if entered
+    if (wishedDate) {
+      const dateVal = validateTransferDate(wishedDate);
+      if (!dateVal.isValid) {
+        setPortDateError(dateVal.error || "Please choose a valid transfer date.");
+        hasError = true;
+      }
+    }
+
+    if (hasError) return;
+
+    setPortChecking(true);
 
     try {
       const res = await checkPac({
         code_type: switchChoice === "pac" ? "PAC" : "STAC",
-        code: portCode.trim(),
-        msisdn: portOldNumber.trim(),
+        code: portCode.trim().toUpperCase(),
+        msisdn: numVal.formatted ? numVal.formatted.replace(/\s+/g, "") : portOldNumber.trim(),
       });
       setPortFormatOkMessage(res.message);
       // Proceed to SIM selection
@@ -457,10 +538,16 @@ function AddNewNumberContent() {
   const handleStep4Continue = () => {
     if (simType === "psim") {
       const errs: Record<string, string> = {};
-      if (!deliveryAddress.name.trim()) errs.name = "Recipient name is required.";
+      if (!deliveryAddress.name.trim()) errs.name = "Recipient full name is required.";
       if (!deliveryAddress.line1.trim()) errs.line1 = "Address line 1 is required.";
       if (!deliveryAddress.city.trim()) errs.city = "Town or city is required.";
-      if (!deliveryAddress.postcode.trim()) errs.postcode = "Valid UK postcode is required.";
+
+      const pcVal = validateUkPostcode(deliveryAddress.postcode);
+      if (!pcVal.isValid) {
+        errs.postcode = pcVal.error || "Valid UK postcode is required.";
+      } else if (pcVal.formatted) {
+        setDeliveryAddress((prev) => ({ ...prev, postcode: pcVal.formatted! }));
+      }
 
       if (Object.keys(errs).length > 0) {
         setAddressErrors(errs);
@@ -472,16 +559,33 @@ function AddNewNumberContent() {
 
   // Step 5 Next handler (Checkout)
   const handleStep5Checkout = async () => {
-    if (!termsAccepted) return;
     const bErrors: Record<string, string> = {};
+
     if (!billingDetails.first_name.trim()) bErrors.first_name = "First name is required.";
     if (!billingDetails.last_name.trim()) bErrors.last_name = "Last name is required.";
     if (!billingDetails.street.trim()) bErrors.street = "Billing street is required.";
     if (!billingDetails.city.trim()) bErrors.city = "City is required.";
-    if (!billingDetails.zip_code.trim()) bErrors.zip_code = "Postcode is required.";
+
+    const pcVal = validateUkPostcode(billingDetails.zip_code);
+    if (!pcVal.isValid) {
+      bErrors.zip_code = pcVal.error || "Valid UK postcode is required.";
+    } else if (pcVal.formatted) {
+      setBillingDetails((prev) => ({ ...prev, zip_code: pcVal.formatted! }));
+    }
+
+    if (!termsAccepted) {
+      bErrors.terms = "Please accept the contract summary and terms and conditions to proceed.";
+    }
 
     if (Object.keys(bErrors).length > 0) {
       setBillingErrors(bErrors);
+      return;
+    }
+
+    // v1.1: A declined card does not cancel the order; line slot stays held for 30 minutes.
+    // If clientSecret and orderReference already exist, reuse them without calling checkout again.
+    if (clientSecret && orderReference) {
+      setStep(6);
       return;
     }
 
@@ -552,11 +656,22 @@ function AddNewNumberContent() {
       const res = await formRef.current?.submitPayment();
       if (!res?.success) {
         setCheckoutLoading(false);
+        // v1.1: If declined, fetch order to get backend payment_error if recorded
+        if (orderReference) {
+          getOrder(orderReference)
+            .then((o) => {
+              if (o.payment_error) {
+                setPaymentNotice(o.payment_error.message);
+              }
+            })
+            .catch(() => {});
+        }
         return;
       }
 
       // Confirm order with backend
       await confirmOrder(orderReference);
+      setPaymentNotice(null);
       setStep(7);
     } catch (err: any) {
       if (err.code === "PAYMENT_NOT_COMPLETED" || err.code === "PAYMENT_CHECK_FAILED") {
@@ -992,29 +1107,107 @@ function AddNewNumberContent() {
                   <div className="space-y-4 max-w-md">
                     <div>
                       <label className="block text-xs font-bold text-[#0D1935] mb-1">
-                        Current UK mobile number to transfer
+                        Current UK mobile number to transfer *
                       </label>
                       <input
                         type="tel"
                         placeholder="e.g. 07700 900123"
                         value={portOldNumber}
-                        onChange={(e) => setPortOldNumber(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#E01C5B] outline-hidden"
+                        onChange={(e) => {
+                          setPortOldNumber(e.target.value);
+                          if (portNumberError) setPortNumberError(null);
+                          if (portCheckError) setPortCheckError(null);
+                        }}
+                        onBlur={() => {
+                          if (portOldNumber.trim()) {
+                            const val = validateUkMobile(portOldNumber);
+                            if (!val.isValid) {
+                              setPortNumberError(val.error || "Enter a valid UK mobile number.");
+                            } else if (val.formatted) {
+                              setPortOldNumber(val.formatted);
+                              setPortNumberError(null);
+                            }
+                          }
+                        }}
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                          portNumberError
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
+                      {portNumberError && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {portNumberError}
+                        </span>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[#0D1935] mb-1">
-                        9-character {switchChoice.toUpperCase()} code
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-[#0D1935]">
+                          9-character {switchChoice.toUpperCase()} code *
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {switchChoice === "pac" ? "Format: 3 letters + 6 digits" : "Format: 6 digits + 3 letters"}
+                        </span>
+                      </div>
                       <input
                         type="text"
                         maxLength={9}
                         placeholder={switchChoice === "pac" ? "e.g. ABC123456" : "e.g. 123456ABC"}
                         value={portCode}
-                        onChange={(e) => setPortCode(e.target.value.toUpperCase())}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm uppercase tracking-wider font-mono focus:ring-2 focus:ring-[#E01C5B] outline-hidden"
+                        onChange={(e) => {
+                          const upper = e.target.value.toUpperCase();
+                          setPortCode(upper);
+                          if (portCodeError) setPortCodeError(null);
+                          if (portCheckError) setPortCheckError(null);
+                        }}
+                        onBlur={() => {
+                          if (portCode.trim()) {
+                            const val =
+                              switchChoice === "pac"
+                                ? validatePacCode(portCode)
+                                : validateStacCode(portCode);
+                            if (!val.isValid) {
+                              setPortCodeError(val.error || `Invalid ${switchChoice.toUpperCase()} code format.`);
+                            } else {
+                              setPortCodeError(null);
+                            }
+                          }
+                        }}
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm uppercase tracking-wider font-mono outline-hidden transition ${
+                          portCodeError
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
+
+                      {/* Real-time Code Format Validity Pill */}
+                      {portCode.length === 9 && !portCodeError && (
+                        <div className="mt-1">
+                          {(switchChoice === "pac" ? validatePacCode(portCode).isValid : validateStacCode(portCode).isValid) ? (
+                            <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Valid {switchChoice.toUpperCase()} code format
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                              {switchChoice === "pac"
+                                ? "PAC format must be 3 uppercase letters followed by 6 digits (e.g. ABC123456)"
+                                : "STAC format must be 6 digits followed by 3 uppercase letters (e.g. 123456ABC)"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {portCodeError && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {portCodeError}
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -1025,23 +1218,47 @@ function AddNewNumberContent() {
                         type="date"
                         min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
                         value={wishedDate}
-                        onChange={(e) => setWishedDate(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#E01C5B] outline-hidden"
+                        onChange={(e) => {
+                          setWishedDate(e.target.value);
+                          if (portDateError) setPortDateError(null);
+                        }}
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                          portDateError
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
                       <span className="text-[11px] text-slate-400 mt-1 block">
                         Leave blank to switch automatically when your new SIM first connects.
                       </span>
+
+                      {/* Date Validation Warnings */}
+                      {wishedDate && validateTransferDate(wishedDate).warning && (
+                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-start gap-1.5 mt-2">
+                          <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                          <span>{validateTransferDate(wishedDate).warning}</span>
+                        </div>
+                      )}
+
+                      {portDateError && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {portDateError}
+                        </span>
+                      )}
                     </div>
 
                     {portCheckError && (
-                      <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
-                        {portCheckError}
+                      <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+                        <div>{portCheckError}</div>
                       </div>
                     )}
 
                     {portFormatOkMessage && (
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
-                        {portFormatOkMessage}
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                        <div>{portFormatOkMessage}</div>
                       </div>
                     )}
 
@@ -1050,11 +1267,15 @@ function AddNewNumberContent() {
                         type="button"
                         onClick={() => {
                           setAddCodeLater(true);
+                          setPortNumberError(null);
+                          setPortCodeError(null);
+                          setPortCheckError(null);
                           setStep(4);
                         }}
-                        className="text-xs text-[#E01C5B] font-semibold hover:underline cursor-pointer"
+                        className="text-xs text-[#E01C5B] font-semibold hover:underline cursor-pointer flex items-center gap-1"
                       >
-                        I&apos;ll add my code later from My Numbers
+                        <span>I&apos;ll add my code later from My Numbers</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1174,36 +1395,75 @@ function AddNewNumberContent() {
                     <h3 className="font-bold text-sm text-[#0D1935]">UK Delivery Address</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                     <div className="sm:col-span-2">
                       <label className="block font-bold text-slate-700 mb-1">Recipient Full Name *</label>
                       <input
                         type="text"
+                        placeholder="e.g. Jane Doe"
                         value={deliveryAddress.name}
-                        onChange={(e) => setDeliveryAddress({ ...deliveryAddress, name: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, name: e.target.value });
+                          if (addressErrors.name) {
+                            setAddressErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.name;
+                              return copy;
+                            });
+                          }
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                          addressErrors.name
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
-                      {addressErrors.name && <span className="text-red-500 mt-1 block">{addressErrors.name}</span>}
+                      {addressErrors.name && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {addressErrors.name}
+                        </span>
+                      )}
                     </div>
 
                     <div className="sm:col-span-2">
                       <label className="block font-bold text-slate-700 mb-1">Address Line 1 *</label>
                       <input
                         type="text"
+                        placeholder="e.g. 10 Downing Street"
                         value={deliveryAddress.line1}
-                        onChange={(e) => setDeliveryAddress({ ...deliveryAddress, line1: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, line1: e.target.value });
+                          if (addressErrors.line1) {
+                            setAddressErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.line1;
+                              return copy;
+                            });
+                          }
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                          addressErrors.line1
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
-                      {addressErrors.line1 && <span className="text-red-500 mt-1 block">{addressErrors.line1}</span>}
+                      {addressErrors.line1 && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {addressErrors.line1}
+                        </span>
+                      )}
                     </div>
 
                     <div className="sm:col-span-2">
                       <label className="block font-bold text-slate-700 mb-1">Address Line 2 (optional)</label>
                       <input
                         type="text"
+                        placeholder="Apartment, suite, unit, building floor"
                         value={deliveryAddress.line2 || ""}
                         onChange={(e) => setDeliveryAddress({ ...deliveryAddress, line2: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm outline-hidden focus:ring-2 focus:ring-[#E01C5B]"
                       />
                     </div>
 
@@ -1211,22 +1471,75 @@ function AddNewNumberContent() {
                       <label className="block font-bold text-slate-700 mb-1">Town / City *</label>
                       <input
                         type="text"
+                        placeholder="e.g. London"
                         value={deliveryAddress.city}
-                        onChange={(e) => setDeliveryAddress({ ...deliveryAddress, city: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, city: e.target.value });
+                          if (addressErrors.city) {
+                            setAddressErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.city;
+                              return copy;
+                            });
+                          }
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                          addressErrors.city
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
-                      {addressErrors.city && <span className="text-red-500 mt-1 block">{addressErrors.city}</span>}
+                      {addressErrors.city && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {addressErrors.city}
+                        </span>
+                      )}
                     </div>
 
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">Postcode *</label>
                       <input
                         type="text"
+                        placeholder="e.g. SW1A 2AA"
                         value={deliveryAddress.postcode}
-                        onChange={(e) => setDeliveryAddress({ ...deliveryAddress, postcode: e.target.value.toUpperCase() })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white uppercase"
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, postcode: e.target.value.toUpperCase() });
+                          if (addressErrors.postcode) {
+                            setAddressErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.postcode;
+                              return copy;
+                            });
+                          }
+                        }}
+                        onBlur={() => {
+                          if (deliveryAddress.postcode.trim()) {
+                            const val = validateUkPostcode(deliveryAddress.postcode);
+                            if (!val.isValid) {
+                              setAddressErrors((prev) => ({ ...prev, postcode: val.error || "Enter a valid UK postcode." }));
+                            } else if (val.formatted) {
+                              setDeliveryAddress((prev) => ({ ...prev, postcode: val.formatted! }));
+                              setAddressErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.postcode;
+                                return copy;
+                              });
+                            }
+                          }
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border uppercase text-sm font-mono outline-hidden transition ${
+                          addressErrors.postcode
+                            ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                            : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                        }`}
                       />
-                      {addressErrors.postcode && <span className="text-red-500 mt-1 block">{addressErrors.postcode}</span>}
+                      {addressErrors.postcode && (
+                        <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {addressErrors.postcode}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1326,95 +1639,235 @@ function AddNewNumberContent() {
                   </div>
 
                   {/* Promo Code Input */}
-                  <div className="p-4 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      placeholder="Have a promo code?"
-                      value={promoCodeInput}
-                      onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                      className="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono uppercase focus:ring-2 focus:ring-[#E01C5B] outline-hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppliedPromoCode(promoCodeInput.trim());
-                        fetchQuote(promoCodeInput.trim());
-                      }}
-                      className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition"
-                    >
-                      Apply Code
-                    </button>
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        placeholder="Have a promo code?"
+                        value={promoCodeInput}
+                        onChange={(e) => {
+                          setPromoCodeInput(e.target.value.toUpperCase());
+                          if (promoError) setPromoError(null);
+                        }}
+                        className="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono uppercase focus:ring-2 focus:ring-[#E01C5B] outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = promoCodeInput.trim().toUpperCase();
+                          if (!code) {
+                            setPromoError(null);
+                            setAppliedPromoCode("");
+                            fetchQuote("");
+                            return;
+                          }
+                          setAppliedPromoCode(code);
+                          fetchQuote(code);
+                        }}
+                        className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                      >
+                        Apply Code
+                      </button>
+                    </div>
+                    {promoError && (
+                      <p className="text-xs text-red-600 mt-2 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {promoError}
+                      </p>
+                    )}
                   </div>
-                  {promoError && <p className="text-xs text-red-600 px-1">{promoError}</p>}
 
                   {/* Billing Details Form */}
                   <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                     <h3 className="font-bold text-sm text-[#0D1935]">Billing Details</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">First Name *</label>
                         <input
                           type="text"
+                          placeholder="e.g. Jane"
                           value={billingDetails.first_name}
-                          onChange={(e) => setBillingDetails({ ...billingDetails, first_name: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                          onChange={(e) => {
+                            setBillingDetails({ ...billingDetails, first_name: e.target.value });
+                            if (billingErrors.first_name) {
+                              setBillingErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.first_name;
+                                return copy;
+                              });
+                            }
+                          }}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                            billingErrors.first_name
+                              ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                              : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                          }`}
                         />
-                        {billingErrors.first_name && <span className="text-red-500 mt-1 block">{billingErrors.first_name}</span>}
+                        {billingErrors.first_name && (
+                          <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {billingErrors.first_name}
+                          </span>
+                        )}
                       </div>
 
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">Last Name *</label>
                         <input
                           type="text"
+                          placeholder="e.g. Doe"
                           value={billingDetails.last_name}
-                          onChange={(e) => setBillingDetails({ ...billingDetails, last_name: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                          onChange={(e) => {
+                            setBillingDetails({ ...billingDetails, last_name: e.target.value });
+                            if (billingErrors.last_name) {
+                              setBillingErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.last_name;
+                                return copy;
+                              });
+                            }
+                          }}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                            billingErrors.last_name
+                              ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                              : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                          }`}
                         />
-                        {billingErrors.last_name && <span className="text-red-500 mt-1 block">{billingErrors.last_name}</span>}
+                        {billingErrors.last_name && (
+                          <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {billingErrors.last_name}
+                          </span>
+                        )}
                       </div>
+
+
 
                       <div className="sm:col-span-2">
                         <label className="block font-bold text-slate-700 mb-1">Street Address *</label>
                         <input
                           type="text"
+                          placeholder="e.g. 10 Downing Street"
                           value={billingDetails.street}
-                          onChange={(e) => setBillingDetails({ ...billingDetails, street: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                          onChange={(e) => {
+                            setBillingDetails({ ...billingDetails, street: e.target.value });
+                            if (billingErrors.street) {
+                              setBillingErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.street;
+                                return copy;
+                              });
+                            }
+                          }}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                            billingErrors.street
+                              ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                              : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                          }`}
                         />
-                        {billingErrors.street && <span className="text-red-500 mt-1 block">{billingErrors.street}</span>}
+                        {billingErrors.street && (
+                          <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {billingErrors.street}
+                          </span>
+                        )}
                       </div>
 
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">City *</label>
                         <input
                           type="text"
+                          placeholder="e.g. London"
                           value={billingDetails.city}
-                          onChange={(e) => setBillingDetails({ ...billingDetails, city: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                          onChange={(e) => {
+                            setBillingDetails({ ...billingDetails, city: e.target.value });
+                            if (billingErrors.city) {
+                              setBillingErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.city;
+                                return copy;
+                              });
+                            }
+                          }}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-hidden transition ${
+                            billingErrors.city
+                              ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                              : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                          }`}
                         />
-                        {billingErrors.city && <span className="text-red-500 mt-1 block">{billingErrors.city}</span>}
+                        {billingErrors.city && (
+                          <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {billingErrors.city}
+                          </span>
+                        )}
                       </div>
 
                       <div>
                         <label className="block font-bold text-slate-700 mb-1">Postcode *</label>
                         <input
                           type="text"
+                          placeholder="e.g. SW1A 2AA"
                           value={billingDetails.zip_code}
-                          onChange={(e) => setBillingDetails({ ...billingDetails, zip_code: e.target.value.toUpperCase() })}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white uppercase"
+                          onChange={(e) => {
+                            setBillingDetails({ ...billingDetails, zip_code: e.target.value.toUpperCase() });
+                            if (billingErrors.zip_code) {
+                              setBillingErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.zip_code;
+                                return copy;
+                              });
+                            }
+                          }}
+                          onBlur={() => {
+                            if (billingDetails.zip_code.trim()) {
+                              const val = validateUkPostcode(billingDetails.zip_code);
+                              if (!val.isValid) {
+                                setBillingErrors((prev) => ({ ...prev, zip_code: val.error || "Enter a valid UK postcode." }));
+                              } else if (val.formatted) {
+                                setBillingDetails((prev) => ({ ...prev, zip_code: val.formatted! }));
+                                setBillingErrors((prev) => {
+                                  const copy = { ...prev };
+                                  delete copy.zip_code;
+                                  return copy;
+                                });
+                              }
+                            }
+                          }}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border uppercase text-sm font-mono outline-hidden transition ${
+                            billingErrors.zip_code
+                              ? "border-red-500 bg-red-50/20 text-red-900 focus:ring-2 focus:ring-red-400"
+                              : "border-slate-300 bg-white focus:ring-2 focus:ring-[#E01C5B]"
+                          }`}
                         />
-                        {billingErrors.zip_code && <span className="text-red-500 mt-1 block">{billingErrors.zip_code}</span>}
+                        {billingErrors.zip_code && (
+                          <span className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {billingErrors.zip_code}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Contract Agreement Checkboxes (§6.5) */}
-                  <div className="space-y-3 pt-2 text-xs text-[#0D1935]">
+                  <div className={`space-y-3 pt-2 text-xs text-[#0D1935] p-3 rounded-xl transition ${
+                    billingErrors.terms ? "border border-red-300 bg-red-50/30" : ""
+                  }`}>
                     <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={termsAccepted}
-                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        onChange={(e) => {
+                          setTermsAccepted(e.target.checked);
+                          if (e.target.checked && billingErrors.terms) {
+                            setBillingErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.terms;
+                              return copy;
+                            });
+                          }
+                        }}
                         className="w-4 h-4 mt-0.5 rounded border-slate-300 text-[#E01C5B] focus:ring-[#E01C5B]"
                       />
                       <span>
@@ -1429,6 +1882,13 @@ function AddNewNumberContent() {
                         . *
                       </span>
                     </label>
+
+                    {billingErrors.terms && (
+                      <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 pl-6">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {billingErrors.terms}
+                      </p>
+                    )}
 
                     <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
@@ -1463,7 +1923,7 @@ function AddNewNumberContent() {
                 </button>
                 <button
                   type="button"
-                  disabled={!termsAccepted || checkoutLoading || quoteLoading}
+                  disabled={checkoutLoading || quoteLoading}
                   onClick={handleStep5Checkout}
                   className="px-6 py-3 bg-[#E01C5B] hover:bg-[#c9144e] disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
@@ -1498,6 +1958,19 @@ function AddNewNumberContent() {
                   <span className="text-2xl font-black text-[#E01C5B]">£{paymentAmount}</span>
                 </div>
               </div>
+
+              {/* Payment Error / Decline Notice (v1.1) */}
+              {(paymentNotice || (order?.payment_status === "pending" && order?.payment_error)) && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-900">Your last payment attempt didn&apos;t go through.</p>
+                    <p className="mt-0.5 text-amber-800">
+                      {paymentNotice || order?.payment_error?.message || "Please check your card details or try a different payment card."}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Stripe Payment Element Mount */}
               <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
@@ -1642,16 +2115,29 @@ function AddNewNumberContent() {
                     {portSubmitError && <p className="text-red-600">{portSubmitError}</p>}
                     <button
                       type="button"
-                      disabled={portSubmitting || !inlinePortCode}
+                      disabled={portSubmitting || !inlinePortCode || !inlinePortNumber}
                       onClick={async () => {
                         if (!order?.line?.id) return;
+                        const numVal = validateUkMobile(inlinePortNumber);
+                        if (!numVal.isValid) {
+                          setPortSubmitError(numVal.error || "Please enter a valid UK mobile number.");
+                          return;
+                        }
+                        const codeVal =
+                          switchChoice === "pac"
+                            ? validatePacCode(inlinePortCode)
+                            : validateStacCode(inlinePortCode);
+                        if (!codeVal.isValid) {
+                          setPortSubmitError(codeVal.error || `Invalid ${switchChoice.toUpperCase()} code format.`);
+                          return;
+                        }
                         setPortSubmitting(true);
                         setPortSubmitError(null);
                         try {
                           await submitPort(order.line.id, {
                             code_type: switchChoice === "pac" ? "PAC" : "STAC",
-                            code: inlinePortCode.trim(),
-                            msisdn: inlinePortNumber.trim(),
+                            code: inlinePortCode.trim().toUpperCase(),
+                            msisdn: numVal.formatted ? numVal.formatted.replace(/\s+/g, "") : inlinePortNumber.trim(),
                           });
                           setPortSubmitted(true);
                         } catch (e: any) {
@@ -1660,7 +2146,7 @@ function AddNewNumberContent() {
                           setPortSubmitting(false);
                         }
                       }}
-                      className="px-4 py-1.5 bg-[#E01C5B] text-white rounded-lg font-bold"
+                      className="px-4 py-1.5 bg-[#E01C5B] text-white rounded-lg font-bold cursor-pointer transition hover:bg-[#c9144e]"
                     >
                       {portSubmitting ? "Submitting..." : "Submit Code"}
                     </button>
@@ -1674,7 +2160,34 @@ function AddNewNumberContent() {
           {/* ═══════════════════════════════════════════════════════════ */}
           {step === 8 && (
             <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/80 shadow-xs text-center space-y-6">
-              {order?.fulfilment_status === "activated" ? (
+              {order?.fulfilment_status === "cancelled" ? (
+                /* Cancelled Order */
+                <>
+                  <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-extrabold text-[#0D1935]">This order was cancelled</h2>
+                    <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
+                      {order.message || "Your reserved line slot has expired or was cancelled. You can start again anytime."}
+                    </p>
+                  </div>
+                  <div className="pt-4 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrder(null);
+                        setOrderReference(null);
+                        setClientSecret(null);
+                        setStep(1);
+                      }}
+                      className="px-7 py-3 bg-[#E01C5B] hover:bg-[#c9144e] text-white font-bold text-sm rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
+                    >
+                      <span>Start Again</span>
+                    </button>
+                  </div>
+                </>
+              ) : order?.fulfilment_status === "activated" ? (
                 /* Successful Activation */
                 <>
                   <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
@@ -1732,7 +2245,7 @@ function AddNewNumberContent() {
                   <div>
                     <h2 className="text-2xl font-extrabold text-[#0D1935]">Payment received — preparing your SIM</h2>
                     <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
-                      Activation is taking slightly longer than usual. We will email you as soon as your SIM is ready.
+                      {order?.message || "Payment received — preparing your SIM. We'll email you when it's ready."}
                     </p>
                   </div>
                 </>
