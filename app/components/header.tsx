@@ -960,7 +960,7 @@ export default function Header() {
 
                   <div className="mt-6 space-y-4">
                     <Link
-                      href="dashboard/roaming-and-travel"
+                      href="app/roaming-and-coverage"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
