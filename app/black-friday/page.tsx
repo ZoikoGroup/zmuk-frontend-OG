@@ -11,8 +11,8 @@ import { Check, ArrowRight, ShieldCheck, Truck, Smartphone, Zap, Sparkles, HelpC
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 const SIM_SLUG = "sim-only-plans";
 
-type Duration = "24 Months Plan" | "12 Month Plan" | "30 Days Plan";
-const DURATIONS: Duration[] = ["24 Months Plan", "12 Month Plan", "30 Days Plan"];
+const DURATIONS = ["24 Months Plan", "12 Month Plan", "30 Days Plan"] as const;
+type Duration = (typeof DURATIONS)[number];
 
 interface Category {
   id: number;
@@ -46,95 +46,14 @@ export interface Plan {
   duration_days: number;
 }
 
-// Fallback high-value Black Friday plans if backend is unavailable
-const FALLBACK_PLANS: Plan[] = [
-  {
-    id: 991,
-    name: "Value Pack",
-    slug: "value-pack-12gb",
-    description: "Ideal everyday connectivity with great allowances.",
-    short_description: "Unlimited UK calls & texts\nFree international calls to 41 countries\nEU roaming included\n5G ready at no extra cost",
-    price: "12.14",
-    price_24: "12.14",
-    price_12: "13.99",
-    price_30: "15.99",
-    data_allowance: "12GB",
-    tier_label: "Value Pack",
-    is_popular: false,
-    category: { id: 1, name: "SIM Only Plans", slug: SIM_SLUG },
-    features: [
-      { id: 1, title: "Unlimited UK calls & texts", description: "" },
-      { id: 2, title: "Free international calls to 41 countries", description: "" },
-      { id: 3, title: "EU roaming included", description: "" },
-      { id: 4, title: "5G ready at no extra cost", description: "" }
-    ],
-    transatelID: "VP-12GB",
-    final_price: "8.50",
-    duration_days: 720
-  },
-  {
-    id: 992,
-    name: "Data Nights",
-    slug: "data-nights-20gb",
-    description: "Our top Black Friday featured plan with generous data.",
-    short_description: "Unlimited UK calls & texts\nFree international calls to 41 countries\nEU roaming included\nSuperfast 5G data\nNo credit check required",
-    price: "28.34",
-    price_24: "28.34",
-    price_12: "31.99",
-    price_30: "34.99",
-    data_allowance: "20GB",
-    tier_label: "Hero Deal",
-    is_popular: true,
-    category: { id: 1, name: "SIM Only Plans", slug: SIM_SLUG },
-    features: [
-      { id: 1, title: "Unlimited UK calls & texts", description: "" },
-      { id: 2, title: "Free international calls to 41 countries", description: "" },
-      { id: 3, title: "EU roaming included", description: "" },
-      { id: 4, title: "Superfast 5G data", description: "" },
-      { id: 5, title: "No credit check required", description: "" }
-    ],
-    transatelID: "DN-20GB",
-    final_price: "19.84",
-    duration_days: 720
-  },
-  {
-    id: 993,
-    name: "Limitless Plus",
-    slug: "limitless-plus-unlimited",
-    description: "Truly unlimited data for heavy streamers and gamers.",
-    short_description: "Unlimited 5G UK data\nUnlimited UK calls & texts\nFree international calls to 41 countries\nEU roaming included\nInstant eSIM activation",
-    price: "34.00",
-    price_24: "34.00",
-    price_12: "38.00",
-    price_30: "42.00",
-    data_allowance: "Unlimited",
-    tier_label: "Unlimited Max",
-    is_popular: false,
-    category: { id: 1, name: "SIM Only Plans", slug: SIM_SLUG },
-    features: [
-      { id: 1, title: "Unlimited 5G UK data", description: "" },
-      { id: 2, title: "Unlimited UK calls & texts", description: "" },
-      { id: 3, title: "Free international calls to 41 countries", description: "" },
-      { id: 4, title: "EU roaming included", description: "" },
-      { id: 5, title: "Instant eSIM activation", description: "" }
-    ],
-    transatelID: "LP-UNL",
-    final_price: "23.80",
-    duration_days: 720
-  }
-];
-
 function priceFor(plan: Plan, duration: Duration): string {
-  const is24 = duration.includes("24");
-  const is12 = duration.includes("12");
-  const raw = is24 ? plan.price_24 : is12 ? plan.price_12 : plan.price_30;
+  const raw =
+    duration.startsWith("24")
+      ? plan.price_24
+      : duration.startsWith("12")
+        ? plan.price_12
+        : plan.price_30;
   return Number(raw ?? plan.price).toFixed(2);
-}
-
-function discountedPrice(basePrice: string): string {
-  const p = parseFloat(basePrice);
-  if (isNaN(p) || p <= 0) return basePrice;
-  return (p * 0.7).toFixed(2);
 }
 
 function bullets(plan: Plan): string[] {
@@ -144,6 +63,22 @@ function bullets(plan: Plan): string[] {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function PlanCheckIcon({ dark }: { dark?: boolean }) {
+  return (
+    <svg
+      className={`mt-0.5 h-4 w-4 flex-shrink-0 ${dark ? "text-[#00E575]" : "text-[#C41E3A]"}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
 }
 
 const FAQS = [
@@ -196,22 +131,26 @@ export default function BlackFridayPage() {
         const res = await fetch(`${API_BASE}/api/plans/v1/`);
         if (!res.ok) throw new Error("Failed to load plans");
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setAllPlans(data);
-        } else {
-          setAllPlans(FALLBACK_PLANS);
         }
-      } catch {
-        setAllPlans(FALLBACK_PLANS);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load plans");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  // SIM-only plans only, capped at 3 plans just like homepage
   const simPlans = useMemo(() => {
-    const filtered = allPlans.filter((p) => p.category?.slug === SIM_SLUG);
-    return filtered.length > 0 ? filtered.slice(0, 3) : FALLBACK_PLANS;
+    const filtered = allPlans.filter((p) => {
+      const slug = (p.category?.slug ?? "").toLowerCase();
+      const name = (p.category?.name ?? "").toLowerCase();
+      return slug === SIM_SLUG || name.includes("sim") || slug === "personal";
+    });
+    const result = filtered.length > 0 ? filtered : allPlans;
+    return result.slice(0, 3);
   }, [allPlans]);
 
   const handleBuyNow = (plan: Plan) => {
@@ -820,34 +759,46 @@ export default function BlackFridayPage() {
         </div>
 
         <div className="relative z-10 mx-auto max-w-6xl">
-          {/* Section Header */}
+          {/* Section Header Matching Design */}
           <div className="text-center">
-            <span className="inline-block rounded-full bg-pink-100 px-4 py-1 text-xs font-black tracking-widest text-[#C41E3A] uppercase">
-              BLACK FRIDAY · 27–30 NOV
-            </span>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
+            {/* Black Pill Badge with Pink Star and Yellow Text */}
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-[#120417] px-4 py-1.5 shadow-sm">
+              <span className="text-[#FF8CC6] text-xs">★</span>
+              <span className="text-[#FFD60A] text-xs font-black tracking-widest uppercase">
+                BLACK FRIDAY · 27–30 NOV
+              </span>
+            </div>
+
+            <h2 className="mt-3.5 text-center font-black text-[#120417] text-2xl sm:text-3xl md:text-4xl tracking-tight">
               SIM-Only Black Friday Plans (Data Bundles)
             </h2>
-            <p className="mt-2 text-base text-gray-600">
-              All plans include unlimited minutes, texts, superfast 5G, and no credit checks.
+
+            {/* Gradient accent bar */}
+            <div className="mx-auto mt-2 h-1 w-12 rounded-full bg-gradient-to-r from-[#C41E3A] to-[#FFD60A]" />
+
+            <p className="mt-2.5 text-xs sm:text-sm text-gray-500 font-medium">
+              All plans include unlimited minutes, texts, 5G and no credit checks.
             </p>
 
-            {/* Duration Selector Tabs */}
-            <div className="mx-auto mt-8 flex w-fit flex-wrap justify-center gap-1 rounded-full border border-gray-200 bg-gray-50/80 p-1.5 shadow-inner">
-              {DURATIONS.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setDuration(tab)}
-                  className={`rounded-full px-5 py-2 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
-                    duration === tab
-                      ? "bg-[#C41E3A] text-white shadow-md"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
+            {/* Duration Tabs */}
+            <div className="mx-auto mt-6 flex w-fit flex-wrap items-center justify-center gap-2.5">
+              {DURATIONS.map((tab) => {
+                const isActive = duration === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setDuration(tab)}
+                    className={`rounded-full px-5 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-[#B31862] text-white shadow-[0_4px_14px_rgba(179,24,98,0.35)]"
+                        : "bg-[#F3F4F6] text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -855,7 +806,7 @@ export default function BlackFridayPage() {
           {loading && (
             <div className="mt-12 flex justify-center py-10">
               <div
-                className="h-10 w-10 animate-spin rounded-full border-4 border-[#C41E3A] border-t-transparent"
+                className="h-8 w-8 animate-spin rounded-full border-4 border-[#B31862] border-t-transparent"
                 role="status"
               >
                 <span className="sr-only">Loading plans…</span>
@@ -865,109 +816,144 @@ export default function BlackFridayPage() {
 
           {/* Error Message */}
           {error && !loading && (
-            <div className="mx-auto mt-8 max-w-md rounded-xl border border-red-300 bg-red-50 p-4 text-center text-sm text-red-700">
+            <div className="mx-auto mt-10 max-w-md rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-center text-sm text-red-700">
               {error}
             </div>
           )}
 
-          {/* Plan Cards Grid - Perfectly Aligned with ONLY "Buy this plan" */}
+          {/* Empty State */}
+          {!loading && !error && simPlans.length === 0 && (
+            <p className="mt-10 text-center text-sm text-gray-500">
+              No plans available right now. Please check back soon.
+            </p>
+          )}
+
+          {/* Dynamic Plans Grid from Backend API */}
           {!loading && simPlans.length > 0 && (
-            <div className="mt-12 grid grid-cols-1 items-stretch gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {simPlans.map((plan, index) => {
+            <div className="mt-12 grid grid-cols-1 items-stretch gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {simPlans.map((plan, idx) => {
+                const isDark = plan.is_popular || idx === 1;
                 const basePrice = priceFor(plan, duration);
-                const bfPromoPrice = discountedPrice(basePrice);
-                const isFeatured = plan.is_popular || index === 1;
+                const discountPrice = (Number(basePrice) * 0.7).toFixed(2);
+                const feats = bullets(plan);
+                const tierName = plan.tier_label || plan.name;
+                const displayData = plan.data_allowance || "Data Plan";
 
                 return (
                   <div
                     key={plan.id}
-                    className={`relative flex h-full flex-col rounded-3xl p-7 transition-all duration-300 ${
-                      isFeatured
-                        ? "bg-[#1E092B] text-white border-2 border-[#FFD60A] shadow-[0px_20px_50px_0px_rgba(209,69,174,0.35)] scale-[1.02]"
-                        : "bg-white text-gray-900 border border-gray-200 shadow-md hover:shadow-xl"
+                    className={`relative flex h-full flex-col justify-between rounded-[26px] p-7 sm:p-8 transition-all overflow-hidden ${
+                      isDark
+                        ? "bg-gradient-to-b from-[#2A083D] via-[#1A0527] to-[#12041D] text-white shadow-[0px_20px_50px_rgba(163,21,122,0.45)] border border-[#A3157A]"
+                        : "bg-white text-[#18181B] shadow-[0_15px_40px_rgba(0,0,0,0.06)] border border-gray-100/90"
                     }`}
                   >
-                    {/* Top Promo Tag */}
-                    <div className="flex items-center justify-between gap-2 mb-4">
-                      <span
-                        className={`rounded-full px-3.5 py-1 text-xs font-black uppercase tracking-wider ${
-                          isFeatured
-                            ? "bg-[#FFD60A] text-[#1E092B]"
-                            : "bg-pink-100 text-[#C41E3A]"
-                        }`}
-                      >
-                        {plan.tier_label ?? plan.name}
-                      </span>
-
-                      <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#C41E3A] bg-red-100 px-2.5 py-0.5 rounded-full">
-                        30% OFF · 3 MOS
-                      </span>
+                    {/* Top-Left Diagonal Ribbon */}
+                    <div
+                      className={`absolute -left-12 top-6 -rotate-45 w-44 py-1 text-center text-[9px] font-black tracking-widest shadow-sm uppercase pointer-events-none select-none z-10 ${
+                        isDark ? "bg-[#FFD60A] text-[#120417]" : "bg-[#120417] text-white"
+                      }`}
+                    >
+                      BLACK FRIDAY
                     </div>
 
-                    {/* Data Allowance */}
-                    <div className="mt-2 min-h-[48px] flex items-center">
-                      <span
-                        className={`text-4xl sm:text-5xl font-black tracking-tight ${
-                          isFeatured ? "text-[#5FE0A6]" : "text-[#00A859]"
-                        }`}
-                      >
-                        {plan.data_allowance || "Data Bundle"}
-                      </span>
-                    </div>
-
-                    {/* Pricing Display */}
-                    <div className="mt-4 pb-6 border-b border-gray-100 dark:border-white/10">
-                      <div className="flex items-baseline gap-2">
+                    <div>
+                      {/* Tier Label Capsule */}
+                      <div className="flex justify-center">
                         <span
-                          className={`text-4xl sm:text-5xl font-black ${
-                            isFeatured ? "text-white" : "text-[#C41E3A]"
+                          className={`rounded-full px-4 py-1 text-xs font-bold tracking-wide ${
+                            isDark
+                              ? "bg-white/10 border border-white/15 text-[#FF8CC6]"
+                              : "bg-[#FDE8EF] text-[#B31862]"
                           }`}
                         >
-                          £{bfPromoPrice}
+                          {tierName}
+                        </span>
+                      </div>
+
+                      {/* Data Allowance */}
+                      <div className="mt-3.5 text-center">
+                        <span
+                          className={`font-black text-4xl sm:text-[42px] leading-tight tracking-tight ${
+                            isDark ? "text-[#00E575]" : "text-[#00A859]"
+                          }`}
+                        >
+                          {displayData}
+                        </span>
+                      </div>
+
+                      {/* Yellow Promo Badge */}
+                      <div className="mt-2.5 flex justify-center">
+                        <span className="bg-[#FFD60A] text-[#120417] text-[11px] font-black tracking-wider px-3.5 py-1 rounded-[3px] uppercase">
+                          30% OFF · FIRST 3 MONTHS
+                        </span>
+                      </div>
+
+                      {/* Price Section */}
+                      <div className="mt-3.5 flex items-baseline justify-center gap-1">
+                        <span
+                          className={`font-black text-3xl sm:text-4xl tracking-tight ${
+                            isDark ? "text-white" : "text-[#C41E3A]"
+                          }`}
+                        >
+                          £{discountPrice}
                         </span>
                         <span
-                          className={`text-sm font-semibold ${
-                            isFeatured ? "text-pink-200" : "text-gray-500"
+                          className={`text-xs font-medium ml-1 ${
+                            isDark ? "text-pink-200/70" : "text-gray-500"
                           }`}
                         >
                           per month
                         </span>
                       </div>
-                      <p
-                        className={`mt-1.5 text-xs font-medium ${
-                          isFeatured ? "text-gray-300" : "text-gray-500"
-                        }`}
-                      >
-                        First 3 months · Then £{basePrice}/mo on {duration}
-                      </p>
+
+                      {/* Then Price Capsule */}
+                      <div className="mt-3 flex justify-center">
+                        <span
+                          className={`rounded-full px-4 py-1.5 text-xs font-semibold text-center ${
+                            isDark
+                              ? "bg-white/10 border border-white/10 text-gray-200"
+                              : "bg-[#F3F4F6] text-[#374151]"
+                          }`}
+                        >
+                          Then £{basePrice} per month · {duration.toLowerCase()}
+                        </span>
+                      </div>
+
+                      {/* Features List with Dividers */}
+                      {feats.length > 0 && (
+                        <ul className="mt-7 flex flex-col">
+                          {feats.map((feat, i) => (
+                            <li
+                              key={i}
+                              className={`flex items-start gap-2.5 border-t py-3.5 text-xs sm:text-[13px] font-medium ${
+                                isDark ? "border-white/10 text-gray-200" : "border-gray-100 text-gray-700"
+                              }`}
+                            >
+                              <PlanCheckIcon dark={isDark} />
+                              <span>{feat}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
 
-                    {/* Bullet Features List */}
-                    <ul className="mt-6 flex flex-1 flex-col gap-3">
-                      {bullets(plan).map((feat, i) => (
-                        <li key={i} className="flex items-start gap-2.5 text-sm">
-                          <Check
-                            className={`w-4 h-4 mt-0.5 shrink-0 ${
-                              isFeatured ? "text-[#5FE0A6]" : "text-[#00A859]"
-                            }`}
-                          />
-                          <span className={isFeatured ? "text-gray-200" : "text-gray-700"}>
-                            {feat}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {/* Action Button: ONLY "Buy this plan" (No View Details) */}
-                    <div className="mt-8 pt-4">
+                    {/* Action Buttons: View Details + Buy this plan */}
+                    <div className="mt-8 flex flex-col gap-2.5">
+                      <Link
+                        href={plan.slug ? `/plans/${plan.slug}` : "/plans"}
+                        className={`w-full rounded-full border bg-transparent py-2.5 text-center text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                          isDark
+                            ? "border-white/30 text-white hover:bg-white/10"
+                            : "border-[#00A859] text-[#00A859] hover:bg-emerald-50"
+                        }`}
+                      >
+                        View Details
+                      </Link>
                       <button
                         type="button"
                         onClick={() => handleBuyNow(plan)}
-                        className={`w-full rounded-2xl py-3.5 text-base font-extrabold transition-all cursor-pointer shadow-md ${
-                          isFeatured
-                            ? "bg-[#C41E3A] text-white hover:bg-[#A3157A] shadow-red-500/30"
-                            : "bg-[#C41E3A] text-white hover:bg-[#A3157A] shadow-red-500/20"
-                        } active:scale-[0.98]`}
+                        className="w-full rounded-full bg-[#B31862] py-3 text-center text-xs sm:text-sm font-bold text-white transition-all hover:bg-[#991252] shadow-[0_4px_14px_rgba(179,24,98,0.35)] hover:shadow-lg active:scale-[0.99] cursor-pointer"
                       >
                         Buy this plan
                       </button>
@@ -977,6 +963,11 @@ export default function BlackFridayPage() {
               })}
             </div>
           )}
+
+          {/* Legal Disclaimer Note */}
+          <p className="mt-10 text-center text-[11px] sm:text-xs text-gray-500 font-medium max-w-2xl mx-auto leading-relaxed">
+            Black Friday pricing applies to the monthly charge on selected SIM-only plans for eligible new lines, for the first three months. Standard monthly price applies after. Prices include VAT.
+          </p>
         </div>
       </section>
 
