@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
 
+# Only one deploy at a time. Back-to-back merges otherwise run `npm ci` and
+# `next build` concurrently in the same server directory, and one run deletes
+# node_modules while the other is building ("next: not found").
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
