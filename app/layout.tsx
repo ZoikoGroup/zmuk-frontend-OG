@@ -5,6 +5,7 @@ import Header from "./components/header";
 import Footer from "./components/footer";
 import { CartProvider } from "./context/CartContext";
 import ChatbotWidget from "./components/ChatbotWidget";
+import BlackFridayPopup from "./components/BlackFridayPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <ChatbotWidget />
+          <BlackFridayPopup />
         </CartProvider>
       </body>
     </html>
