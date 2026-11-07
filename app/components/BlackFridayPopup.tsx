@@ -282,7 +282,7 @@ export default function BlackFridayPopup() {
             {/* CTAs */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
-                href="/black-friday"
+                href="https://zoikomobile.co.uk/black-friday"
                 onClick={close}
                 className="bfp-pulse inline-flex items-center justify-center gap-2 rounded-xl bg-[#C41E3A] px-6 py-3.5 text-base font-extrabold text-white shadow-[0_12px_30px_rgba(196,30,58,0.5)] transition hover:scale-[1.03] hover:bg-[#A3157A] active:scale-[0.98]"
               >
