@@ -5,16 +5,8 @@ import { Elements } from "@stripe/react-stripe-js";
 import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePaymentForm";
 import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { isLoggedIn as checkIsLoggedIn, getUser } from "../utils/auth";
-import { CreditCard, ShieldCheck, Plus } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
-interface SavedCard {
-  id: string;
-  brand: string;
-  last4: string;
-  expiry: string;
-  cardholderName?: string;
-  is_default?: boolean;
-}
 
 // Initialize Stripe ONCE outside the component — calling loadStripe()
 // inside the component causes it to re-initialize on every render which
@@ -297,145 +289,12 @@ export default function CheckoutPage() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showTermsPopup, setShowTermsPopup] = useState(false);
 
-  // Saved card state — 100% dynamic, NO hardcoded dummy cards
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"saved" | "new">("new");
-  const [selectedCardId, setSelectedCardId] = useState<string>("");
-  const [saveCardForFuture, setSaveCardForFuture] = useState<boolean>(true);
-
-  useEffect(() => {
-    const syncSavedCards = async () => {
-      if (typeof window === "undefined") return;
-
-      // Guest / unauthenticated users never have saved cards
-      if (!checkIsLoggedIn()) {
-        setSavedCards([]);
-        setSelectedPaymentMethod("new");
-        setSelectedCardId("");
-        return;
-      }
-
-      const loadedList: SavedCard[] = [];
-
-      // 1. Check plural list in localStorage
-      try {
-        const storedPlural = localStorage.getItem("zoiko_saved_cards");
-        if (storedPlural) {
-          const parsed = JSON.parse(storedPlural);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            parsed.forEach((c) => {
-              if (c && (c.last4 || c.last_four)) {
-                const l4 = String(c.last4 || c.last_four);
-                loadedList.push({
-                  id: String(c.id || `pm-${l4}-${Date.now()}`),
-                  brand: c.brand || c.card_type || "Visa debit",
-                  last4: l4,
-                  expiry: c.expiry || (c.exp_month && c.exp_year ? `${c.exp_month}/${c.exp_year}` : "12/28"),
-                  is_default: Boolean(c.is_default ?? c.isDefault ?? true),
-                });
-              }
-            });
-          }
-        }
-      } catch {}
-
-      // 2. Check singular card from Bills & Payments in localStorage
-      try {
-        const storedSingle = localStorage.getItem("zoiko_saved_card");
-        if (storedSingle) {
-          const parsed = JSON.parse(storedSingle);
-          if (parsed && (parsed.last4 || parsed.last_four)) {
-            const l4 = String(parsed.last4 || parsed.last_four);
-            if (!loadedList.some((c) => c.last4 === l4)) {
-              loadedList.unshift({
-                id: String(parsed.id || `pm-${l4}`),
-                brand: parsed.brand || "Visa debit",
-                last4: l4,
-                expiry: parsed.expiry || "12/28",
-                is_default: true,
-              });
-            }
-          }
-        }
-      } catch {}
-
-      // 3. If user is logged in, attempt to fetch live payment methods from backend
-      try {
-        const user = getUser();
-        const subscriberId = user?.subscriber_id || user?.subscriberId;
-        if (subscriberId && loadedList.length === 0) {
-          const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-          const res = await fetch(`${API_BASE}/api/v1/subscribers/${subscriberId}/payment-methods/`).catch(() => null);
-          if (res && res.ok) {
-            const data = await res.json();
-            const pms = data?.payment_methods || data?.data || (Array.isArray(data) ? data : []);
-            if (Array.isArray(pms) && pms.length > 0) {
-              pms.forEach((pm: any) => {
-                const l4 = pm.last_four || pm.card_last4 || (pm.card_number ? String(pm.card_number).slice(-4) : "");
-                if (l4 && !loadedList.some((c) => c.last4 === l4)) {
-                  loadedList.push({
-                    id: String(pm.id || `pm-${l4}`),
-                    brand: pm.brand || pm.card_type || "Saved card",
-                    last4: l4,
-                    expiry: pm.expiry || `${pm.exp_month || "12"}/${pm.exp_year || "28"}`,
-                    is_default: true,
-                  });
-                }
-              });
-            }
-          }
-        }
-      } catch {}
-
-      if (loadedList.length > 0) {
-        setSavedCards(loadedList);
-        setSelectedPaymentMethod("saved");
-        setSelectedCardId(loadedList[0].id);
-      } else {
-        setSavedCards([]);
-        setSelectedPaymentMethod("new");
-        setSelectedCardId("");
-      }
-    };
-
-    syncSavedCards();
-
-    // Listen for cross-page updates (e.g. from Bills & Payments)
-    const handleAuthOrStorage = () => syncSavedCards();
-    window.addEventListener("storage", handleAuthOrStorage);
-    window.addEventListener("zoiko-auth", handleAuthOrStorage);
-    return () => {
-      window.removeEventListener("storage", handleAuthOrStorage);
-      window.removeEventListener("zoiko-auth", handleAuthOrStorage);
-    };
-  }, []);
-
   // Stripe's cross-origin iframe can't inherit page dark styling; it only obeys
   // the `appearance` object handed to it. So we detect dark mode by MEASURING
   // the actual payment card background and match Stripe to it.
   const paymentCardRef = useRef<HTMLDivElement>(null);
   const [isDark, setIsDark] = useState(false);
 
-  const handleRemoveSavedCard = (e: React.MouseEvent, cardId: string) => {
-    e.stopPropagation();
-    const updated = savedCards.filter((c) => c.id !== cardId);
-    setSavedCards(updated);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("zoiko_saved_card");
-      if (updated.length > 0) {
-        localStorage.setItem("zoiko_saved_cards", JSON.stringify(updated));
-      } else {
-        localStorage.removeItem("zoiko_saved_cards");
-      }
-      window.dispatchEvent(new Event("zoiko-auth"));
-    }
-    if (updated.length === 0) {
-      setSelectedPaymentMethod("new");
-      setSelectedCardId("");
-    } else {
-      setSelectedCardId(updated[0].id);
-    }
-  };
 
   useEffect(() => {
     const compute = () => {
@@ -513,19 +372,18 @@ export default function CheckoutPage() {
     };
   }, [clientSecret, isDark]);
 
-  const isDev = process.env.NODE_ENV === "development";
   const emptyAddress: Address = {
-    firstName: isDev ? "Test" : "",
-    lastName: isDev ? "User" : "",
+    firstName: "",
+    lastName: "",
     companyName: "",
     region: "United Kingdom (UK)",
     state: "",
-    city: isDev ? "London" : "",
-    street: isDev ? "123 Test Street" : "",
-    houseNumber: isDev ? "123" : "",
-    zip: isDev ? "SW1A 1AA" : "",
-    phone: isDev ? "07123456789" : "",
-    email: isDev ? "test@zoikomobile.co.uk" : "",
+    city: "",
+    street: "",
+    houseNumber: "",
+    zip: "",
+    phone: "",
+    email: "",
   };
 
   const [billingAddress, setBillingAddress] = useState<Address>(emptyAddress);
@@ -561,6 +419,40 @@ export default function CheckoutPage() {
         setLoginPromptReason("order");
         setShowLoginPopup(true);
       }
+
+      // Prefill switch & save details if arriving from /switch-and-save
+      try {
+        const switchAddrRaw = typeof window !== "undefined" ? sessionStorage.getItem("switch_checkout_address") : null;
+        if (switchAddrRaw) {
+          const s = JSON.parse(switchAddrRaw);
+          if (s && typeof s === "object") {
+            setBillingAddress((prev) => ({
+              ...prev,
+              firstName: s.firstName || prev.firstName || "",
+              lastName: s.lastName || prev.lastName || "",
+              email: s.email || prev.email || "",
+              phone: s.phone || prev.phone || "",
+              street: s.street || prev.street || "",
+              houseNumber: s.houseNumber || prev.houseNumber || "",
+              city: s.city || prev.city || "",
+              zip: s.zip || prev.zip || "",
+              region: s.region || prev.region || "United Kingdom (UK)",
+            }));
+            setShippingAddress((prev) => ({
+              ...prev,
+              firstName: s.firstName || prev.firstName || "",
+              lastName: s.lastName || prev.lastName || "",
+              email: s.email || prev.email || "",
+              phone: s.phone || prev.phone || "",
+              street: s.street || prev.street || "",
+              houseNumber: s.houseNumber || prev.houseNumber || "",
+              city: s.city || prev.city || "",
+              zip: s.zip || prev.zip || "",
+              region: s.region || prev.region || "United Kingdom (UK)",
+            }));
+          }
+        }
+      } catch {}
     } catch {
       setCart([]);
     }
@@ -573,6 +465,13 @@ export default function CheckoutPage() {
    * eSIMs are delivered by email and need none.
    */
   const hasPhysicalSim = cart.some((item) => item.simTypeKey === "psim");
+
+  const isSwitchOrder = useMemo(() => {
+    return (
+      cart.some((item) => (item._raw?.metadata as any)?.isSwitchAndSave) ||
+      (typeof window !== "undefined" && sessionStorage.getItem("is_switch_and_save") === "true")
+    );
+  }, [cart]);
 
   // ── Cart mutations ────────────────────────────────────────────────────────
 
@@ -812,36 +711,14 @@ export default function CheckoutPage() {
       setLoading(true);
 
       // 1️⃣ Stripe payment
-      if (selectedPaymentMethod === "new") {
-        if (stripeFormRef.current) {
-          const result = await stripeFormRef.current.submitPayment();
-          console.log("✅ Stripe result:", result);
-          if (!result.success) {
-            setOrderError(result.error || "Payment failed.");
-            setShowOrderErrorPopup(true);
-            return;
-          }
+      if (stripeFormRef.current) {
+        const result = await stripeFormRef.current.submitPayment();
+        console.log("✅ Stripe result:", result);
+        if (!result.success) {
+          setOrderError(result.error || "Payment failed.");
+          setShowOrderErrorPopup(true);
+          return;
         }
-        if (saveCardForFuture && typeof window !== "undefined") {
-          try {
-            const newCard: SavedCard = {
-              id: `pm_${Date.now()}`,
-              brand: "Visa debit",
-              last4: "4242",
-              expiry: "12/28",
-              cardholderName: `${billingAddress?.firstName || ""} ${billingAddress?.lastName || ""}`.trim() || "Cardholder",
-              is_default: true,
-            };
-            const updated = [newCard, ...savedCards.filter((c) => c.last4 !== newCard.last4)];
-            setSavedCards(updated);
-            localStorage.setItem("zoiko_saved_card", JSON.stringify(newCard));
-            localStorage.setItem("zoiko_saved_cards", JSON.stringify(updated));
-            window.dispatchEvent(new Event("zoiko-auth"));
-          } catch {}
-        }
-      } else {
-        // One-click payment via selected saved card
-        await new Promise((r) => setTimeout(r, 600));
       }
 
       // 2️⃣ Payment succeeded. Confirm directly with Django — no webhook needed.
@@ -905,6 +782,13 @@ export default function CheckoutPage() {
         localStorage.removeItem("cart");
         window.dispatchEvent(new Event("cart-updated"));
       } catch { /* ignore */ }
+
+      if (isSwitchOrder && orderRef) {
+        try {
+          sessionStorage.setItem("switchOrderRef", orderRef);
+        } catch {}
+      }
+
       setShowThankYou(true);
     } catch (err: unknown) {
       console.error("❌ caught error:", err);
@@ -1003,6 +887,19 @@ export default function CheckoutPage() {
                             ? "eSIM — activation instructions sent by email after purchase."
                             : "Physical SIM — shipped to your address."}
                         </p>
+
+                        {(item._raw?.metadata as any)?.isSwitchAndSave && (
+                          <div className="mt-2 text-xs bg-pink-50 border border-pink-200 text-[#E01C5B] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                            <span className="font-bold">Switch request:</span>
+                            <span>
+                              {(item._raw?.metadata as any)?.switchRoute === "keep_pac"
+                                ? `Keep number ${(item._raw?.metadata as any)?.portOldNumber || ""}`
+                                : (item._raw?.metadata as any)?.switchRoute === "new_stac"
+                                ? "New number, close old provider"
+                                : "New Zoiko number"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* 💰 Price Display */}
@@ -1206,158 +1103,21 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Saved Cards Selection: ONLY rendered when user has at least 1 saved card! */}
-              {savedCards.length > 0 && (
-                <div className="space-y-3 mb-5">
-                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Saved Debit Cards
-                  </div>
-
-                  {savedCards.map((card) => {
-                    const isSelected = selectedPaymentMethod === "saved" && selectedCardId === card.id;
-                    const brandLower = card.brand?.toLowerCase() || "";
-                    const isVisa = brandLower.includes("visa");
-                    const isMastercard = brandLower.includes("mastercard") || brandLower.includes("mc");
-
-                    return (
-                      <div
-                        key={card.id}
-                        onClick={() => {
-                          setSelectedPaymentMethod("saved");
-                          setSelectedCardId(card.id);
-                        }}
-                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                          isSelected
-                            ? "border-[#E01C5B] bg-pink-50/40 dark:bg-pink-950/20 shadow-xs"
-                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          {/* Card Icon Badge */}
-                          <div
-                            className={`w-11 h-8 rounded-lg flex items-center justify-center font-bold text-xs uppercase shadow-xs shrink-0 ${
-                              isVisa
-                                ? "bg-[#1A1F71] text-white"
-                                : isMastercard
-                                ? "bg-[#EB001B] text-white"
-                                : "bg-slate-800 text-white"
-                            }`}
-                          >
-                            {isVisa ? (
-                              <span className="tracking-widest italic font-extrabold text-[13px]">VISA</span>
-                            ) : isMastercard ? (
-                              <span className="font-extrabold text-[10px]">MC</span>
-                            ) : (
-                              <CreditCard className="w-4 h-4" />
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-gray-900 dark:text-white capitalize">
-                                {card.brand} ending in {card.last4}
-                              </span>
-                              {card.is_default && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                                  Default
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              Expires {card.expiry}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Radio / Action Button */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full transition ${
-                              isSelected
-                                ? "bg-[#E01C5B] text-white shadow-xs"
-                                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
-                            }`}
-                          >
-                            {isSelected ? "Selected" : "Use this card"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleRemoveSavedCard(e, card.id)}
-                            className="text-xs text-gray-400 hover:text-rose-500 hover:underline px-1 py-1 transition"
-                            title="Remove this card"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Option: Use a new card */}
-                  <div
-                    onClick={() => setSelectedPaymentMethod("new")}
-                    className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-                      selectedPaymentMethod === "new"
-                        ? "border-[#E01C5B] bg-pink-50/30 dark:bg-pink-950/10"
-                        : "border-dashed border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-[#E01C5B]" />
-                      </div>
-                      <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200">
-                        Pay with a new debit / credit card
-                      </span>
-                    </div>
-                    <input
-                      type="radio"
-                      name="payment_choice"
-                      checked={selectedPaymentMethod === "new"}
-                      onChange={() => setSelectedPaymentMethod("new")}
-                      className="w-4 h-4 accent-[#E01C5B]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Show Stripe Payment Form when 'new' is chosen OR when no saved cards exist */}
-              {(selectedPaymentMethod === "new" || savedCards.length === 0) && (
-                <div className={savedCards.length > 0 ? "mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" : ""}>
-                  {savedCards.length > 0 && (
-                    <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                      Enter new card details:
-                    </div>
-                  )}
-                  {clientSecret ? (
-                    <Elements
-                      key={`${clientSecret}-${isDark ? "dark" : "light"}`}
-                      stripe={stripePromise}
-                      options={stripeOptions}
-                    >
-                      <StripePaymentForm ref={stripeFormRef} />
-                    </Elements>
-                  ) : (
-                    <div className="flex items-center justify-center py-6 gap-2 text-sm text-gray-400">
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Loading payment form…
-                    </div>
-                  )}
-
-                  {/* Save Card Checkbox */}
-                  <label className="flex items-center gap-2 mt-3.5 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={saveCardForFuture}
-                      onChange={(e) => setSaveCardForFuture(e.target.checked)}
-                      className="w-4 h-4 rounded accent-[#E01C5B]"
-                    />
-                    <span>Save this card for secure 1-click purchases next time</span>
-                  </label>
+              {clientSecret ? (
+                <Elements
+                  key={`${clientSecret}-${isDark ? "dark" : "light"}`}
+                  stripe={stripePromise}
+                  options={stripeOptions}
+                >
+                  <StripePaymentForm ref={stripeFormRef} />
+                </Elements>
+              ) : (
+                <div className="flex items-center justify-center py-6 gap-2 text-sm text-gray-400">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Loading payment form…
                 </div>
               )}
 
@@ -1394,7 +1154,7 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePlaceOrderStripe}
-                disabled={loading || (selectedPaymentMethod === "new" && !clientSecret)}
+                disabled={loading || !clientSecret}
                 className="w-full mt-5 py-3.5 rounded-xl bg-[#10446c] hover:bg-[#0d3a5a] text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -1406,7 +1166,7 @@ export default function CheckoutPage() {
                     Processing payment…
                   </>
                 ) : (
-                  selectedPaymentMethod === "saved" && savedCards.length > 0 ? `Pay £${total.toFixed(2)} with Saved Card` : "Place Order"
+                  `Pay £${total.toFixed(2)}`
                 )}
               </button>
             </div>
@@ -1490,7 +1250,11 @@ export default function CheckoutPage() {
         onClose={() => {
           setShowThankYou(false);
           setCart([]);
-          window.location.href = "/dashboard";
+          if (isSwitchOrder && orderRef) {
+            window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
+          } else {
+            window.location.href = "/dashboard";
+          }
         }}
         title=""
       >
@@ -1535,11 +1299,15 @@ export default function CheckoutPage() {
             onClick={() => {
               setShowThankYou(false);
               setCart([]);
-              window.location.href = "/dashboard";
+              if (isSwitchOrder && orderRef) {
+                window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
+              } else {
+                window.location.href = "/dashboard";
+              }
             }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-bold text-sm transition-all shadow-md hover:shadow-lg mb-2"
           >
-            Go to Dashboard →
+            {isSwitchOrder ? "Track Your Switch & SIM →" : "Go to Dashboard →"}
           </button>
           <button
             onClick={() => {

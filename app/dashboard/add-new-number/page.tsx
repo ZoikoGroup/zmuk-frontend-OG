@@ -144,7 +144,7 @@ function AddNewNumberContent() {
   const [step, setStep] = useState<number>(1);
 
   // ── Step 1: Option ──
-  const [switchChoice, setSwitchChoice] = useState<SwitchChoice>("pac");
+  const [switchChoice, setSwitchChoice] = useState<SwitchChoice>("none");
 
   // ── Step 2: Plan + Term ──
   const [plans, setPlans] = useState<BackendPlan[]>([]);
@@ -850,63 +850,67 @@ function AddNewNumberContent() {
               </div>
 
               <div className="grid grid-cols-1 gap-3.5">
-                {/* Option 1: PAC */}
+                {/* Option 1: PAC (Upcoming) */}
                 <label
-                  onClick={() => setSwitchChoice("pac")}
-                  className={`p-5 rounded-2xl border-2 transition cursor-pointer flex items-start gap-4 ${
-                    switchChoice === "pac"
-                      ? "border-[#E01C5B] bg-[#FDE8F1]/20 shadow-xs"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
+                  aria-disabled="true"
+                  className="p-5 rounded-2xl border-2 border-slate-200 bg-slate-50/70 opacity-75 cursor-not-allowed flex items-start gap-4 select-none"
                 >
                   <input
                     type="radio"
                     name="switch_choice"
-                    checked={switchChoice === "pac"}
-                    onChange={() => setSwitchChoice("pac")}
-                    className="mt-1 text-[#E01C5B] focus:ring-[#E01C5B]"
+                    checked={false}
+                    disabled
+                    onChange={() => {}}
+                    className="mt-1 text-slate-400 cursor-not-allowed"
                   />
                   <div className="flex-1">
-                    <div className="font-extrabold text-[#0D1935] text-base">Keep my current number (PAC)</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-extrabold text-[#0D1935] text-base">Keep my current number (PAC)</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Upcoming
+                      </span>
+                    </div>
                     <div className="text-xs text-slate-600 mt-0.5 leading-relaxed">
                       Move your existing UK mobile number to Zoiko Mobile from another provider using a PAC.
                     </div>
-                    <div className="text-[11px] text-[#E01C5B] font-semibold mt-1.5">
-                      Text <strong>PAC</strong> to <strong>65075</strong> from your current phone to get your code (free).
+                    <div className="text-[11px] text-slate-500 font-semibold mt-1.5">
+                      Coming soon — PAC transfers are not yet active on additional lines.
                     </div>
                   </div>
                 </label>
 
-                {/* Option 2: STAC */}
+                {/* Option 2: STAC (Upcoming) */}
                 <label
-                  onClick={() => setSwitchChoice("stac")}
-                  className={`p-5 rounded-2xl border-2 transition cursor-pointer flex items-start gap-4 ${
-                    switchChoice === "stac"
-                      ? "border-[#E01C5B] bg-[#FDE8F1]/20 shadow-xs"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
+                  aria-disabled="true"
+                  className="p-5 rounded-2xl border-2 border-slate-200 bg-slate-50/70 opacity-75 cursor-not-allowed flex items-start gap-4 select-none"
                 >
                   <input
                     type="radio"
                     name="switch_choice"
-                    checked={switchChoice === "stac"}
-                    onChange={() => setSwitchChoice("stac")}
-                    className="mt-1 text-[#E01C5B] focus:ring-[#E01C5B]"
+                    checked={false}
+                    disabled
+                    onChange={() => {}}
+                    className="mt-1 text-slate-400 cursor-not-allowed"
                   />
                   <div className="flex-1">
-                    <div className="font-extrabold text-[#0D1935] text-base">
-                      New number and end my old contract (STAC)
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-extrabold text-[#0D1935] text-base">
+                        New number and end my old contract (STAC)
+                      </span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Upcoming
+                      </span>
                     </div>
                     <div className="text-xs text-slate-600 mt-0.5 leading-relaxed">
                       Get a brand-new Zoiko UK number and automatically cancel your other network contract using a STAC.
                     </div>
-                    <div className="text-[11px] text-[#E01C5B] font-semibold mt-1.5">
-                      Text <strong>STAC</strong> to <strong>75075</strong> from your current phone to get your code (free).
+                    <div className="text-[11px] text-slate-500 font-semibold mt-1.5">
+                      Coming soon — STAC switching is not yet active on additional lines.
                     </div>
                   </div>
                 </label>
 
-                {/* Option 3: None */}
+                {/* Option 3: None (Active) */}
                 <label
                   onClick={() => setSwitchChoice("none")}
                   className={`p-5 rounded-2xl border-2 transition cursor-pointer flex items-start gap-4 ${

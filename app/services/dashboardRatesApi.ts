@@ -252,124 +252,19 @@ export const UK_TEXT_DESTINATIONS: RateDestination[] = [
   }
 ];
 
-export const POPULAR_COUNTRY_PROFILES: CountryRateProfile[] = [
-  {
-    countryCode: "+34",
-    countryName: "Spain (including Balearics & Canaries)",
-    iso2: "ES",
-    zone: "eu_eea",
-    callRateToUK: "Included in UK Allowance",
-    callRateLocal: "Included in UK Allowance",
-    incomingCallRate: "Free to receive",
-    smsRateToUK: "Included in UK Allowance",
-    smsRateLocal: "Included in UK Allowance",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "45p / MMS",
-    dataRoamingRate: "Uses UK plan (Up to 5GB fair use cap)",
-    fairUseCapGb: 5,
-    notes: [
-      "Part of Zoiko Go Roam Europe (EU/EEA)",
-      "UK to Spain calls made from the UK are International: 15p/min"
-    ]
-  },
-  {
-    countryCode: "+33",
-    countryName: "France (including Corsica)",
-    iso2: "FR",
-    zone: "eu_eea",
-    callRateToUK: "Included in UK Allowance",
-    callRateLocal: "Included in UK Allowance",
-    incomingCallRate: "Free to receive",
-    smsRateToUK: "Included in UK Allowance",
-    smsRateLocal: "Included in UK Allowance",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "45p / MMS",
-    dataRoamingRate: "Uses UK plan (Up to 5GB fair use cap)",
-    fairUseCapGb: 5,
-    notes: [
-      "Part of Zoiko Go Roam Europe (EU/EEA)",
-      "EU roaming fair use policy applies"
-    ]
-  },
-  {
-    countryCode: "+1",
-    countryName: "United States of America",
-    iso2: "US",
-    zone: "zone_1",
-    callRateToUK: "£1.40 / min",
-    callRateLocal: "£1.40 / min",
-    incomingCallRate: "£1.00 / min",
-    smsRateToUK: "35p / SMS",
-    smsRateLocal: "35p / SMS",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "65p / MMS",
-    dataRoamingRate: "20p / MB",
-    fairUseCapGb: 2,
-    notes: [
-      "Outside inclusive EU zone. Standard out-of-bundle rates apply",
-      "Calling USA from within the UK: 10p/min"
-    ]
-  },
-  {
-    countryCode: "+91",
-    countryName: "India",
-    iso2: "IN",
-    zone: "zone_2",
-    callRateToUK: "£1.80 / min",
-    callRateLocal: "£1.50 / min",
-    incomingCallRate: "£1.20 / min",
-    smsRateToUK: "40p / SMS",
-    smsRateLocal: "40p / SMS",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "70p / MMS",
-    dataRoamingRate: "35p / MB",
-    notes: [
-      "Calling India from within the UK: 8p/min",
-      "Out-of-bundle roaming data charges apply"
-    ]
-  },
-  {
-    countryCode: "+61",
-    countryName: "Australia",
-    iso2: "AU",
-    zone: "zone_1",
-    callRateToUK: "£1.40 / min",
-    callRateLocal: "£1.40 / min",
-    incomingCallRate: "£1.00 / min",
-    smsRateToUK: "35p / SMS",
-    smsRateLocal: "35p / SMS",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "65p / MMS",
-    dataRoamingRate: "20p / MB",
-    fairUseCapGb: 2,
-    notes: [
-      "Standard roaming rates apply outside EU",
-      "Calling Australia from within the UK: 12p/min"
-    ]
-  },
-  {
-    countryCode: "+971",
-    countryName: "United Arab Emirates (Dubai, Abu Dhabi)",
-    iso2: "AE",
-    zone: "rest_of_world",
-    callRateToUK: "£2.50 / min",
-    callRateLocal: "£2.00 / min",
-    incomingCallRate: "£1.80 / min",
-    smsRateToUK: "50p / SMS",
-    smsRateLocal: "50p / SMS",
-    incomingSmsRate: "Free to receive",
-    mmsRate: "85p / MMS",
-    dataRoamingRate: "£1.20 / MB",
-    notes: [
-      "Rest of World premium roaming zone",
-      "We strongly recommend setting a spending cap prior to travel"
-    ]
-  }
+export const UK_DIALLING_PREFIXES: { prefix: string; label: string }[] = [
+  { prefix: "+34", label: "Spain" },
+  { prefix: "+33", label: "France" },
+  { prefix: "+1", label: "USA / Canada" },
+  { prefix: "+91", label: "India" },
+  { prefix: "+61", label: "Australia" },
+  { prefix: "+971", label: "United Arab Emirates" },
 ];
 
 /**
  * Fetch authoritative display rates for a specific mobile line, service, and destination.
- * Calls backend API first; falls back to standard tariff catalog if backend is pending.
+ * Calls backend API first; falls back to standard UK tariff catalog (CT-02).
+ * Note: Roaming rates Abroad are served exclusively via roamingApi.ts (/api/v1/roaming/* & /roaming-quote/).
  */
 export async function fetchLineRates(params: {
   lineId?: string;
@@ -381,57 +276,20 @@ export async function fetchLineRates(params: {
 }): Promise<{
   status: "success" | "unconfirmed" | "error";
   destinations: RateDestination[];
-  countryProfile?: CountryRateProfile;
   message?: string;
 }> {
-  // 1. Attempt Backend API call if lineId is supplied
-  if (params.lineId) {
-    try {
-      const url = new URL(`${API_BASE}/api/v1/lines/${params.lineId}/rates`);
-      url.searchParams.set("service", params.service);
-      url.searchParams.set("context", params.context);
-      if (params.countryCode) url.searchParams.set("country", params.countryCode);
-
-      const res = await fetch(url.toString(), {
-        headers: {
-          "Content-Type": "application/json",
-          ...(params.token ? { Authorization: `Token ${params.token}` } : {}),
-        },
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.destinations && Array.isArray(json.destinations)) {
-          return {
-            status: "success",
-            destinations: json.destinations,
-            countryProfile: json.countryProfile,
-          };
-        }
-      }
-    } catch {
-      // Backend route pending deployment, gracefully use standard rules
-    }
-  }
-
-  // 2. Standard Tariff Resolution
   if (params.context === "uk") {
     const list = params.service === "calls" ? UK_CALL_DESTINATIONS : UK_TEXT_DESTINATIONS;
     return {
       status: "success",
-      destinations: list
-    };
-  } else {
-    const country = POPULAR_COUNTRY_PROFILES.find(
-      (c) => c.iso2 === params.countryCode || c.countryCode === params.countryCode
-    ) || POPULAR_COUNTRY_PROFILES[0];
-
-    return {
-      status: "success",
-      destinations: [],
-      countryProfile: country
+      destinations: list,
     };
   }
+  return {
+    status: "unconfirmed",
+    destinations: [],
+    message: "Use roamingApi.ts for destination roaming tariffs.",
+  };
 }
 
 /**
@@ -481,7 +339,7 @@ export async function fetchAllowanceDetails(params: {
   const mobileNumber = params.mobileNumber || "No active line";
 
   const now = new Date();
-  const renewalDateStr = params.renewDate || "15 Nov 2026";
+  const renewalDateStr = params.renewDate || "—";
   const cycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, 14);
   const cycleStart = new Date(now.getFullYear(), now.getMonth(), 15);
   const msPerDay = 1000 * 60 * 60 * 24;
