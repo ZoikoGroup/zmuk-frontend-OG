@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, Globe, Phone, MessageSquare, Database, Check, ShieldCheck } from "lucide-react";
 
 // ─── DATA & ZONE RATES ────────────────────────────────────────────────────────
@@ -146,7 +147,16 @@ function TableShell({ children }: { children: React.ReactNode }) {
 // ─── PAGE COMPONENT ──────────────────────────────────────────────────────────
 
 export default function Roaming() {
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+  const initialCountry = searchParams?.get("country") || searchParams?.get("search") || "";
+  const [searchQuery, setSearchQuery] = useState(initialCountry);
+
+  useEffect(() => {
+    const c = searchParams?.get("country") || searchParams?.get("search");
+    if (c) {
+      setSearchQuery(c);
+    }
+  }, [searchParams]);
   const [selectedZone, setSelectedZone] = useState<string>("Zone 2");
 
   // Search filter across countries and zones

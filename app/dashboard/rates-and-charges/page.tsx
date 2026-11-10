@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,44 +14,50 @@ import {
   ShieldCheck,
   Search,
   AlertCircle,
-  Clock,
-  Sparkles,
   Plane,
-  Receipt,
   Smartphone,
   Calculator,
   CheckCircle2,
-  PlusCircle,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
-import beQuick from "../../utils/dasdbeQuickApi";
-import { getFallbackUserLine, formatUkPhone } from "../../utils/dashboardSync";
+import RoamingQuotePanel from "../components/RoamingQuotePanel";
+import { Line, getLines } from "../add-new-number/addLineApi";
+import { formatUkPhone } from "../../utils/dashboardSync";
 import {
   UK_CALL_DESTINATIONS,
   UK_TEXT_DESTINATIONS,
-  POPULAR_COUNTRY_PROFILES,
+  UK_DIALLING_PREFIXES,
   RateDestination,
-  CountryRateProfile,
   RateServiceType,
   RateContext,
 } from "../../services/dashboardRatesApi";
 
-interface ActiveLine {
-  id: string;
-  number: string;
-  planName: string;
-  status: string;
-  renews: string;
+function niceStatus(status?: string): string {
+  switch ((status || "").toLowerCase()) {
+    case "active":
+      return "Active";
+    case "pending_activation":
+      return "Pending activation";
+    case "suspended":
+      return "Suspended";
+    case "terminated":
+      return "Terminated";
+    default:
+      return status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown";
+  }
 }
 
 function RatesAndChargesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Active Tab from URL: ?tab=calls | texts
+  // Active Tab & Context from URL: ?tab=calls | texts & ?context=uk | abroad & ?country=FR
   const urlTab = searchParams.get("tab");
+  const urlContext = searchParams.get("context");
+  const urlCountry = searchParams.get("country") || "FR";
+
   const [activeTab, setActiveTab] = useState<RateServiceType>(
     urlTab === "texts" ? "texts" : "calls"
   );
@@ -64,7 +70,9 @@ function RatesAndChargesContent() {
 
   const handleTabChange = (tab: RateServiceType) => {
     setActiveTab(tab);
-    router.replace(`/dashboard/rates-and-charges?tab=${tab}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`/dashboard/rates-and-charges?${params.toString()}`, { scroll: false });
   };
 
   // Nav & Sidebar State
@@ -73,22 +81,29 @@ function RatesAndChargesContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userName, setUserName] = useState("Account Member");
   const [userRole, setUserRole] = useState("Account holder");
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Dynamic Lines from Auth / BeQuick / Fallback
-  const [lines, setLines] = useState<ActiveLine[]>([]);
+  // Real Lines from GET /api/v1/lines/
+  const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDropdownOpen, setLineDropdownOpen] = useState(false);
   const lineDropdownRef = useRef<HTMLDivElement>(null);
 
   // Context: UK vs Abroad
-  const [usageContext, setUsageContext] = useState<RateContext>("uk");
+  const [usageContext, setUsageContext] = useState<RateContext>(
+    urlContext === "abroad" ? "abroad" : "uk"
+  );
 
-  // Roaming & Country Filter State
-  const [selectedCountryIso, setSelectedCountryIso] = useState<string>("ES");
+  useEffect(() => {
+    if (urlContext === "abroad" || urlContext === "uk") {
+      setUsageContext(urlContext);
+    }
+  }, [urlContext]);
+
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Live Number Lookup / Calculator State
+  // Live Number Lookup / Calculator State (CT-02 UK domestic classifier)
   const [testNumber, setTestNumber] = useState("");
 
   // Close dropdown on outside click
@@ -105,23 +120,24 @@ function RatesAndChargesContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Dynamic User & Lines Loading
-  useEffect(() => {
-    let isMounted = true;
+  // Load Real User Lines strictly via GET /api/v1/lines/
+  const loadDynamicLines = useCallback(async () => {
     setIsLoading(true);
+    try {
+      const storedToken =
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token")
+          : null;
+      const rawUser =
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_user") || localStorage.getItem("driverx_user")
+          : null;
 
-    async function loadDynamicLines() {
-      try {
-        const token =
-          localStorage.getItem("zoiko_token") ||
-          localStorage.getItem("driverx_token") ||
-          "";
-        const rawUser =
-          localStorage.getItem("zoiko_user") ||
-          localStorage.getItem("driverx_user");
-        const userData = rawUser ? JSON.parse(rawUser) : null;
+      setToken(storedToken);
 
-        if (userData) {
+      if (rawUser) {
+        try {
+          const userData = JSON.parse(rawUser);
           const name =
             [userData?.first_name, userData?.last_name].filter(Boolean).join(" ") ||
             userData?.name ||
@@ -129,110 +145,40 @@ function RatesAndChargesContent() {
             "Account Member";
           setUserName(name);
           if (userData?.role) setUserRole(String(userData.role));
-        }
-
-        const loaded: ActiveLine[] = [];
-
-        // 1. Check BeQuick lines
-        const subId = userData?.subscriber_id;
-        if (subId) {
-          try {
-            const bqLines = await beQuick.getUserLines(subId);
-            if (Array.isArray(bqLines) && bqLines.length > 0) {
-              bqLines.forEach((l: any) => {
-                loaded.push({
-                  id: String(l.id || l.line_id),
-                  number: formatUkPhone(l.mdn || l.phone_number),
-                  planName: l.plan_name || l.device_name || "Zoiko SIM Plan",
-                  status: l.status || "Active",
-                  renews: "15 Nov 2026",
-                });
-              });
-            }
-          } catch (e) {
-            console.warn("BeQuick lines unavailable, trying Django SIM orders", e);
-          }
-        }
-
-        // 2. Check Django SIM orders if still empty
-        if (loaded.length === 0 && userData?.email) {
-          try {
-            const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-            const res = await fetch(`${API_BASE}/api/v1/sims/orders/by-user/`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Token ${token}` } : {}),
-              },
-              body: JSON.stringify({ email: userData.email, logged_user: userData.email }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              const ordersList = Array.isArray(data.orders) ? data.orders : [];
-              ordersList.forEach((ord: any) => {
-                if (ord.msisdn || ord.sim_number) {
-                  loaded.push({
-                    id: String(ord.id || ord.order_number),
-                    number: formatUkPhone(ord.msisdn || ord.phone_number),
-                    planName: ord.plan_name || "Zoiko SIM Plan",
-                    status: ord.status || "Active",
-                    renews: "15 Nov 2026",
-                  });
-                }
-              });
-            }
-          } catch {}
-        }
-
-        // 3. Check fallback user line
-        if (loaded.length === 0) {
-          const fb = getFallbackUserLine(userData);
-          if (fb && fb.number) {
-            loaded.push({
-              id: fb.id,
-              number: fb.number,
-              planName: fb.planName,
-              status: fb.status,
-              renews: "15 Nov 2026",
-            });
-          }
-        }
-
-        // 4. Default active primary line for authenticated preview if account has no provisioned SIM yet
-        if (loaded.length === 0) {
-          loaded.push({
-            id: "line_primary",
-            number: "07888 849 201",
-            planName: "Zoiko 20GB Unlimited Monthly",
-            status: "Active",
-            renews: "15 Nov 2026",
-          });
-        }
-
-        if (isMounted) {
-          setLines(loaded);
-          if (loaded.length > 0) {
-            setSelectedLineId(loaded[0].id);
-          }
-          setIsLoading(false);
-        }
-      } catch {
-        if (isMounted) setIsLoading(false);
+        } catch {}
       }
+
+      if (!storedToken) {
+        setLines([]);
+        setSelectedLineId("");
+        return;
+      }
+
+      const data = await getLines();
+      const loaded = Array.isArray(data?.lines) ? data.lines : [];
+      setLines(loaded);
+      setSelectedLineId((prev) => {
+        if (prev && loaded.some((l) => l.id === prev)) return prev;
+        const firstActive = loaded.find((l) => l.status === "active");
+        return firstActive ? firstActive.id : loaded[0]?.id || "";
+      });
+    } catch {
+      setLines([]);
+      setSelectedLineId("");
+    } finally {
+      setIsLoading(false);
     }
-
-    loadDynamicLines();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadDynamicLines();
+  }, [loadDynamicLines]);
 
   const currentLine = useMemo(() => {
     return lines.find((l) => l.id === selectedLineId) || lines[0] || null;
   }, [lines, selectedLineId]);
 
-  // Current Destinations
+  // Current Destinations (UK CT-02)
   const destinations: RateDestination[] = useMemo(() => {
     return activeTab === "calls" ? UK_CALL_DESTINATIONS : UK_TEXT_DESTINATIONS;
   }, [activeTab]);
@@ -246,33 +192,22 @@ function RatesAndChargesContent() {
     );
   }, [destinations, searchQuery]);
 
-  // Roaming Countries List & Current Selection
-  const currentCountry: CountryRateProfile = useMemo(() => {
-    return (
-      POPULAR_COUNTRY_PROFILES.find((c) => c.iso2 === selectedCountryIso) ||
-      POPULAR_COUNTRY_PROFILES[0]
-    );
-  }, [selectedCountryIso]);
-
-  // Interactive Live Number Evaluation
+  // Interactive Live Number Evaluation (UK Domestic / International-from-UK CT-02)
   const evaluatedNumberResult = useMemo(() => {
     const raw = testNumber.trim().replace(/\s+/g, "");
     if (!raw) return null;
 
     if (raw.startsWith("+") && !raw.startsWith("+44")) {
-      const country = POPULAR_COUNTRY_PROFILES.find((c) =>
-        raw.startsWith(c.countryCode)
+      const matchedPrefix = UK_DIALLING_PREFIXES.find((p) =>
+        raw.startsWith(p.prefix)
       );
       return {
-        type: "International Destination",
-        detail: country
-          ? `${country.countryName} (${country.countryCode})`
-          : "International destination outside UK",
+        type: "International Call / Text from UK",
+        detail: matchedPrefix
+          ? `Calling ${matchedPrefix.label} (${matchedPrefix.prefix}) from within the UK`
+          : "International destination called from within the UK",
         isIncluded: false,
-        rate:
-          activeTab === "calls"
-            ? country?.callRateToUK || "Outside your allowance: from 15p/min (Includes 20% VAT)"
-            : country?.smsRateToUK || "Outside your allowance: 35p/SMS (Includes 20% VAT)",
+        rate: "Standard international tariff applies (check abroad roaming rates separately under Abroad tab)",
         accessCharge: "Standard international tariff",
         vat: "Includes 20% VAT",
       };
@@ -379,8 +314,7 @@ function RatesAndChargesContent() {
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
             numbersCount={lines.length}
-            planName={currentLine?.planName}
-            renewDate={currentLine?.renews}
+            planName={currentLine?.plan?.name}
           />
         </div>
 
@@ -420,38 +354,52 @@ function RatesAndChargesContent() {
             </nav>
 
             {/* Dynamic Line Switcher Card */}
-            {currentLine ? (
-              <div className="relative w-full sm:w-auto" ref={lineDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setLineDropdownOpen((prev) => !prev)}
-                  className="min-h-12 w-full sm:w-auto pl-3 pr-3.5 py-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-[#E5E8EF] dark:border-slate-700 inline-flex items-center gap-3 hover:border-slate-300 dark:hover:border-slate-600 transition cursor-pointer text-left"
-                >
-                  <div className="w-6 h-8 flex items-center justify-center text-[#1E2D4D] dark:text-pink-400 shrink-0">
-                    <Smartphone className="w-4 h-4 stroke-[2]" />
+            <div className="relative w-full sm:w-auto" ref={lineDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setLineDropdownOpen((prev) => !prev)}
+                className="min-h-12 w-full sm:w-auto pl-3 pr-3.5 py-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-[#E5E8EF] dark:border-slate-700 inline-flex items-center gap-3 hover:border-slate-300 dark:hover:border-slate-600 transition cursor-pointer text-left"
+              >
+                <div className="w-6 h-8 flex items-center justify-center text-[#1E2D4D] dark:text-pink-400 shrink-0">
+                  <Smartphone className="w-4 h-4 stroke-[2]" />
+                </div>
+                <div className="min-w-0 sm:min-w-[210px] pr-2">
+                  <div className="text-[11px] font-normal text-slate-500 dark:text-slate-400 leading-4">
+                    Rates for line
                   </div>
-                  <div className="min-w-0 sm:min-w-[210px] pr-2">
-                    <div className="text-[11px] font-normal text-slate-500 dark:text-slate-400 leading-4">
-                      Rates for active line
-                    </div>
-                    <div className="text-xs sm:text-sm font-bold text-[#0D1935] dark:text-white leading-5 truncate">
-                      {currentLine.number} · {currentLine.planName}
-                    </div>
+                  <div className="text-xs sm:text-sm font-bold text-[#0D1935] dark:text-white leading-5 truncate">
+                    {isLoading
+                      ? "Loading lines…"
+                      : currentLine
+                      ? `${formatUkPhone(currentLine.msisdn || "")} · ${currentLine.plan?.name || "Unverified plan"}`
+                      : "No active lines linked"}
                   </div>
-                  <ChevronDown
-                    className={`w-4 h-4 text-slate-400 shrink-0 ml-auto transition-transform ${
-                      lineDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 shrink-0 ml-auto transition-transform ${
+                    lineDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
-                {lineDropdownOpen && lines.length > 0 && (
-                  <div className="absolute right-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 z-30">
-                    <div className="px-3.5 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
-                      Select mobile line ({lines.length})
+              {lineDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 z-30">
+                  <div className="px-3.5 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
+                    Select mobile line ({lines.length})
+                  </div>
+                  {lines.length === 0 ? (
+                    <div className="p-3.5 text-xs text-slate-500 space-y-2">
+                      <p>No lines found on your account.</p>
+                      <Link
+                        href="/dashboard/roaming-and-travel"
+                        className="block w-full text-center py-2 px-3 rounded-xl bg-[#E01C5B] text-white font-semibold"
+                      >
+                        Link an existing Zoiko number
+                      </Link>
                     </div>
-                    {lines.map((ln) => {
-                      const isSel = ln.id === currentLine.id;
+                  ) : (
+                    lines.map((ln) => {
+                      const isSel = ln.id === currentLine?.id;
                       return (
                         <button
                           key={ln.id}
@@ -466,10 +414,10 @@ function RatesAndChargesContent() {
                         >
                           <div className="truncate">
                             <div className="text-xs font-bold text-[#0D1935] dark:text-white truncate">
-                              {ln.number} · {ln.planName}
+                              {formatUkPhone(ln.msisdn || "")} · {ln.plan?.name || "Unverified plan"}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {ln.status} · Renews {ln.renews}
+                              {niceStatus(ln.status)} {ln.term ? `· ${ln.term}` : ""}
                             </div>
                           </div>
                           {isSel && (
@@ -477,11 +425,11 @@ function RatesAndChargesContent() {
                           )}
                         </button>
                       );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : null}
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Service Switcher (Calls vs Texts) & Context Switcher (In UK vs Abroad) */}
@@ -729,142 +677,33 @@ function RatesAndChargesContent() {
             </div>
           ) : (
             /* ───────────────────────────────────────────────────────────── */
-            /* TAB CONTENT: ABROAD (ROAMING)                                */
+            /* TAB CONTENT: ABROAD (ROAMING — 100% Backend Quote Driven)    */
             /* ───────────────────────────────────────────────────────────── */
-            <div className="space-y-4">
-              {/* Destination Filter Bar */}
-              <div className="bg-white dark:bg-slate-800 rounded-[20px] p-4 sm:p-5 border border-[#E5E8EF] dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Globe className="w-4 h-4 text-[#B8144A] dark:text-pink-400" />
-                    <span className="text-sm font-bold text-[#0D1935] dark:text-white">
-                      Destination Roaming Country
-                    </span>
+            <div className="bg-white dark:bg-slate-800 rounded-[20px] p-4 sm:p-6 border border-[#E5E8EF] dark:border-slate-700 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-[#E01C5B]" />
+                    <h2 className="text-base sm:text-lg font-bold text-[#0D1935] dark:text-white">
+                      Abroad &amp; International Roaming Tariffs
+                    </h2>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Rates may differ when you are abroad. Choose your destination to check roaming charges.
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Live destination tariffs and plan allowances verified by the Zoiko roaming register.
                   </p>
                 </div>
-
-                {/* Country dropdown selector */}
-                <div className="w-full sm:w-72">
-                  <select
-                    value={selectedCountryIso}
-                    onChange={(e) => setSelectedCountryIso(e.target.value)}
-                    aria-label="Select destination country"
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#B8144A]/20"
-                  >
-                    {POPULAR_COUNTRY_PROFILES.map((c) => (
-                      <option key={c.iso2} value={c.iso2}>
-                        {c.countryName} ({c.countryCode})
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
-              {/* Country Roaming Pricing Snapshot */}
-              <div className="bg-white dark:bg-slate-800 rounded-[20px] p-4 sm:p-6 border border-[#E5E8EF] dark:border-slate-700 shadow-sm space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-lg sm:text-xl font-bold text-[#0D1935] dark:text-white">
-                        {currentCountry.countryName}
-                      </h2>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                        {currentCountry.zone.replace("_", " ")}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Dialling prefix: {currentCountry.countryCode} · Standard UK mobile billing rules
-                    </p>
-                  </div>
-
-                  {currentCountry.zone === "eu_eea" ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200/60 self-start sm:self-auto">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>EU Roaming (Included in Plan)</span>
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-600 self-start sm:self-auto">
-                      <Globe className="w-4 h-4" />
-                      <span>Standard Roaming Rates Apply</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 4 Cards: UK Calls, Local Calls, SMS, Data */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                      <Phone className="w-3.5 h-3.5 text-[#B8144A]" />
-                      <span>Calls back to UK</span>
-                    </div>
-                    <div className="text-sm sm:text-base font-bold text-[#0D1935] dark:text-white">
-                      {currentCountry.callRateToUK}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      Incoming: {currentCountry.incomingCallRate}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                      <Phone className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Local Calls</span>
-                    </div>
-                    <div className="text-sm sm:text-base font-bold text-[#0D1935] dark:text-white">
-                      {currentCountry.callRateLocal}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      Destination numbers
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>SMS & Messages</span>
-                    </div>
-                    <div className="text-sm sm:text-base font-bold text-[#0D1935] dark:text-white">
-                      {currentCountry.smsRateToUK}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      MMS: {currentCountry.mmsRate}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                      <Globe className="w-3.5 h-3.5 text-purple-500" />
-                      <span>Data Roaming</span>
-                    </div>
-                    <div className="text-sm sm:text-base font-bold text-[#0D1935] dark:text-white">
-                      {currentCountry.dataRoamingRate}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      {currentCountry.fairUseCapGb
-                        ? `${currentCountry.fairUseCapGb}GB fair-use cap`
-                        : "Out-of-bundle rates"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Country Notes */}
-                {currentCountry.notes && (
-                  <div className="p-3.5 rounded-xl bg-[#FAF1F4] dark:bg-pink-950/20 border border-[#F5C2D3]/60 dark:border-pink-900/40 text-xs text-slate-700 dark:text-slate-200 space-y-1.5">
-                    <div className="font-bold text-[#B8144A] dark:text-pink-400 flex items-center gap-1.5">
-                      <Info className="w-4 h-4" />
-                      <span>Roaming Guidance & Policy</span>
-                    </div>
-                    {currentCountry.notes.map((n, idx) => (
-                      <p key={idx} className="text-slate-600 dark:text-slate-300 pl-4 sm:pl-5">
-                        • {n}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <RoamingQuotePanel
+                token={token}
+                lines={lines}
+                selectedLineId={selectedLineId}
+                onOpenLineSelector={() => setLineDropdownOpen(true)}
+                onReloadLines={loadDynamicLines}
+                onOpenLinkClaimModal={() => router.push("/dashboard/roaming-and-travel")}
+                initialCountryCode={urlCountry}
+                compact={true}
+              />
             </div>
           )}
 

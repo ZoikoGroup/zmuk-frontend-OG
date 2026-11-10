@@ -126,40 +126,43 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white dark:bg-gray-900 shadow-sm" ref={dropdownRef}>
-      {/* ─── 1. TOP UTILITY BAR (bg-zinc-100 h-11) ─── */}
-      <div className="w-full bg-[#f4f4f5] dark:bg-gray-800 border-b border-neutral-200 dark:border-gray-700">
-        <div className="mx-auto flex h-11 max-w-[1440px] items-center justify-between px-4 sm:px-8 text-[13px] md:text-[14px] text-black/80 dark:text-gray-200 font-normal">
+      {/* ─── 1. TOP UTILITY BAR (bg-[#0A382C] h-11) ─── */}
+      <div className="relative w-full bg-[#0A382C] text-white overflow-hidden border-b border-[#07271e]">
+        {/* Colorful slant badge on far left */}
+        <div className="absolute left-0 top-0 h-full w-14 bg-gradient-to-r from-[#E01C5B] via-[#F97316] to-[#EAB308] -skew-x-12 -translate-x-2 z-0" />
+
+        <div className="mx-auto flex h-11 max-w-[1440px] items-center justify-between px-4 sm:px-8 text-[13px] md:text-[14px] text-white/90 font-medium relative z-10">
           {/* Left features strip */}
           <div className="flex items-center gap-3 sm:gap-6 overflow-x-auto no-scrollbar py-1">
             <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span className="flex h-4 w-4 items-center justify-center text-rose-600 dark:text-rose-400">
+              <span className="flex h-4 w-4 items-center justify-center text-rose-400">
                 <Smartphone className="h-3.5 w-3.5" />
               </span>
               <span>eSIM ready</span>
             </div>
 
-            <div className="h-4 w-px bg-neutral-300 dark:bg-gray-700 hidden sm:block" />
+            <div className="h-4 w-px bg-white/20 hidden sm:block" />
 
             <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span className="flex h-4 w-4 items-center justify-center text-rose-600 dark:text-rose-400">
+              <span className="flex h-4 w-4 items-center justify-center text-rose-400">
                 <PhoneCall className="h-3.5 w-3.5" />
               </span>
               <span>Keep your number</span>
             </div>
 
-            <div className="h-4 w-px bg-neutral-300 dark:bg-gray-700 hidden md:block" />
+            <div className="h-4 w-px bg-white/20 hidden md:block" />
 
             <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span className="flex h-4 w-4 items-center justify-center text-rose-600 dark:text-rose-400">
+              <span className="flex h-4 w-4 items-center justify-center text-rose-400">
                 <Truck className="h-3.5 w-3.5" />
               </span>
               <span>Free UK delivery</span>
             </div>
 
-            <div className="h-4 w-px bg-neutral-300 dark:bg-gray-700 hidden lg:block" />
+            <div className="h-4 w-px bg-white/20 hidden lg:block" />
 
             <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <span className="flex h-4 w-4 items-center justify-center text-rose-600 dark:text-rose-400">
+              <span className="flex h-4 w-4 items-center justify-center text-rose-400">
                 <Calendar className="h-3.5 w-3.5" />
               </span>
               <span>Flexible 30-day plans</span>
@@ -167,7 +170,7 @@ export default function Header() {
           </div>
 
           {/* Right feature: Proudly UK based */}
-          <div className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap pl-4">
+          <div className="hidden sm:inline-flex items-center gap-2 whitespace-nowrap pl-4 text-white">
             <img
               src="/images/new%20home%20and%20header/Frame%2017.png"
               alt="UK Flag"
@@ -176,7 +179,7 @@ export default function Header() {
                 (e.currentTarget as HTMLElement).style.display = "none";
               }}
             />
-            <span className="text-black/80 dark:text-gray-200">Proudly UK based</span>
+            <span className="text-white/90 font-semibold">Proudly UK based</span>
           </div>
         </div>
       </div>
@@ -198,60 +201,126 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* Center-Right Actions */}
-          <div className="hidden md:flex items-center gap-3 lg:gap-4 ml-auto">
-            {/* Search Pill */}
-            {/* <form onSubmit={handleSearchSubmit} className="relative w-48 lg:w-72">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full border border-black/40 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 pl-4 pr-10 text-sm text-black dark:text-white placeholder-black/60 dark:placeholder-gray-400 focus:border-rose-600 focus:outline-none focus:ring-1 focus:ring-rose-600"
+          {/* Desktop Navigation Links */}
+          <nav className="hidden xl:flex items-center gap-5 2xl:gap-7 text-sm font-bold text-gray-800 dark:text-gray-200">
+            {/* 1. Plans & Pricing */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("plans")}
+              onClick={() => setActiveDropdown(activeDropdown === "plans" ? null : "plans")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "plans" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Plans &amp; Pricing</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "plans" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
               />
-              <button
-                type="submit"
-                aria-label="Search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-black/60 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400"
-              >
-                <Search className="h-4 w-4" />
-              </button>
-            </form> */}
+            </button>
 
-            {/* My Zoiko Pill */}
-            {isLoggedIn ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center gap-2 rounded-full border border-rose-600/60 dark:border-rose-500/60 px-4 py-2 text-sm font-medium text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                >
-                  <LayoutDashboard className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                  <span>Dashboard</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  title="Logout"
-                  className="rounded-full p-2 text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 rounded-full border border-rose-600/60 dark:border-rose-500/60 px-4 py-2 text-sm font-medium text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/40"
-              >
-                <User className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                <span>My Zoiko</span>
-                <ChevronDown className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-              </Link>
-            )}
+            {/* 2. Phones & Devices */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("devices")}
+              onClick={() => setActiveDropdown(activeDropdown === "devices" ? null : "devices")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "devices" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Phones &amp; Devices</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "devices" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
+              />
+            </button>
+
+            {/* 3. Roaming & Calls */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("roaming")}
+              onClick={() => setActiveDropdown(activeDropdown === "roaming" ? null : "roaming")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "roaming" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Roaming &amp; Calls</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "roaming" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
+              />
+            </button>
+
+            {/* 4. Business */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("business")}
+              onClick={() => setActiveDropdown(activeDropdown === "business" ? null : "business")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "business" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Business</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "business" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
+              />
+            </button>
+
+            {/* 5. Why Zoiko */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("why-zoiko")}
+              onClick={() => setActiveDropdown(activeDropdown === "why-zoiko" ? null : "why-zoiko")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "why-zoiko" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Why Zoiko</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "why-zoiko" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
+              />
+            </button>
+
+            {/* 6. Help & Support */}
+            <button
+              type="button"
+              onMouseEnter={() => setActiveDropdown("help-support")}
+              onClick={() => setActiveDropdown(activeDropdown === "help-support" ? null : "help-support")}
+              className={`flex items-center gap-1 transition-colors py-3 cursor-pointer ${
+                activeDropdown === "help-support" ? "text-[#E01C5B] font-bold" : "hover:text-[#E01C5B]"
+              }`}
+            >
+              <span>Help &amp; Support</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform duration-200 ${
+                  activeDropdown === "help-support" ? "rotate-180 text-[#E01C5B]" : ""
+                }`}
+              />
+            </button>
+          </nav>
+
+          {/* Center-Right Actions */}
+          <div className="hidden md:flex items-center gap-3 lg:gap-3.5">
+            {/* Profile circular button */}
+            <Link
+              href={isLoggedIn ? "/dashboard" : "/login"}
+              className="w-10 h-10 rounded-full border-2 border-[#E01C5B] text-[#E01C5B] flex items-center justify-center hover:bg-pink-50 transition cursor-pointer"
+              title="My Account"
+            >
+              <User className="h-4 w-4" />
+            </Link>
 
             {/* Switch & Save Button */}
             <Link
               href="/switch-and-save"
-              className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-5 py-2 text-sm font-medium text-white shadow-[0px_0px_4px_2px_rgba(224,28,91,0.15)] transition-colors hover:bg-[#c8164f]"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#E01C5B] px-5 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_18px_-6px_rgba(224,28,91,0.6)] hover:bg-[#c8164f] transition cursor-pointer"
             >
               <span>Switch &amp; Save</span>
               <ChevronRight className="h-4 w-4" />
@@ -261,11 +330,11 @@ export default function Header() {
             <Link
               href="/checkout"
               aria-label="Cart"
-              className="relative flex h-10 w-10 items-center justify-center rounded-full text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="relative flex h-10 w-10 items-center justify-center text-slate-700 dark:text-gray-300 hover:text-slate-900 transition"
             >
               <ShoppingCart className="h-5 w-5" />
               {totalItems > 0 && (
-                <span className="absolute 0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#E01C5B] text-[10px] font-bold text-white">
                   {totalItems}
                 </span>
               )}
@@ -299,111 +368,8 @@ export default function Header() {
         </div>
       </div>
 
-      {/* ─── 3. SUB NAVIGATION BAR (h-12, bg-zinc-100) ─── */}
-      <div className="hidden md:block relative w-full bg-[#f4f4f5] dark:bg-gray-800/90 border-b border-gray-200 dark:border-gray-700">
-        <div className="mx-auto flex h-12 max-w-[1440px] items-center justify-center gap-8 lg:gap-14 px-4 text-sm font-bold text-gray-900/70 dark:text-gray-300">
-          {/* 1. Plans & Pricing */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("plans")}
-            onClick={() => setActiveDropdown(activeDropdown === "plans" ? null : "plans")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "plans" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Plans &amp; Pricing</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "plans" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-
-          {/* 2. Phones & Devices */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("devices")}
-            onClick={() => setActiveDropdown(activeDropdown === "devices" ? null : "devices")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "devices" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Phones &amp; Devices</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "devices" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-
-          {/* 3. Roaming & Calls */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("roaming")}
-            onClick={() => setActiveDropdown(activeDropdown === "roaming" ? null : "roaming")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "roaming" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Roaming &amp; Calls</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "roaming" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-
-          {/* 4. Business */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("business")}
-            onClick={() => setActiveDropdown(activeDropdown === "business" ? null : "business")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "business" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Business</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "business" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-
-          {/* 5. Why Zoiko */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("why-zoiko")}
-            onClick={() => setActiveDropdown(activeDropdown === "why-zoiko" ? null : "why-zoiko")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "why-zoiko" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Why Zoiko</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "why-zoiko" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-
-          {/* 6. Help & Support */}
-          <button
-            type="button"
-            onMouseEnter={() => setActiveDropdown("help-support")}
-            onClick={() => setActiveDropdown(activeDropdown === "help-support" ? null : "help-support")}
-            className={`flex items-center gap-1 transition-colors py-3 ${
-              activeDropdown === "help-support" ? "text-rose-600 dark:text-rose-400 font-bold" : "hover:text-rose-600 dark:hover:text-rose-400"
-            }`}
-          >
-            <span>Help &amp; Support</span>
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${
-                activeDropdown === "help-support" ? "rotate-180 text-rose-600 dark:text-rose-400" : ""
-              }`}
-            />
-          </button>
-        </div>
+      {/* ─── 3. MEGA DROPDOWNS CONTAINER ─── */}
+      <div className="relative">
 
         {/* ─── MEGA DROPDOWN 1: PLANS & PRICING ─── */}
         {activeDropdown === "plans" && (
@@ -960,7 +926,7 @@ export default function Header() {
 
                   <div className="mt-6 space-y-4">
                     <Link
-                      href="app/roaming-and-coverage"
+                      href="/roaming-and-coverage"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
@@ -980,7 +946,7 @@ export default function Header() {
                     </Link>
 
                     <Link
-                      href="dashboard/roaming-and-travel"
+                      href="/dashboard/roaming-and-travel"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
@@ -1126,7 +1092,7 @@ export default function Header() {
                     </p>
 
                     <Link
-                      href="dashboard/roaming-and-travel"
+                      href="/dashboard/roaming-and-travel"
                       className="mt-4 inline-flex items-center gap-2 rounded-lg bg-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-[#c8164f]"
                     >
                       <span>VIEW ROAMING RATES</span>
@@ -2086,7 +2052,7 @@ export default function Header() {
               </summary>
               <div className="mt-3 space-y-2 border-t border-gray-200/60 dark:border-gray-700 pt-2 text-sm">
                 <Link
-                  href="dashboard/roaming-and-travel"
+                  href="/dashboard/roaming-and-travel"
                   onClick={() => setMobileOpen(false)}
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >

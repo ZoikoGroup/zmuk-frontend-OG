@@ -16,18 +16,11 @@ import {
   Info,
   Plane,
   Search,
-  Calendar,
   ShieldCheck,
   Wallet,
-  Plus,
-  BarChart2,
-  Table,
-  MapPin,
   Flag,
   Settings,
   Signal,
-  Gauge,
-  Bell,
   Map,
   Lock,
   Zap,
@@ -35,300 +28,93 @@ import {
   Headphones,
   Check,
   MessageSquare,
+  Link2,
   X,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import RoamingQuotePanel from "../components/RoamingQuotePanel";
 import {
-  BoosterModal,
-  ReportActivityModal,
   ComparePlansModal,
+  ReportActivityModal,
 } from "../components/DashboardModals";
-
-// Real BeQuick API Helper
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import beQuick from "../../utils/dasdbeQuickApi";
 import {
-  getFallbackUserLine,
-  getBoosterSummary,
-  recordBoosterPurchase,
-} from "../../utils/dashboardSync";
-import { validateSpendLimit } from "../../utils/validators";
+  Line,
+  getLines,
+  submitClaim,
+  ApiError as LineApiError,
+} from "../add-new-number/addLineApi";
+import {
+  RoamingQuoteResponse,
+  formatAllowanceMb,
+  formatDisplayDate,
+  formatTimestamp,
+  isLineQuote,
+} from "../../services/roamingApi";
 
-export interface RoamingLineRecord {
-  id: string;
-  number: string;
-  planName: string;
-  status: string;
-  renewDate: string;
-  roamingEnabled: boolean;
-  totalDataGb: number;
-  euFairUseLimitGb: number;
-  euFairUseRemainingGb: number;
-  euUsedGb: number;
-  roamingCallsMins: number;
-  roamingTextsCount: number;
-  billingPeriodLabel: string;
-}
-
-export interface DestinationConfig {
-  id: string;
-  name: string;
-  zone: string;
-  isEuIncluded: boolean;
-  dataRate: string;
-  callsMadeRate: string;
-  callsReceivedRate: string;
-  textsSentRate: string;
-}
-
-const DESTINATIONS_CATALOG: DestinationConfig[] = [
-  {
-    id: "fr",
-    name: "France",
-    zone: "Zone 1 (EU Member State)",
-    isEuIncluded: true,
-    dataRate: "Included in plan (Overage: £0.0160/MB)",
-    callsMadeRate: "Included in plan allowance",
-    callsReceivedRate: "Free (£0.00)",
-    textsSentRate: "Included in plan allowance",
-  },
-  {
-    id: "es",
-    name: "Spain",
-    zone: "Zone 1 (EU Member State)",
-    isEuIncluded: true,
-    dataRate: "Included in plan (Overage: £0.0160/MB)",
-    callsMadeRate: "Included in plan allowance",
-    callsReceivedRate: "Free (£0.00)",
-    textsSentRate: "Included in plan allowance",
-  },
-  {
-    id: "ch",
-    name: "Switzerland",
-    zone: "Zone 2 (Non-EU Europe)",
-    isEuIncluded: false,
-    dataRate: "£0.1500 per MB (15p/MB)",
-    callsMadeRate: "£0.250 per min (25p/min)",
-    callsReceivedRate: "£0.150 per min (15p/min)",
-    textsSentRate: "£0.10 each (10p)",
-  },
-  {
-    id: "tr",
-    name: "Türkiye",
-    zone: "Zone 2 (Non-EU Europe)",
-    isEuIncluded: false,
-    dataRate: "£0.0160 per MB (1.6p/MB)",
-    callsMadeRate: "£0.065 per min (6.5p/min)",
-    callsReceivedRate: "£0.052 per min (5.2p/min)",
-    textsSentRate: "£0.10 each (10p)",
-  },
-  {
-    id: "us",
-    name: "United States",
-    zone: "Zone 4 (North America)",
-    isEuIncluded: false,
-    dataRate: "£0.0800 per MB (8p/MB)",
-    callsMadeRate: "£0.065 per min (6.5p/min)",
-    callsReceivedRate: "£0.390 per min (39p/min)",
-    textsSentRate: "£0.35 each (35p)",
-  },
-  {
-    id: "in",
-    name: "India",
-    zone: "Zone 3 (Asia Pacific & Subcontinent)",
-    isEuIncluded: false,
-    dataRate: "£0.0320 per MB (3.2p/MB)",
-    callsMadeRate: "£0.065 per min (6.5p/min)",
-    callsReceivedRate: "£0.033 per min (3.3p/min)",
-    textsSentRate: "£0.16 each (16p)",
-  },
-  {
-    id: "ae",
-    name: "United Arab Emirates",
-    zone: "Zone 5 (Middle East & North Africa)",
-    isEuIncluded: false,
-    dataRate: "£1.0900 per MB (£1.09/MB)",
-    callsMadeRate: "£0.520 per min (52p/min)",
-    callsReceivedRate: "£1.170 per min",
-    textsSentRate: "£0.70 each (70p)",
-  },
-];
-
-function CountryFlagBadge({
-  countryId,
-  size = "sm",
-}: {
-  countryId: string;
-  size?: "sm" | "lg";
-}) {
-  const dim = size === "lg" ? "w-9 h-6 rounded-[5px]" : "w-5 h-3.5 rounded-[3px]";
-
-  if (countryId === "fr") {
-    return (
-      <span
-        className={`${dim} inline-flex overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
-      >
-        <span className="w-1/3 h-full bg-[#244AA5]" />
-        <span className="w-1/3 h-full bg-white" />
-        <span className="w-1/3 h-full bg-[#E03232]" />
-      </span>
-    );
-  }
-  if (countryId === "es") {
-    return (
-      <span
-        className={`${dim} inline-flex flex-col overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
-      >
-        <span className="w-full h-1/4 bg-[#C60B1E]" />
-        <span className="w-full h-2/4 bg-[#FFC400]" />
-        <span className="w-full h-1/4 bg-[#C60B1E]" />
-      </span>
-    );
-  }
-  if (countryId === "in") {
-    return (
-      <span className={`${dim} inline-flex flex-col overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}>
-        <span className="w-full h-1/3 bg-[#FF9933]" />
-        <span className="w-full h-1/3 bg-white flex items-center justify-center">
-          <span className="w-1 h-1 rounded-full bg-[#000080]" />
-        </span>
-        <span className="w-full h-1/3 bg-[#138808]" />
-      </span>
-    );
-  }
-  if (countryId === "ae") {
-    return (
-      <span className={`${dim} relative inline-flex overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}>
-        <span className="w-1/4 h-full bg-[#FF0000]" />
-        <span className="flex-1 flex flex-col h-full">
-          <span className="w-full h-1/3 bg-[#00732F]" />
-          <span className="w-full h-1/3 bg-white" />
-          <span className="w-full h-1/3 bg-black" />
-        </span>
-      </span>
-    );
-  }
-  if (countryId === "ch") {
-    return (
-      <span
-        className={`${dim} relative inline-flex items-center justify-center bg-[#D52B1E] overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
-      >
-        <span className="w-1 h-3 bg-white absolute" />
-        <span className="w-3 h-1 bg-white absolute" />
-      </span>
-    );
-  }
-  if (countryId === "tr") {
-    return (
-      <span
-        className={`${dim} relative inline-flex items-center justify-center bg-[#E30A17] overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
-      >
-        <span className="w-2 h-2 rounded-full bg-white" />
-        <span className="w-1.5 h-1.5 rounded-full bg-[#E30A17] -ml-1" />
-      </span>
-    );
-  }
-  // Default US Flag
-  return (
-    <span
-      className={`${dim} relative inline-flex flex-col justify-between bg-white overflow-hidden shadow-[0px_0px_0px_1px_rgba(18,27,52,0.08)] shrink-0`}
-    >
-      {[0, 1, 2, 3, 4, 5, 6].map((stripe) => (
-        <span key={stripe} className="w-full h-[1.5px] bg-[#CA2B37]" />
-      ))}
-      <span className="w-[45%] h-[55%] bg-[#203B7E] absolute left-0 top-0" />
-    </span>
-  );
-}
-
-function formatUkNumber(mdn?: string | number): string {
-  if (!mdn) return "Pending number";
-  let s = String(mdn).replace(/\D/g, "");
+function formatUkNumber(msisdn?: string | null): string {
+  if (!msisdn) return "Pending number";
+  let s = String(msisdn).replace(/\D/g, "");
   if (s.startsWith("44")) s = "0" + s.slice(2);
   if (s.length === 10 && !s.startsWith("0")) s = "0" + s;
   if (s.length === 11 && s.startsWith("0")) {
     return `${s.slice(0, 5)} ${s.slice(5)}`;
   }
-  return String(mdn);
+  return String(msisdn);
 }
 
-function niceStatus(status?: string): string {
+function niceLineStatus(status?: string): string {
   switch ((status || "").toLowerCase()) {
     case "active":
       return "Active";
-    case "inactive":
-    case "paused":
+    case "pending_activation":
+      return "Pending activation";
     case "suspended":
-      return "Paused";
-    case "cancelled":
+      return "Suspended";
     case "terminated":
-      return "Inactive";
-    case "draft":
-    case "pending":
-      return "Pending";
+      return "Terminated";
     default:
-      return status ? status.charAt(0).toUpperCase() + status.slice(1) : "Active";
+      return status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown";
   }
 }
 
 export default function RoamingAndTravelPage() {
   const router = useRouter();
 
-  // ── Dynamic User & Auth State ──
-  const [userName, setUserName] = useState<string>("");
+  // ── User & Auth State ──
+  const [token, setToken] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("Account Holder");
   const [userRole, setUserRole] = useState<string>("Account holder");
-  const [subscriberId, setSubscriberId] = useState<string | number | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoadingLines, setIsLoadingLines] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // ── Navigation & Header State ──
+  // ── Navigation State ──
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("roaming");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  // ── Dynamic Lines & Selection State ──
-  const [lines, setLines] = useState<RoamingLineRecord[]>([]);
+  // ── Real Lines from GET /api/v1/lines/ ──
+  const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDropdownOpen, setLineDropdownOpen] = useState<boolean>(false);
   const lineDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [freshnessTime, setFreshnessTime] = useState<string>("Just now");
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  // ── Live Quote from RoamingQuotePanel ──
+  const [activeQuote, setActiveQuote] = useState<RoamingQuoteResponse | null>(null);
 
-  // ── Destination Checker State ──
-  const [selectedCountryId, setSelectedCountryId] = useState<string>("us");
-  const [countrySearchText, setCountrySearchText] = useState<string>("United States");
-  const [countrySearchFocused, setCountrySearchFocused] = useState<boolean>(false);
-  const [travelDate, setTravelDate] = useState<string>(() => {
-    const dt = new Date();
-    dt.setDate(dt.getDate() + 1);
-    return dt.toISOString().split("T")[0];
-  });
-  const [travelDateError, setTravelDateError] = useState<string>("");
+  // ── Link Existing Zoiko Number Claim Modal (POST /api/v1/lines/claims/) ──
+  const [claimModalOpen, setClaimModalOpen] = useState<boolean>(false);
+  const [claimMsisdn, setClaimMsisdn] = useState<string>("");
+  const [claimIccid, setClaimIccid] = useState<string>("");
+  const [claimOrderRef, setClaimOrderRef] = useState<string>("");
+  const [claimSubmitting, setClaimSubmitting] = useState<boolean>(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimResultMsg, setClaimResultMsg] = useState<string | null>(null);
 
-  // ── Roaming Usage State ──
-  const [usageRange, setUsageRange] = useState<"7d" | "30d">("7d");
-  const [usageRangeDropdownOpen, setUsageRangeDropdownOpen] = useState<boolean>(false);
-  const [usageTypeTab, setUsageTypeTab] = useState<"data" | "calls" | "texts">("data");
-  const [showUsageTable, setShowUsageTable] = useState<boolean>(false);
-
-  // ── Bill Limit & Alerts State ──
-  const [billLimit, setBillLimit] = useState<number>(100);
-  const [billLimitModalOpen, setBillLimitModalOpen] = useState<boolean>(false);
-  const [tempBillLimit, setTempBillLimit] = useState<string>("100.00");
-  const [billLimitError, setBillLimitError] = useState<string>("");
-
-  const [alertsModalOpen, setAlertsModalOpen] = useState<boolean>(false);
-  const [extraSmsAlertAt80, setExtraSmsAlertAt80] = useState<boolean>(true);
-  const [extraEmailAlert, setExtraEmailAlert] = useState<boolean>(true);
-
-  // ── Interactive Modals ──
-  const [boosterOpen, setBoosterOpen] = useState<boolean>(false);
-  const [reportOpen, setReportOpen] = useState<boolean>(false);
+  // ── Guides & Support Modals ──
   const [comparePlansOpen, setComparePlansOpen] = useState<boolean>(false);
-
+  const [reportOpen, setReportOpen] = useState<boolean>(false);
   const [guideModal, setGuideModal] = useState<{
     title: string;
     subtitle: string;
@@ -341,8 +127,6 @@ export default function RoamingAndTravelPage() {
   const [isSubmittingQuery, setIsSubmittingQuery] = useState<boolean>(false);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
-
-  const destinationSectionRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string, type: "success" | "info" = "success") => {
     setToast({ msg, type });
@@ -366,486 +150,118 @@ export default function RoamingAndTravelPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Load saved bill limit from localStorage
-  useEffect(() => {
+  // Load real lines from GET /api/v1/lines/
+  const loadLinesData = useCallback(async () => {
+    setIsLoadingLines(true);
     try {
-      const savedLimit = localStorage.getItem("zoiko_bill_limit");
-      if (savedLimit && !isNaN(Number(savedLimit))) {
-        setBillLimit(Number(savedLimit));
-        setTempBillLimit(Number(savedLimit).toFixed(2));
-      } else {
-        const savedSettings = localStorage.getItem("zoiko_billing_settings");
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings);
-          if (typeof parsed.billLimit === "number") {
-            setBillLimit(parsed.billLimit);
-            setTempBillLimit(parsed.billLimit.toFixed(2));
-          }
-        }
-      }
-    } catch {}
-  }, []);
-
-  // ── Fetch 100% Dynamic Lines & Roaming Balances from Django & BeQuick APIs ──
-  const loadRoamingData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const now = new Date();
-      setFreshnessTime(
-        now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) +
-          " BST, " +
-          now.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-      );
-
-      const token =
-        localStorage.getItem("zoiko_token") ||
-        localStorage.getItem("driverx_token") ||
-        "";
+      const storedToken =
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token")
+          : null;
       const rawUser =
-        localStorage.getItem("zoiko_user") ||
-        localStorage.getItem("driverx_user");
+        typeof window !== "undefined"
+          ? localStorage.getItem("zoiko_user") || localStorage.getItem("driverx_user")
+          : null;
 
-      const userData = rawUser ? JSON.parse(rawUser) : null;
-      const email: string = userData?.email || "";
-      const fullName =
-        [userData?.first_name, userData?.last_name].filter(Boolean).join(" ").trim() ||
-        userData?.name ||
-        userData?.username ||
-        (email ? email.split("@")[0] : "Account Member");
+      setToken(storedToken);
 
-      setUserName(fullName);
-      if (userData?.role) setUserRole(String(userData.role));
+      if (rawUser) {
+        try {
+          const u = JSON.parse(rawUser);
+          const fullName =
+            [u?.first_name, u?.last_name].filter(Boolean).join(" ").trim() ||
+            u?.name ||
+            u?.username ||
+            (u?.email ? String(u.email).split("@")[0] : "Account Holder");
+          setUserName(fullName);
+          if (u?.role) setUserRole(String(u.role));
+        } catch {}
+      }
 
-      setLines([]);
-      setSelectedLineId("");
-
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-      // Fetch live catalogue plans from Django so we can resolve plan data allowances
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let cataloguePlans: any[] = [];
-      try {
-        const plansRes = await fetch(`${API_BASE}/api/plans/v1/`);
-        if (plansRes.ok) {
-          const pData = await plansRes.json();
-          if (Array.isArray(pData)) cataloguePlans = pData;
-        }
-      } catch {}
-
-      if (!token && !email) {
-        setIsLoading(false);
+      if (!storedToken) {
+        setLines([]);
+        setSelectedLineId("");
         return;
       }
 
-      let foundSubscriberId: string | number | null = userData?.subscriber_id || null;
+      const data = await getLines();
+      const fetchedLines = Array.isArray(data?.lines) ? data.lines : [];
+      setLines(fetchedLines);
 
-      // 1. Check Django bqorders for subscriber_id
-      if (token && email) {
-        try {
-          const res = await fetch(`${API_BASE}/api/v1/bqorders/by-user/`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Token ${token}`,
-            },
-            body: JSON.stringify({ logged_user: email }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const userGroups = (data.groups?.[email] || {}) as Record<string, any[]>;
-            for (const [, entries] of Object.entries(userGroups)) {
-              const entry = entries?.[0];
-              if (!entry) continue;
-              if (!foundSubscriberId && entry.subscriber_id) {
-                foundSubscriberId = entry.subscriber_id;
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("Could not query Django bqorders:", e);
-        }
-      }
-
-      // 2. Query BeQuick subscriber by email if not found in Django
-      if (!foundSubscriberId && email) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subRes = (await beQuick.getSubscriberByEmail(email)) as any;
-          if (subRes && subRes.subscriber_id) {
-            foundSubscriberId = subRes.subscriber_id;
-          }
-        } catch (e) {
-          console.warn("Could not query BeQuick subscriber:", e);
-        }
-      }
-
-      // 3. Fetch subscriber details & live lines + service_balances
-      if (foundSubscriberId) {
-        setSubscriberId(foundSubscriberId);
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subDetails = (await beQuick.getSubscriberDetails(foundSubscriberId)) as any;
-          const subObj =
-            subDetails?.subscriber || subDetails?.subscribers?.[0] || subDetails;
-          if (subObj) {
-            const bqName = [subObj.first_name, subObj.last_name]
-              .filter(Boolean)
-              .join(" ")
-              .trim();
-            if (bqName) setUserName(bqName);
-          }
-        } catch {}
-
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const bqLines = ((await beQuick.getUserLines(foundSubscriberId)) || []) as any[];
-          if (bqLines && bqLines.length > 0) {
-            const loadedLines: RoamingLineRecord[] = await Promise.all(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              bqLines.map(async (line: any) => {
-                const lineId = String(line.id);
-                let planName = line.device_name || line.plan_name || "Zoiko Mobile Plan";
-                let renewDate = "—";
-                let billingPeriodLabel = "Current billing period";
-                const status = niceStatus(line.status);
-
-                let totalDataGb = 0;
-                let euFairUseLimitGb = 0;
-                let euFairUseRemainingGb = 0;
-                let euUsedGb = 0;
-                const roamingCallsMins = 0;
-                const roamingTextsCount = 0;
-
-                try {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const details = (await beQuick.getPlanDetails(line.id, true)) as any;
-                  const currentPlan = details?.current_plans?.[0];
-                  if (currentPlan?.name) {
-                    planName = currentPlan.name;
-                  }
-
-                  if (details?.service_period?.end_at) {
-                    const endDt = new Date(details.service_period.end_at);
-                    if (!isNaN(endDt.getTime())) {
-                      renewDate = endDt.toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      });
-                    }
-                  }
-                  if (details?.service_period?.start_at) {
-                    const startDt = new Date(details.service_period.start_at);
-                    if (!isNaN(startDt.getTime())) {
-                      const sStr = startDt.toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      });
-                      const eStr = now.toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      });
-                      billingPeriodLabel = `This billing period · ${sStr} – ${eStr}`;
-                    }
-                  }
-                } catch {}
-
-                // Parse total GB from plan name or catalogue plan
-                const gbMatch = planName.match(/(\d+)\s*GB/i);
-                if (gbMatch) {
-                  totalDataGb = Number(gbMatch[1]);
-                } else {
-                  const matchedCatalogue = cataloguePlans.find(
-                    (cp) =>
-                      cp.name?.toLowerCase() === planName.toLowerCase() ||
-                      planName.toLowerCase().includes(cp.name?.toLowerCase() || "___")
-                  );
-                  if (matchedCatalogue?.data_allowance) {
-                    const m2 = String(matchedCatalogue.data_allowance).match(/(\d+)/);
-                    if (m2) totalDataGb = Number(m2[1]);
-                  }
-                }
-
-                // Fetch real line service balances
-                try {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const bucketsRes = (await beQuick.getLineBuckets(line.id)) as any;
-                  const balances =
-                    bucketsRes?.service_balances ||
-                    bucketsRes?.balances ||
-                    bucketsRes?.data ||
-                    [];
-                  if (Array.isArray(balances) && balances.length > 0) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    balances.forEach((b: any) => {
-                      const bType = String(b.service_type || b.name || "").toLowerCase();
-                      const totalRaw = Number(b.total_units || b.initial_amount || 0);
-                      const remRaw = Number(b.remaining_units || b.remaining_amount || 0);
-                      const usedRaw = Math.max(0, totalRaw - remRaw);
-
-                      if (bType.includes("roam") && bType.includes("data")) {
-                        euFairUseLimitGb = Number((totalRaw / (1024 * 1024 * 1024)).toFixed(1));
-                        euFairUseRemainingGb = Number((remRaw / (1024 * 1024 * 1024)).toFixed(1));
-                        euUsedGb = Number((usedRaw / (1024 * 1024 * 1024)).toFixed(2));
-                      } else if (bType.includes("data") && totalDataGb === 0 && totalRaw > 0) {
-                        totalDataGb = Number((totalRaw / (1024 * 1024 * 1024)).toFixed(1));
-                      }
-                    });
-                  }
-                } catch {}
-
-                if (euFairUseLimitGb === 0 && totalDataGb > 0) {
-                  euFairUseLimitGb = Math.min(15, Number((totalDataGb * 0.5).toFixed(1)));
-                  euFairUseRemainingGb = Number(
-                    Math.max(0, euFairUseLimitGb - euUsedGb).toFixed(1)
-                  );
-                }
-
-                return {
-                  id: lineId,
-                  number: formatUkNumber(line.mdn),
-                  planName,
-                  status,
-                  renewDate,
-                  roamingEnabled: status === "Active",
-                  totalDataGb,
-                  euFairUseLimitGb,
-                  euFairUseRemainingGb,
-                  euUsedGb,
-                  roamingCallsMins,
-                  roamingTextsCount,
-                  billingPeriodLabel,
-                };
-              })
-            );
-
-            setLines(loadedLines);
-            setUnreadNotifications(loadedLines.length);
-            if (loadedLines.length > 0) {
-              setSelectedLineId(loadedLines[0].id);
-            }
-          }
-        } catch (e) {
-          console.warn("Error fetching lines for roaming page:", e);
-        }
-      }
-
-      // If no BeQuick telecom lines were returned, check fallback
-      setLines((current) => {
-        if (current.length === 0) {
-          const fallback = getFallbackUserLine(userData);
-          if (!fallback) {
-            setSelectedLineId("");
-            setUnreadNotifications(0);
-            return [];
-          }
-          const nextMonth = new Date();
-          nextMonth.setMonth(nextMonth.getMonth() + 1);
-          const primaryLine: RoamingLineRecord = {
-            id: fallback.id,
-            number: fallback.number,
-            planName: fallback.planName,
-            status: "Active",
-            renewDate: nextMonth.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-            }),
-            roamingEnabled: true,
-            totalDataGb: fallback.planGb,
-            euFairUseLimitGb: Math.min(25, fallback.planGb),
-            euFairUseRemainingGb: Number(
-              (Math.min(25, fallback.planGb) - 3.8).toFixed(1)
-            ),
-            euUsedGb: 3.8,
-            roamingCallsMins: 45,
-            roamingTextsCount: 22,
-            billingPeriodLabel: "Current billing cycle",
-          };
-          setSelectedLineId(primaryLine.id);
-          setUnreadNotifications(1);
-          return [primaryLine];
-        }
-        return current;
+      setSelectedLineId((prev) => {
+        if (prev && fetchedLines.some((l) => l.id === prev)) return prev;
+        const firstActive = fetchedLines.find((l) => l.status === "active");
+        return firstActive ? firstActive.id : fetchedLines[0]?.id || "";
       });
     } catch (err) {
-      console.error("Failed to load dynamic roaming data:", err);
+      console.warn("Could not load /api/v1/lines/:", err);
+      setLines([]);
+      setSelectedLineId("");
     } finally {
-      setIsLoading(false);
+      setIsLoadingLines(false);
     }
   }, []);
 
   useEffect(() => {
-    loadRoamingData();
-    const handleSync = () => loadRoamingData();
-    window.addEventListener("zoiko-booster-updated", handleSync);
-    window.addEventListener("zoiko-auth", handleSync);
-    return () => {
-      window.removeEventListener("zoiko-booster-updated", handleSync);
-      window.removeEventListener("zoiko-auth", handleSync);
-    };
-  }, [loadRoamingData]);
+    loadLinesData();
+    const handleAuthSync = () => loadLinesData();
+    window.addEventListener("zoiko-auth", handleAuthSync);
+    return () => window.removeEventListener("zoiko-auth", handleAuthSync);
+  }, [loadLinesData]);
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
-    await loadRoamingData();
+    await loadLinesData();
     setTimeout(() => {
       setIsRefreshing(false);
-      showToast("Roaming status & network permissions refreshed", "info");
-    }, 350);
+      showToast("Lines & roaming availability refreshed", "info");
+    }, 300);
   };
 
-  // ── Current Selected Line & Destination ──
-  const currentLine = useMemo<RoamingLineRecord>(() => {
-    const found = lines.find((l) => l.id === selectedLineId) || lines[0];
-    if (found) return found;
-    return {
-      id: "none",
-      number: "No active number",
-      planName: "No active plan",
-      status: "Inactive",
-      renewDate: "—",
-      roamingEnabled: false,
-      totalDataGb: 0,
-      euFairUseLimitGb: 0,
-      euFairUseRemainingGb: 0,
-      euUsedGb: 0,
-      roamingCallsMins: 0,
-      roamingTextsCount: 0,
-      billingPeriodLabel: "Current billing period",
-    };
+  const currentLine = useMemo<Line | null>(() => {
+    return lines.find((l) => l.id === selectedLineId) || lines[0] || null;
   }, [lines, selectedLineId]);
 
-  const currentDestination = useMemo<DestinationConfig>(() => {
-    return (
-      DESTINATIONS_CATALOG.find((d) => d.id === selectedCountryId) ||
-      DESTINATIONS_CATALOG[0]
-    );
-  }, [selectedCountryId]);
+  const currentLineDisplayNumber = currentLine
+    ? formatUkNumber(currentLine.msisdn)
+    : "No line selected";
+  const currentLinePlanName = currentLine?.plan?.name || "Unverified / no plan linked";
 
-  const filteredCountries = useMemo(() => {
-    const q = countrySearchText.trim().toLowerCase();
-    if (!q) return DESTINATIONS_CATALOG;
-    const matches = DESTINATIONS_CATALOG.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) || c.zone.toLowerCase().includes(q)
-    );
-    return matches.length > 0 ? matches : DESTINATIONS_CATALOG;
-  }, [countrySearchText]);
-
-  const formattedTravelDateLabel = useMemo(() => {
-    if (!travelDate) return "upcoming travel";
-    const dt = new Date(travelDate);
-    if (isNaN(dt.getTime())) return travelDate;
-    return dt.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  }, [travelDate]);
-
-  // Build 7-day timeline bars anchored to today
-  const sevenDayUsageTimeline = useMemo(() => {
-    const days: { dateLabel: string; isToday: boolean; gbUsed: number }[] = [];
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const label = d.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-      });
-      days.push({
-        dateLabel: label,
-        isToday: i === 0,
-        gbUsed: i === 0 ? currentLine.euUsedGb : 0,
-      });
-    }
-    return days;
-  }, [currentLine.euUsedGb]);
-
-  const euFairUseProgressPct = useMemo(() => {
-    if (currentLine.euFairUseLimitGb <= 0) return 0;
-    return Math.min(
-      100,
-      Math.max(
-        0,
-        Math.round(
-          (currentLine.euFairUseRemainingGb / currentLine.euFairUseLimitGb) * 100
-        )
-      )
-    );
-  }, [currentLine.euFairUseRemainingGb, currentLine.euFairUseLimitGb]);
-
-  const hasActiveLine = useMemo(() => {
-    return Boolean(
-      currentLine.id &&
-      currentLine.id !== "none" &&
-      currentLine.number !== "No active number" &&
-      currentLine.status !== "Inactive"
-    );
-  }, [currentLine]);
-
-  // Handlers
-  const handleSelectCountry = (dest: DestinationConfig) => {
-    setSelectedCountryId(dest.id);
-    setCountrySearchText(dest.name);
-    setCountrySearchFocused(false);
-  };
-
-  const handleTravelDateChange = (val: string) => {
-    setTravelDate(val);
-    if (!val) {
-      setTravelDateError("Please select a travel date.");
-      return;
-    }
-    const sel = new Date(val);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (sel < today) {
-      setTravelDateError("Travel date cannot be in the past.");
-    } else {
-      setTravelDateError("");
-    }
-  };
-
-  const handleSaveBillLimit = (e: React.FormEvent) => {
+  const handleClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const check = validateSpendLimit(tempBillLimit);
-    if (!check.isValid) {
-      setBillLimitError(check.error || "Please enter a valid limit.");
-      showToast(check.error || "Please enter a valid limit.", "info");
+    setClaimError(null);
+    setClaimResultMsg(null);
+
+    const payload: { msisdn?: string; iccid?: string; order_reference?: string } = {};
+    if (claimMsisdn.trim()) payload.msisdn = claimMsisdn.trim();
+    if (claimIccid.trim()) payload.iccid = claimIccid.trim();
+    if (claimOrderRef.trim()) payload.order_reference = claimOrderRef.trim();
+
+    if (Object.keys(payload).length < 2) {
+      setClaimError("Please enter any two details (phone number, SIM ICCID, or order reference) to verify your SIM.");
       return;
     }
-    const val = check.amount ?? 0;
-    if (val > 100) {
-      setBillLimitError("Monthly spend cap cannot exceed £100.00.");
-      return;
-    }
-    setBillLimitError("");
-    setBillLimit(val);
+
+    setClaimSubmitting(true);
     try {
-      localStorage.setItem("zoiko_bill_limit", String(val));
-      const existing = localStorage.getItem("zoiko_billing_settings");
-      const parsed = existing ? JSON.parse(existing) : {};
-      localStorage.setItem(
-        "zoiko_billing_settings",
-        JSON.stringify({ ...parsed, billLimit: val })
-      );
-    } catch {}
-    setBillLimitModalOpen(false);
-    showToast(`Monthly mobile bill limit updated to £${val.toFixed(2)}`, "success");
+      const claim = await submitClaim(payload);
+      setClaimResultMsg(claim.message);
+      await loadLinesData();
+    } catch (err: unknown) {
+      if (err instanceof LineApiError) {
+        setClaimError(err.message);
+      } else {
+        setClaimError("Could not submit claim right now. Please try again.");
+      }
+    } finally {
+      setClaimSubmitting(false);
+    }
   };
 
   const handleSubmitRoamingQuery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasActiveLine) {
-      showToast("You need an active line to query roaming charges.", "info");
-      return;
-    }
     if (!queryRoamingNote.trim() || queryRoamingNote.trim().length < 10) {
       setQueryError("Please provide at least 10 characters describing your query.");
-      showToast("Please provide at least 10 characters describing your query.", "info");
       return;
     }
     if (queryRoamingNote.trim().length > 1000) {
@@ -855,29 +271,30 @@ export default function RoamingAndTravelPage() {
 
     setQueryError("");
     setIsSubmittingQuery(true);
-
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
-      const refCode = `ZM-ROAM-${Math.floor(100000 + Math.random() * 900000)}`;
+      const storedToken =
+        typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      const quoteRef =
+        activeQuote && isLineQuote(activeQuote) ? ` [Quote ID: ${activeQuote.quote_id}]` : "";
 
-      if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+      if (storedToken) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/api/support/tickets/`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Token ${storedToken}`,
           },
           body: JSON.stringify({
             category: "billing",
-            subject: `Roaming Charge Query for ${currentLine.number} (${refCode})`,
-            message: `User query on roaming charges for line ${currentLine.number} (${currentLine.billingPeriodLabel}):\n\n${queryRoamingNote.trim()}`,
+            subject: `Roaming Enquiry for ${currentLineDisplayNumber}${quoteRef}`,
+            message: `${queryRoamingNote.trim()}\n\nDestination: ${activeQuote?.destination?.name || "N/A"} (${activeQuote?.destination?.code || "—"})\nTravel date: ${activeQuote?.travel_date || "—"}`,
           }),
         }).catch(() => {});
       }
 
       setQueryRoamingModalOpen(false);
       setQueryRoamingNote("");
-      showToast(`Roaming query submitted. Case reference: ${refCode}`, "success");
+      showToast("Roaming query submitted to support", "success");
     } catch {
       setQueryError("Could not submit query. Please try again or contact support.");
     } finally {
@@ -885,17 +302,20 @@ export default function RoamingAndTravelPage() {
     }
   };
 
+  // Determine Tariff Verified date strictly from API `commercial_basis.validation_date` (Rule 7)
+  const verifiedDateText = activeQuote?.commercial_basis?.validation_date
+    ? formatDisplayDate(activeQuote.commercial_basis.validation_date)
+    : null;
+
   return (
     <div className="min-h-screen bg-[#EEEEF0] font-sans text-[#0D1935] p-3 sm:p-5">
-      {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#0D1935] text-white px-5 py-3.5 rounded-2xl shadow-xl border border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#0D1935] text-white px-5 py-3.5 rounded-2xl shadow-xl border border-slate-700">
           <CheckCircle2 className="w-4 h-4 text-[#1E8E5A] shrink-0" />
           <span className="text-sm font-medium">{toast.msg}</span>
         </div>
       )}
 
-      {/* Main Container Layout — Identical Sticky Sidebar Frame */}
       <div className="w-full flex flex-col lg:flex-row gap-5 items-start">
         {/* Sticky Left Sidebar */}
         <div className="w-full lg:w-auto lg:sticky lg:top-5 shrink-0 z-30">
@@ -906,148 +326,165 @@ export default function RoamingAndTravelPage() {
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
             onOpenComparePlans={() => setComparePlansOpen(true)}
-            onOpenBoosterModal={() => setBoosterOpen(true)}
             onOpenAddNumber={() => router.push("/dashboard/my-mobile-numbers")}
-            planName={currentLine.planName}
-            renewDate={currentLine.renewDate}
+            planName={currentLine?.plan?.name}
           />
         </div>
 
         {/* Main Content Area */}
         <div className="flex-1 w-full flex flex-col gap-4 min-w-0">
-          {/* Top Navigation Header */}
           <DashboardTopNav
-            userName={userName || "Account Holder"}
+            userName={userName}
             userRole={userRole}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            unreadNotifications={unreadNotifications}
-            onClearNotifications={() => setUnreadNotifications(0)}
+            unreadNotifications={0}
+            onClearNotifications={() => {}}
             onLogout={handleLogout}
             isDemo={false}
             hideDemoBadgeInHeader={true}
             customTitle="Roaming & travel"
-            customSubtitle="Check your destination's roaming rates and options before you travel."
+            customSubtitle="Check your destination's roaming allowances and charges before you travel."
           />
 
-          {/* Sub-header Control Bar: Freshness Status (left) + Line Selector (right) */}
+          {/* Sub-header Bar: Verification Status (left) + Line Selector (right) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Left: Roaming status checked time + Refresh button */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="inline-flex items-center gap-1.5 text-xs text-[#54617E]">
                 <Clock className="w-3.5 h-3.5 text-[#54617E]" />
-                <span>Roaming status checked {freshnessTime}</span>
+                <span>
+                  {verifiedDateText
+                    ? `Tariff verified on ${verifiedDateText}`
+                    : activeQuote?.generated_at
+                    ? `Checked at ${formatTimestamp(activeQuote.generated_at)}`
+                    : "Live register check"}
+                </span>
               </div>
               <button
                 type="button"
                 onClick={handleManualRefresh}
-                title="Refresh roaming status"
+                title="Refresh lines"
                 className="w-8 h-8 rounded-[10px] flex items-center justify-center text-[#0D1935] hover:bg-white/60 transition cursor-pointer"
               >
                 <RefreshCw
                   className={`w-3.5 h-3.5 ${
-                    isRefreshing || isLoading ? "animate-spin text-[#E01C5B]" : ""
+                    isRefreshing || isLoadingLines ? "animate-spin text-[#E01C5B]" : ""
                   }`}
                 />
               </button>
             </div>
 
-            {/* Right: "Roaming for" White Card Selector */}
-            <div className="relative" ref={lineDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setLineDropdownOpen(!lineDropdownOpen)}
-                className="min-h-14 pl-3 pr-3.5 py-1.5 bg-white rounded-2xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] inline-flex items-center gap-3 hover:border-slate-300 transition cursor-pointer text-left"
-              >
-                <div className="w-6 h-8 flex items-center justify-center text-[#1E2D4D] shrink-0">
-                  <Smartphone className="w-5 h-5 stroke-[1.75]" />
-                </div>
-                <div className="min-w-0 sm:min-w-[230px] pr-2 sm:pr-4">
-                  <div className="text-xs font-normal text-[#54617E] leading-4">
-                    Roaming for
+            {/* Right: Real Line Selector from GET /api/v1/lines/ */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative" ref={lineDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setLineDropdownOpen((prev) => !prev)}
+                  className="min-h-14 pl-3 pr-3.5 py-1.5 bg-white rounded-2xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] inline-flex items-center gap-3 hover:border-slate-300 transition cursor-pointer text-left"
+                >
+                  <div className="w-6 h-8 flex items-center justify-center text-[#1E2D4D] shrink-0">
+                    <Smartphone className="w-5 h-5 stroke-[1.75]" />
                   </div>
-                  <div className="text-sm sm:text-base font-bold text-[#0D1935] leading-5">
-                    {currentLine.number} · {currentLine.planName}
+                  <div className="min-w-0 sm:min-w-[230px] pr-2 sm:pr-4">
+                    <div className="text-xs font-normal text-[#54617E] leading-4">
+                      Roaming for
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-[#0D1935] leading-5 truncate">
+                      {lines.length === 0
+                        ? "No Zoiko lines linked"
+                        : `${currentLineDisplayNumber} · ${currentLinePlanName}`}
+                    </div>
                   </div>
-                </div>
-                <ChevronDown
-                  className={`w-4 h-4 text-[#54617E] shrink-0 ml-auto transition-transform ${
-                    lineDropdownOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+                  <ChevronDown
+                    className={`w-4 h-4 text-[#54617E] shrink-0 ml-auto transition-transform ${
+                      lineDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-              {lineDropdownOpen && lines.length > 0 && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-30">
-                  <div className="px-3.5 py-1.5 text-[11px] font-semibold text-[#54617E] uppercase tracking-wider border-b border-slate-100">
-                    Select mobile number ({lines.length})
+                {lineDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-30">
+                    <div className="px-3.5 py-1.5 text-[11px] font-semibold text-[#54617E] uppercase tracking-wider border-b border-slate-100">
+                      Select mobile number ({lines.length})
+                    </div>
+                    {lines.length === 0 ? (
+                      <div className="p-3.5 text-xs text-[#54617E] space-y-2">
+                        <p>No lines found on your account.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLineDropdownOpen(false);
+                            setClaimModalOpen(true);
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-[#E01C5B] text-white font-semibold text-xs hover:bg-[#c81750] cursor-pointer"
+                        >
+                          Link an existing Zoiko number
+                        </button>
+                      </div>
+                    ) : (
+                      lines.map((ln) => {
+                        const isSel = ln.id === currentLine?.id;
+                        return (
+                          <button
+                            key={ln.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLineId(ln.id);
+                              setLineDropdownOpen(false);
+                            }}
+                            className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between hover:bg-slate-50 transition cursor-pointer ${
+                              isSel ? "bg-[#E01C5B]/5" : ""
+                            }`}
+                          >
+                            <div>
+                              <div className="text-xs font-bold text-[#0D1935]">
+                                {formatUkNumber(ln.msisdn)}
+                              </div>
+                              <div className="text-[11px] text-[#54617E]">
+                                {ln.plan?.name || "Unverified plan"} · {niceLineStatus(ln.status)}
+                              </div>
+                            </div>
+                            {isSel && <Check className="w-4 h-4 text-[#E01C5B]" />}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
-                  {lines.map((ln) => {
-                    const isSel = ln.id === currentLine.id;
-                    return (
-                      <button
-                        key={ln.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedLineId(ln.id);
-                          setLineDropdownOpen(false);
-                        }}
-                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between hover:bg-slate-50 transition cursor-pointer ${
-                          isSel ? "bg-[#E01C5B]/5" : ""
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-bold text-[#0D1935]">
-                            {ln.number}
-                          </div>
-                          <div className="text-[11px] text-[#54617E]">{ln.planName}</div>
-                        </div>
-                        {isSel && <Check className="w-4 h-4 text-[#E01C5B]" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
           {/* ── HERO BANNER: "Travelling soon?" ── */}
           <div className="relative min-h-32 px-6 py-5 rounded-[20px] bg-gradient-to-r from-[#0D1935] via-[#152852] to-[#1D2449] flex flex-col md:flex-row items-start md:items-center justify-between overflow-hidden shadow-xs">
-            {/* Right scenic coastal travel backdrop */}
-            <div
-              className="hidden md:block absolute right-0 top-0 bottom-0 w-[48%] bg-cover bg-center opacity-90"
-              style={{
-                backgroundImage:
-                  "linear-gradient(to right, #152852 0%, rgba(21,40,82,0.15) 28%, rgba(21,40,82,0) 100%), url('https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=1000&q=80')",
-              }}
-            />
-
-            <div className="relative z-10 max-w-[540px] flex flex-col gap-2">
+            <div className="relative z-10 max-w-[620px] flex flex-col gap-2">
               <h2 className="text-white text-xl font-extrabold leading-7">
                 Travelling soon?
               </h2>
               <p className="text-white/85 text-sm font-normal leading-5">
-                Check what&apos;s included for {currentLine.number}, what it costs, and
-                how to keep spending under control — before you go.
+                {currentLine
+                  ? `Check what's included for ${currentLineDisplayNumber} and what it costs — before you travel.`
+                  : "Check our published roaming tariffs by destination and travel date."}
               </p>
               <div className="pt-1 flex items-center gap-2 flex-wrap">
                 <span className="h-6 px-2.5 bg-white/15 rounded-full inline-flex items-center gap-1.5 text-white text-xs font-semibold">
                   <MessageSquare className="w-3 h-3 text-white" />
                   <span>We text you the charges when you arrive</span>
                 </span>
-                <span className="h-6 px-2.5 bg-white/15 rounded-full inline-flex items-center gap-1.5 text-white text-xs font-semibold">
-                  <Gauge className="w-3 h-3 text-white" />
-                  <span>Your £{billLimit.toFixed(2)} bill limit still applies</span>
-                </span>
+                {activeQuote?.charging?.spend_control && (
+                  <span className="h-6 px-2.5 bg-white/15 rounded-full inline-flex items-center gap-1.5 text-white text-xs font-semibold">
+                    <ShieldCheck className="w-3 h-3 text-white" />
+                    <span>{activeQuote.charging.spend_control}</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* ── ROW 1: 3-Column Grid (International roaming [3] + Check a destination [5] + Your roaming balance [4]) ── */}
+          {/* ── ROW 1: 3-Column Grid (Line Card [3] + Check a Destination [6] + Roaming Balance [3]) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            {/* Card 1: International roaming (Solid Pink Card, lg:col-span-3) */}
+            {/* Card 1: Line Overview (Pink Card, lg:col-span-3) */}
             <div className="lg:col-span-3 p-5 relative bg-[#E01C5B] rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-4 overflow-hidden text-white">
-              {/* Top-right 6x3 decorative dot matrix */}
               <div className="w-24 h-12 right-[16px] top-[19px] absolute opacity-10 inline-flex flex-col justify-start items-start gap-2.5 pointer-events-none">
                 {[0, 1, 2].map((row) => (
                   <div key={row} className="self-stretch inline-flex justify-between items-center">
@@ -1059,7 +496,6 @@ export default function RoamingAndTravelPage() {
               </div>
 
               <div className="flex flex-col gap-3.5">
-                {/* Header */}
                 <div className="inline-flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center shrink-0">
                     <Globe className="w-5 h-5 text-white" />
@@ -1069,7 +505,7 @@ export default function RoamingAndTravelPage() {
                       International roaming
                     </h3>
                     <span className="text-white/80 text-xs font-normal leading-4">
-                      Your line&apos;s network permission
+                      Line status &amp; tariff info
                     </span>
                   </div>
                 </div>
@@ -1079,57 +515,66 @@ export default function RoamingAndTravelPage() {
                   <Smartphone className="w-5 h-6 text-[#1E2D4D] shrink-0" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-[#0D1935] text-base font-bold leading-5 truncate">
-                      {currentLine.number}
+                      {currentLine ? currentLineDisplayNumber : "No line selected"}
                     </span>
                     <span className="text-[#54617E] text-xs font-normal leading-4 truncate">
-                      {currentLine.planName}
+                      {currentLine ? `${currentLinePlanName} (${currentLine.term || "—"})` : "General rates mode"}
                     </span>
                   </div>
                 </div>
 
-                {/* Availability Status */}
+                {/* Line Status & Backend Verification Date */}
                 <div className="pt-1 flex items-start gap-2.5">
                   <div className="w-9 h-9 bg-white/15 rounded-[10px] flex items-center justify-center shrink-0">
                     <CheckCircle2 className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <div className="text-white text-base font-extrabold leading-5">
-                      {currentLine.roamingEnabled
-                        ? "Roaming available for this line"
-                        : "No active line selected"}
+                    <div className="text-white text-sm font-extrabold leading-5">
+                      {currentLine
+                        ? `Line status: ${niceLineStatus(currentLine.status)}`
+                        : "Link a Zoiko number"}
                     </div>
                     <span className="text-white/85 text-xs font-normal leading-4">
-                      Verified {freshnessTime}.
+                      {verifiedDateText
+                        ? `Tariff verified on ${verifiedDateText}.`
+                        : "Check destination below for tariff status."}
                     </span>
                   </div>
                 </div>
 
-                {/* Phone setting note */}
                 <div className="pt-1 inline-flex items-start gap-1.5 text-white/85 text-xs leading-4">
                   <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-white/85" />
                   <span>
-                    This isn&apos;t your phone&apos;s data roaming setting. Turn data
-                    roaming on or off in your phone&apos;s settings.
+                    Turn data roaming on or off in your phone&apos;s settings when travelling abroad.
                   </span>
                 </div>
               </div>
 
-              {/* Footer Button */}
-              <div className="pt-4">
+              <div className="pt-4 flex flex-col gap-2">
+                {lines.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setClaimModalOpen(true)}
+                    className="h-9 px-3.5 py-2 rounded-[10px] bg-white text-[#E01C5B] hover:bg-pink-50 inline-flex items-center justify-center gap-2 text-xs font-bold transition cursor-pointer"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>Link existing number</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() =>
                     setGuideModal({
                       title: "Phone set-up guide for roaming",
-                      subtitle: `For ${currentLine.number}`,
+                      subtitle: currentLine ? `For ${currentLineDisplayNumber}` : "Device guidance",
                       steps: [
                         "1. iPhone (iOS): Go to Settings → Mobile Service → Mobile Data Options → toggle Data Roaming ON when you want to use data abroad.",
                         "2. Android: Go to Settings → Network & Internet → SIMs → Zoiko Mobile → toggle Roaming ON.",
-                        "3. Before boarding a flight or ferry near international waters, keep Data Roaming OFF until you arrive on land.",
+                        "3. Keep Data Roaming OFF while on ships, ferries, or aircraft unless you intend to pay separate maritime/satellite rates.",
                       ],
                     })
                   }
-                  className="h-9 px-3.5 py-2 rounded-[10px] border border-white/55 hover:bg-white/10 inline-flex items-center gap-2 text-white text-xs font-semibold transition cursor-pointer"
+                  className="h-9 px-3.5 py-2 rounded-[10px] border border-white/55 hover:bg-white/10 inline-flex items-center justify-center gap-2 text-white text-xs font-semibold transition cursor-pointer"
                 >
                   <Smartphone className="w-3.5 h-3.5" />
                   <span>Phone set-up guide</span>
@@ -1137,12 +582,8 @@ export default function RoamingAndTravelPage() {
               </div>
             </div>
 
-            {/* Card 2: Check a destination (White Card, lg:col-span-5) */}
-            <div
-              ref={destinationSectionRef}
-              className="lg:col-span-5 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5"
-            >
-              {/* Header */}
+            {/* Card 2: Check a Destination (lg:col-span-6) */}
+            <div className="lg:col-span-6 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col gap-4">
               <div className="inline-flex items-center gap-3">
                 <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
                   <Plane className="w-5 h-5 text-[#E01C5B]" />
@@ -1152,666 +593,182 @@ export default function RoamingAndTravelPage() {
                     Check a destination
                   </h3>
                   <span className="text-[#54617E] text-xs font-normal leading-5">
-                    What&apos;s included and what it costs for {currentLine.number}
+                    {currentLine
+                      ? `Live tariff & allowances for ${currentLineDisplayNumber}`
+                      : "General published roaming rates"}
                   </span>
                 </div>
               </div>
 
-              {/* Country Search + Travel Date Inputs */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2.5">
-                {/* Country Input */}
-                <div className="flex-1 flex flex-col gap-1 relative">
-                  <label className="text-[#54617E] text-xs font-normal leading-4">
-                    Country
-                  </label>
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-[#54617E] absolute left-3 top-3 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={countrySearchText}
-                      onFocus={() => setCountrySearchFocused(true)}
-                      onBlur={() => setTimeout(() => setCountrySearchFocused(false), 180)}
-                      onChange={(e) => {
-                        setCountrySearchText(e.target.value);
-                        const match = DESTINATIONS_CATALOG.find(
-                          (c) =>
-                            c.name.toLowerCase() === e.target.value.trim().toLowerCase()
-                        );
-                        if (match) setSelectedCountryId(match.id);
-                      }}
-                      placeholder="Search country..."
-                      className="w-full h-10 pl-9 pr-3 py-2 bg-white rounded-xl border border-[#E5E8EF] text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
-                    />
-                  </div>
-                  {countrySearchFocused && (
-                    <div className="absolute left-0 right-0 top-[62px] bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-20">
-                      {filteredCountries.map((dest) => (
-                        <button
-                          key={dest.id}
-                          type="button"
-                          onMouseDown={() => handleSelectCountry(dest)}
-                          className="w-full px-3 py-2 text-left text-xs font-semibold text-[#0D1935] hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <CountryFlagBadge countryId={dest.id} size="sm" />
-                            <span>{dest.name}</span>
-                          </div>
-                          <span className="text-[11px] font-normal text-[#54617E]">
-                            {dest.zone}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Travel Date Input */}
-                <div className="w-full sm:w-44 flex flex-col gap-1">
-                  <label className="text-[#54617E] text-xs font-normal leading-4">
-                    Travel date
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      min={new Date().toISOString().split("T")[0]}
-                      value={travelDate}
-                      onChange={(e) => handleTravelDateChange(e.target.value)}
-                      className={`w-full h-10 px-3 py-2 bg-white rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
-                        travelDateError
-                          ? "border-red-400 bg-red-50/20 focus:border-red-500"
-                          : "border-[#E5E8EF] focus:border-[#E01C5B]"
-                      }`}
-                    />
-                  </div>
-                  {travelDateError && (
-                    <span className="text-[11px] text-red-600 font-medium">{travelDateError}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Country Filter Chips */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {[
-                  DESTINATIONS_CATALOG.find((d) => d.id === "fr")!,
-                  DESTINATIONS_CATALOG.find((d) => d.id === "es")!,
-                  DESTINATIONS_CATALOG.find((d) => d.id === "us")!,
-                  DESTINATIONS_CATALOG.find((d) => d.id === "tr")!,
-                ].map((dest) => {
-                  const isActive = selectedCountryId === dest.id;
-                  return (
-                    <button
-                      key={dest.id}
-                      type="button"
-                      onClick={() => handleSelectCountry(dest)}
-                      className={`h-8 pl-2 pr-3 py-1.5 rounded-full inline-flex items-center gap-2 text-xs font-semibold transition cursor-pointer border ${
-                        isActive
-                          ? "bg-[#FAF1F4] border-[#E01C5B] text-[#B9154B]"
-                          : "bg-white border-[#E5E8EF] text-[#0D1935] hover:border-slate-300"
-                      }`}
-                    >
-                      <CountryFlagBadge countryId={dest.id} size="sm" />
-                      <span>{dest.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Selected Country Details Box */}
-              <div className="p-4 rounded-2xl border border-[#E5E8EF] flex flex-col gap-3">
-                {/* Country Title + Zone + Status badge */}
-                <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <CountryFlagBadge countryId={currentDestination.id} size="lg" />
-                    <div>
-                      <h4 className="text-[#0D1935] text-lg font-extrabold leading-6">
-                        {currentDestination.name}
-                      </h4>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        {currentDestination.zone} · for travel on {formattedTravelDateLabel}
-                      </span>
-                    </div>
-                  </div>
-                  {currentDestination.isEuIncluded ? (
-                    <span className="h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold bg-[#1E8E5A]/10 text-[#1E8E5A]">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Included in your plan</span>
-                    </span>
-                  ) : (
-                    <span className="h-6 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                      <Globe className="w-3.5 h-3.5" />
-                      <span>Standard roaming rates</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Plan Inclusion Description — CT-01 Section 07 Approved Display Text */}
-                <div className="p-3 bg-[#F6F7FA] rounded-xl border border-[#E5E8EF]">
-                  <p className="text-[#3B4A68] text-xs sm:text-sm font-medium leading-5">
-                    {!hasActiveLine
-                      ? "Choose an active mobile number to see your personal roaming allowances and charges."
-                      : currentDestination.isEuIncluded
-                      ? `Roaming is included in ${currentDestination.name} with your ${currentLine.planName}, up to ${currentLine.euFairUseRemainingGb} GB. Charges may apply when your allowance runs out.`
-                      : `Roaming isn't included in your plan for ${currentDestination.name}. Check rates before you use your phone.`}
-                  </p>
-                </div>
-
-                {/* 2x2 Rate Cards Grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="px-3 py-2 bg-[#F6F7FA] rounded-xl flex flex-col">
-                    <span className="text-[#54617E] text-xs font-normal leading-4">
-                      Data
-                    </span>
-                    <span className="text-[#0D1935] text-sm font-bold leading-5">
-                      {currentDestination.dataRate}
-                    </span>
-                  </div>
-                  <div className="px-3 py-2 bg-[#F6F7FA] rounded-xl flex flex-col">
-                    <span className="text-[#54617E] text-xs font-normal leading-4">
-                      Calls made
-                    </span>
-                    <span className="text-[#0D1935] text-sm font-bold leading-5">
-                      {currentDestination.callsMadeRate}
-                    </span>
-                  </div>
-                  <div className="px-3 py-2 bg-[#F6F7FA] rounded-xl flex flex-col">
-                    <span className="text-[#54617E] text-xs font-normal leading-4">
-                      Calls received
-                    </span>
-                    <span className="text-[#0D1935] text-sm font-bold leading-5">
-                      {currentDestination.callsReceivedRate}
-                    </span>
-                  </div>
-                  <div className="px-3 py-2 bg-[#F6F7FA] rounded-xl flex flex-col">
-                    <span className="text-[#54617E] text-xs font-normal leading-4">
-                      Texts sent
-                    </span>
-                    <span className="text-[#0D1935] text-sm font-bold leading-5">
-                      {currentDestination.textsSentRate}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Relevant Action Button — CT-01 Section 06 Rule 5 */}
-                <div className="pt-1">
-                  {!hasActiveLine ? (
-                    <button
-                      type="button"
-                      onClick={() => setLineDropdownOpen(true)}
-                      className="w-full py-2.5 px-4 bg-[#E01C5B] hover:bg-[#c81750] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      <span>Choose an active number</span>
-                    </button>
-                  ) : currentDestination.isEuIncluded ? (
-                    <Link
-                      href="/dashboard/usage-and-allowances/allowance-details"
-                      className="w-full py-2.5 px-4 bg-[#1E8E5A] hover:bg-[#18754a] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>View your roaming allowance</span>
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/dashboard/rates-and-charges"
-                      className="w-full py-2.5 px-4 bg-[#0D1935] hover:bg-[#152852] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
-                    >
-                      <Search className="w-4 h-4" />
-                      <span>View roaming rates</span>
-                    </Link>
-                  )}
-                </div>
-
-                {/* Tariff Footnotes */}
-                <div className="pt-1 flex flex-col gap-1.5 text-xs text-[#54617E]">
-                  <div className="inline-flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
-                    <span>
-                      {currentDestination.isEuIncluded
-                        ? "Fair use rules apply within the 27 EU member states"
-                        : "Standard roaming rates apply outside plan allowance"}
-                    </span>
-                  </div>
-                  <div className="inline-flex items-start gap-1.5">
-                    <FileTextIcon className="w-3.5 h-3.5 text-[#54617E] shrink-0 mt-0.5" />
-                    <span>
-                      Prices include 20% VAT · data charged per KB, calls per second after first minute
-                    </span>
-                  </div>
-                  <div className="inline-flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
-                    <span>Tariff checked {freshnessTime}</span>
-                  </div>
-                  <Link
-                    href="/dashboard/rates-and-charges"
-                    className="mt-2 pt-2 border-t border-[#E5E8EF] flex items-center justify-between text-xs font-semibold text-[#E01C5B] hover:underline"
-                  >
-                    <span>View all roaming zones &amp; complete rates table</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
+              <RoamingQuotePanel
+                token={token}
+                lines={lines}
+                selectedLineId={selectedLineId}
+                onOpenLineSelector={() => setLineDropdownOpen(true)}
+                onReloadLines={loadLinesData}
+                onOpenLinkClaimModal={() => setClaimModalOpen(true)}
+                onQuoteUpdated={setActiveQuote}
+                initialCountryCode="FR"
+              />
             </div>
 
-            {/* Card 3: Your roaming balance (White Card, lg:col-span-4) */}
-            <div className="lg:col-span-4 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4">
+            {/* Card 3: Your Roaming Balance (lg:col-span-3, strictly API-driven) */}
+            <div className="lg:col-span-3 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4">
               <div className="flex flex-col gap-3.5">
-                {/* Header */}
                 <div className="inline-flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
                     <Wallet className="w-5 h-5 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                        Your roaming balance
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                        Upcoming
-                      </span>
-                    </div>
-                    <span className="text-[#54617E] text-xs font-normal leading-5">
-                      Network records to {freshnessTime}
+                    <h3 className="text-[#0D1935] text-lg font-bold leading-6">
+                      Roaming balance
+                    </h3>
+                    <span className="text-[#54617E] text-xs font-normal leading-4">
+                      {activeQuote?.destination?.name
+                        ? `For ${activeQuote.destination.name}`
+                        : "Select a destination"}
                     </span>
                   </div>
                 </div>
 
-                {/* EU Roaming Fair Use Box */}
-                <div className="p-3.5 bg-[#F6F7FA] rounded-2xl flex flex-col gap-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[#0D1935] text-sm font-bold leading-5">
-                        EU roaming in your plan
+                {activeQuote &&
+                isLineQuote(activeQuote) &&
+                activeQuote.outcome === "INCLUDED_WITH_LIMIT" &&
+                activeQuote.entitlement ? (
+                  <div className="p-3.5 bg-[#F6F7FA] rounded-2xl border border-[#ECEFF5] flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[#0D1935] text-xs font-bold">
+                        Plan entitlement
                       </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        {currentLine.euFairUseLimitGb} GB fair use · counts toward your{" "}
-                        {currentLine.totalDataGb} GB
-                        {currentLine.renewDate !== "—"
-                          ? ` · renews ${currentLine.renewDate}`
-                          : ""}
-                      </span>
+                      {activeQuote.entitlement.remaining.status === "coming_soon" ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          Coming soon
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Live
+                        </span>
+                      )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[#0D1935] text-xl font-extrabold leading-6">
-                        {currentLine.euFairUseRemainingGb} GB
-                      </div>
-                      <div className="text-[#54617E] text-xs font-bold leading-4">
-                        left of {currentLine.euFairUseLimitGb} GB
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Green Progress Bar */}
-                  <div className="w-full h-1.5 bg-[#E3E6EE] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#1E8E5A] rounded-full transition-all duration-300"
-                      style={{ width: `${euFairUseProgressPct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Action link */}
-              <Link
-                href="/dashboard/usage-and-allowances/allowance-details"
-                className="w-full h-10 px-4 py-2.5 rounded-xl border border-[#E5E8EF] hover:border-[#E01C5B] text-xs font-semibold text-[#0D1935] hover:text-[#E01C5B] transition inline-flex items-center justify-between"
-              >
-                <span>View full allowance details</span>
-                <ChevronRight className="w-4 h-4 text-[#8F9BB3]" />
-              </Link>
-            </div>
-          </div>
-
-          {/* ── ROW 2: 3 Equal Columns (Roaming usage + Where you've roamed + Roaming settings) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
-            {/* Card 4: Roaming usage */}
-            <div className="p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-3.5">
-              <div className="flex flex-col gap-3.5">
-                {/* Header + Range Dropdown */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                      <BarChart2 className="w-5 h-5 text-[#E01C5B]" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                          Roaming usage
-                        </h3>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                          Upcoming
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-[#54617E]">Data limit</span>
+                        <span className="font-bold text-[#0D1935]">
+                          {formatAllowanceMb(activeQuote.entitlement.data_mb)}
                         </span>
                       </div>
-                      <span className="text-[#54617E] text-xs font-normal leading-4 block">
-                        Usage was last updated at {freshnessTime}
-                      </span>
+                      <div className="flex justify-between">
+                        <span className="text-[#54617E]">Voice minutes</span>
+                        <span className="font-bold text-[#0D1935]">
+                          {activeQuote.entitlement.voice_unlimited
+                            ? "Unlimited minutes"
+                            : activeQuote.entitlement.voice_minutes !== null
+                            ? `${activeQuote.entitlement.voice_minutes}`
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#54617E]">Texts</span>
+                        <span className="font-bold text-[#0D1935]">
+                          {activeQuote.entitlement.sms_unlimited
+                            ? "Unlimited texts"
+                            : activeQuote.entitlement.sms !== null
+                            ? `${activeQuote.entitlement.sms}`
+                            : "—"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="relative shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setUsageRangeDropdownOpen(!usageRangeDropdownOpen)}
-                      className="h-9 px-3 bg-white rounded-[10px] border border-[#E5E8EF] inline-flex items-center gap-2 text-xs font-semibold text-[#0D1935] hover:border-slate-300 cursor-pointer"
-                    >
-                      <span>{usageRange === "7d" ? "Last 7 days" : "This billing cycle"}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-[#54617E]" />
-                    </button>
-                    {usageRangeDropdownOpen && (
-                      <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-20">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUsageRange("7d");
-                            setUsageRangeDropdownOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-xs font-medium hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                        >
-                          <span>Last 7 days</span>
-                          {usageRange === "7d" && (
-                            <Check className="w-3.5 h-3.5 text-[#E01C5B]" />
+                    <div className="pt-2 border-t border-slate-200 text-xs">
+                      {activeQuote.entitlement.remaining.status === "coming_soon" ? (
+                        <p className="font-semibold text-amber-800">
+                          Remaining balance: coming soon
+                        </p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="font-bold text-[#1E8E5A]">
+                            Remaining:{" "}
+                            {formatAllowanceMb(activeQuote.entitlement.remaining.data_mb)}
+                          </p>
+                          {activeQuote.entitlement.remaining.as_of && (
+                            <p className="text-[11px] text-[#54617E]">
+                              Updated at {formatTimestamp(activeQuote.entitlement.remaining.as_of)}
+                            </p>
                           )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUsageRange("30d");
-                            setUsageRangeDropdownOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-xs font-medium hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                        >
-                          <span>This billing cycle</span>
-                          {usageRange === "30d" && (
-                            <Check className="w-3.5 h-3.5 text-[#E01C5B]" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Data | Calls | Texts Tabs */}
-                <div className="border-b border-[#E5E8EF] flex items-center gap-1">
-                  {(
-                    [
-                      { id: "data", label: "Data" },
-                      { id: "calls", label: "Calls" },
-                      { id: "texts", label: "Texts" },
-                    ] as const
-                  ).map((tab) => {
-                    const active = usageTypeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setUsageTypeTab(tab.id)}
-                        className={`h-10 px-3.5 pt-2 pb-2.5 border-b-2 text-sm font-semibold transition cursor-pointer ${
-                          active
-                            ? "border-[#E01C5B] text-[#B9154B]"
-                            : "border-transparent text-[#54617E] hover:text-[#0D1935]"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Summary Stat Columns */}
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <div className="text-[#0D1935] text-2xl font-extrabold leading-8">
-                      {usageTypeTab === "data"
-                        ? `${currentLine.euUsedGb} GB`
-                        : usageTypeTab === "calls"
-                        ? `${currentLine.roamingCallsMins} min`
-                        : `${currentLine.roamingTextsCount}`}
-                    </div>
-                    <div className="text-[#54617E] text-xs font-normal leading-4">
-                      used abroad · {usageRange === "7d" ? "last 7 days" : "this cycle"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[#0D1935] text-2xl font-extrabold leading-8">
-                      {usageTypeTab === "data"
-                        ? `${currentLine.euFairUseRemainingGb} GB`
-                        : "Unlimited"}
-                    </div>
-                    <div className="text-[#54617E] text-xs font-normal leading-4">
-                      {usageTypeTab === "data"
-                        ? `EU fair use left of ${currentLine.euFairUseLimitGb} GB`
-                        : "within EU fair use"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center gap-4 flex-wrap text-xs text-[#54617E]">
-                  <div className="inline-flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-xs bg-[#E01C5B]" />
-                    <span className="text-[#3B4A68]">EU zone</span>
-                  </div>
-                  <span>Grey dots: no roaming that day</span>
-                </div>
-
-                {/* Chart OR Table */}
-                {!showUsageTable ? (
-                  <div className="relative h-36 pt-3 select-none">
-                    {/* Y-Axis Grid Lines */}
-                    {[
-                      { label: "0.5 GB", top: "top-[12px]" },
-                      { label: "0.25 GB", top: "top-[64px]" },
-                      { label: "0 GB", top: "top-[116px]" },
-                    ].map((axis) => (
-                      <div
-                        key={axis.label}
-                        className={`absolute inset-x-0 ${axis.top} flex items-center`}
-                      >
-                        <span className="w-10 text-right pr-2 text-[9px] text-[#54617E]">
-                          {axis.label}
-                        </span>
-                        <div className="flex-1 border-t border-[#ECEFF5]" />
-                      </div>
-                    ))}
-
-                    {/* 7-day bars */}
-                    <div className="absolute left-11 right-1 top-[12px] bottom-[20px] grid grid-cols-7 gap-2 items-end">
-                      {sevenDayUsageTimeline.map((day) => {
-                        const hasUsage = day.gbUsed > 0;
-                        const pct = hasUsage
-                          ? Math.min(100, Math.max(18, Math.round((day.gbUsed / 0.5) * 100)))
-                          : 0;
-                        return (
-                          <div
-                            key={day.dateLabel}
-                            className="h-full flex flex-col justify-end items-center"
-                          >
-                            {day.isToday && (
-                              <span className="text-[8px] font-bold text-[#3B5998] mb-0.5">
-                                Today
-                              </span>
-                            )}
-                            {hasUsage ? (
-                              <div
-                                style={{ height: `${pct}%` }}
-                                className="w-4 rounded-t-xs bg-[#E01C5B]"
-                              />
-                            ) : day.isToday ? (
-                              <div className="w-4 h-5 rounded-t-xs border border-[#96A3BE]" />
-                            ) : (
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#C4CDDF] mb-0.5" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* X-Axis Labels */}
-                    <div className="absolute left-11 right-1 bottom-0 grid grid-cols-7 gap-2 text-center">
-                      {sevenDayUsageTimeline.map((day) => (
-                        <span
-                          key={day.dateLabel}
-                          className="text-[8.5px] text-[#54617E] truncate"
-                        >
-                          {day.dateLabel}
-                        </span>
-                      ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <div className="max-h-36 overflow-y-auto border border-[#E5E8EF] rounded-xl divide-y divide-[#E5E8EF] text-xs">
-                    {sevenDayUsageTimeline
-                      .slice()
-                      .reverse()
-                      .map((day) => (
-                        <div
-                          key={day.dateLabel}
-                          className="px-3 py-2 flex items-center justify-between"
-                        >
-                          <span className="text-[#0D1935] font-medium">
-                            {day.dateLabel} {day.isToday ? "(Today)" : ""}
-                          </span>
-                          <span className="text-[#54617E] font-semibold">
-                            {day.gbUsed.toFixed(2)} GB
-                          </span>
-                        </div>
-                      ))}
+                  <div className="p-4 bg-[#F6F7FA] rounded-2xl border border-[#ECEFF5] text-xs text-[#54617E] space-y-2">
+                    <p className="font-semibold text-[#0D1935]">
+                      {activeQuote?.status === "READY_PERSONALISED" &&
+                      activeQuote.outcome === "STANDARD_CHARGES"
+                        ? "Standard roaming rates apply"
+                        : activeQuote?.status === "READY_PERSONALISED" &&
+                          activeQuote.outcome === "NOT_SUPPORTED"
+                        ? "Roaming unavailable for this destination"
+                        : "Remaining balance: coming soon"}
+                    </p>
+                    <p className="leading-4">
+                      {activeQuote?.message ||
+                        "Select a destination and travel date to check allowances and remaining balance."}
+                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Footer */}
-              <div className="pt-2 flex flex-col gap-2">
-                <div className="inline-flex items-center gap-1.5 text-xs text-[#54617E]">
-                  <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
-                  <span>Roaming usage can take up to 24 hours to appear.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowUsageTable(!showUsageTable)}
-                  className="self-start inline-flex items-center gap-1.5 text-[#B9154B] text-xs font-semibold hover:underline cursor-pointer"
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/dashboard/usage-and-allowances/allowance-details"
+                  className="w-full h-10 px-4 py-2 rounded-xl border border-[#E5E8EF] hover:border-[#E01C5B] text-xs font-semibold text-[#0D1935] hover:text-[#E01C5B] transition inline-flex items-center justify-between"
                 >
-                  <Table className="w-3.5 h-3.5" />
-                  <span>{showUsageTable ? "Show as chart" : "Show as table"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Card 5: Where you've roamed */}
-            <div className="p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-3.5">
-              <div className="flex flex-col gap-3.5">
-                {/* Header */}
-                <div className="inline-flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                    <MapPin className="w-5 h-5 text-[#E01C5B]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                        Where you&apos;ve roamed
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                        Upcoming
-                      </span>
-                    </div>
-                    <span className="text-[#54617E] text-xs font-normal leading-5">
-                      {currentLine.billingPeriodLabel}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Table Header */}
-                <div className="w-full">
-                  <div className="grid grid-cols-12 pb-2 text-xs font-semibold text-[#54617E]">
-                    <div className="col-span-4">Country</div>
-                    <div className="col-span-2 text-right">Data</div>
-                    <div className="col-span-3 text-right">Calls · texts</div>
-                    <div className="col-span-3 text-right">Charges</div>
-                  </div>
-
-                  {currentLine.euUsedGb > 0 ? (
-                    <div className="grid grid-cols-12 items-center py-4 border-t border-[#ECEFF5] text-xs">
-                      <div className="col-span-4 flex items-center gap-2 font-semibold text-[#0D1935]">
-                        <CountryFlagBadge countryId="es" size="sm" />
-                        <span>EU Zone</span>
-                      </div>
-                      <div className="col-span-2 text-right text-[#0D1935]">
-                        {currentLine.euUsedGb} GB
-                      </div>
-                      <div className="col-span-3 text-right text-[#0D1935]">
-                        {currentLine.roamingCallsMins} min · {currentLine.roamingTextsCount}
-                      </div>
-                      <div className="col-span-3 flex flex-col items-end gap-1">
-                        <span className="font-bold text-[#0D1935]">£0.00</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#1E8E5A]/10 text-[#1E8E5A] text-[10px] font-semibold">
-                          Included
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-6 border-t border-[#ECEFF5] text-xs text-[#54617E] flex items-center justify-between">
-                      <span>No roaming sessions recorded this billing period</span>
-                      <span className="px-2.5 py-1 rounded-full bg-[#F6F7FA] text-[#1E8E5A] font-semibold text-[11px]">
-                        £0.00
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Note */}
-                <div className="inline-flex items-start gap-1.5 text-xs text-[#54617E] leading-4">
-                  <Info className="w-3.5 h-3.5 text-[#54617E] shrink-0 mt-0.5" />
-                  <span>
-                    From network records received {freshnessTime}. Charges are final once
-                    they&apos;re on a bill. £0.00 means no charge, not &ldquo;not priced
-                    yet&rdquo;.
-                  </span>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="pt-2">
+                  <span>View full allowance details</span>
+                  <ChevronRight className="w-4 h-4 text-[#8F9BB3]" />
+                </Link>
                 <button
                   type="button"
                   onClick={() => setQueryRoamingModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-[#B9154B] text-xs font-semibold hover:underline cursor-pointer"
+                  className="self-start inline-flex items-center gap-1.5 text-[#B9154B] text-xs font-semibold hover:underline cursor-pointer pt-1"
                 >
                   <Flag className="w-3.5 h-3.5" />
                   <span>Query a roaming charge</span>
                 </button>
               </div>
             </div>
+          </div>
 
-            {/* Card 6: Roaming settings */}
-            <div className="p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-3.5">
+          {/* ── ROW 2: Safe Travel Guidance + Settings & Quick Actions ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+            {/* Roaming Settings & Phone Guidance (lg:col-span-6) */}
+            <div className="lg:col-span-6 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-3.5">
               <div className="flex flex-col gap-3">
-                {/* Header */}
                 <div className="inline-flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
                     <Settings className="w-5 h-5 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
                     <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                      Roaming settings
+                      Device &amp; travel guidance
                     </h3>
                     <span className="text-[#54617E] text-xs font-normal leading-5">
-                      For {currentLine.number}
+                      Manage roaming settings on your phone
                     </span>
                   </div>
                 </div>
 
-                {/* 5 Settings Rows */}
-                <div className="flex flex-col">
-                  {/* Row 1: Data, calls & texts abroad */}
+                <div className="flex flex-col divide-y divide-[#ECEFF5]">
                   <button
                     type="button"
                     onClick={() =>
                       setGuideModal({
                         title: "Data, calls & texts abroad",
-                        subtitle: `Phone settings for ${currentLine.number}`,
+                        subtitle: currentLine ? `Phone settings for ${currentLineDisplayNumber}` : "Phone settings",
                         steps: [
-                          "1. Your Zoiko line has network permission for international roaming enabled.",
+                          "1. Always check the quote for your specific destination and travel date before departing.",
                           "2. To use mobile data abroad, enable Data Roaming in your device settings upon arrival.",
-                          "3. To prevent unexpected background data usage in non-EU countries, switch Data Roaming OFF in your phone settings and use Wi-Fi or check standard roaming rates.",
+                          "3. To prevent unexpected background data charges, switch Data Roaming OFF before entering destinations not covered by your plan.",
                         ],
                       })
                     }
@@ -1836,21 +793,20 @@ export default function RoamingAndTravelPage() {
                     </div>
                   </button>
 
-                  {/* Row 2: Preferred network */}
                   <button
                     type="button"
                     onClick={() =>
                       setGuideModal({
                         title: "Preferred network selection",
-                        subtitle: `For ${currentLine.number}`,
+                        subtitle: "Connecting to local partner networks",
                         steps: [
-                          "1. Keep Network Selection set to Automatic so your phone connects to our strongest 4G/5G partner network when you land.",
-                          "2. If signal drops or data doesn't connect immediately, toggle Airplane Mode on for 10 seconds and off again.",
-                          "3. You can also manually select a partner network under Settings → Mobile Network → Network Operators.",
+                          "1. Keep Network Selection set to Automatic so your phone connects to our strongest partner network when you land.",
+                          "2. If data doesn't connect immediately, toggle Airplane Mode on for 10 seconds and off again.",
+                          "3. You can also select a local network manually under Settings → Mobile Network → Network Selection.",
                         ],
                       })
                     }
-                    className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
@@ -1871,74 +827,20 @@ export default function RoamingAndTravelPage() {
                     </div>
                   </button>
 
-                  {/* Row 3: Mobile bill limit */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempBillLimit(billLimit.toFixed(2));
-                      setBillLimitModalOpen(true);
-                    }}
-                    className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
-                        <Gauge className="w-4 h-4 text-[#1E2D4D]" />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                          Mobile bill limit
-                        </span>
-                        <span className="text-[#54617E] text-xs font-normal leading-4">
-                          Covers roaming charges outside your plan
-                        </span>
-                      </div>
-                    </div>
-                    <div className="inline-flex items-center gap-1 shrink-0 text-xs font-semibold text-[#0D1935]">
-                      <span>£{billLimit.toFixed(2)}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#0D1935]" />
-                    </div>
-                  </button>
-
-                  {/* Row 4: Usage alerts */}
-                  <button
-                    type="button"
-                    onClick={() => setAlertsModalOpen(true)}
-                    className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
-                        <Bell className="w-4 h-4 text-[#1E2D4D]" />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                          Usage alerts
-                        </span>
-                        <span className="text-[#54617E] text-xs font-normal leading-4">
-                          Optional extra reminders
-                        </span>
-                      </div>
-                    </div>
-                    <div className="inline-flex items-center gap-1 shrink-0 text-xs font-semibold text-[#0D1935]">
-                      <span>Manage</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#0D1935]" />
-                    </div>
-                  </button>
-
-                  {/* Row 5: Near the border or coast */}
                   <button
                     type="button"
                     onClick={() =>
                       setGuideModal({
                         title: "Near the border or coast",
-                        subtitle: "How to avoid accidental roaming charges",
+                        subtitle: "Avoid accidental roaming charges",
                         steps: [
-                          "1. In Northern Ireland: EU roaming is included in your plan, so connecting to an Irish network won't incur extra charges within your EU fair use limit.",
-                          "2. Along the English Channel coast (e.g. Dover, Folkestone) or on ferries: Your phone may pick up maritime or French networks. Switch Network Selection to Manual ('Zoiko') or turn Data Roaming OFF while at sea.",
-                          "3. Near non-EU borders (e.g. Switzerland, Türkiye from Greek islands, Monaco): Set your network manually to stay on an EU partner network.",
+                          "1. Check specific country and territory rules — nearby territories (such as Switzerland, Türkiye, Jersey, or Guernsey) can carry different rates from neighbouring EU countries.",
+                          "2. Along coastal routes or ferries, your phone may latch onto a maritime satellite network. Switch Network Selection to Manual or turn Data Roaming OFF while at sea.",
+                          "3. On flights, keep Airplane Mode ON unless explicitly intending to connect to an inflight roaming service.",
                         ],
                       })
                     }
-                    className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
@@ -1946,10 +848,10 @@ export default function RoamingAndTravelPage() {
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                          Near the border or coast
+                          Near the border, sea or flights
                         </span>
                         <span className="text-[#54617E] text-xs font-normal leading-4">
-                          Avoid roaming by accident, e.g. in Northern Ireland
+                          Avoid maritime, aircraft &amp; border network surprises
                         </span>
                       </div>
                     </div>
@@ -1961,242 +863,133 @@ export default function RoamingAndTravelPage() {
                 </div>
               </div>
 
-              {/* Always Sent Lock Box */}
               <div className="p-3 bg-[#F6F7FA] rounded-xl inline-flex items-start gap-2.5 text-xs text-[#3B4A68] leading-4">
                 <Lock className="w-3.5 h-3.5 text-[#3B4A68] shrink-0 mt-0.5" />
                 <span>
-                  <strong className="font-bold text-[#3B4A68]">Always sent:</strong> when
-                  you arrive abroad, we text you the charges, what&apos;s included and how
-                  to limit spend. Optional alerts can&apos;t turn this off.
+                  <strong className="font-bold text-[#3B4A68]">Arrival SMS notice:</strong>{" "}
+                  When you arrive abroad, network billing systems automatically send your destination charges and spend control rules by text.
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* ── ROW 3: 2-Column Grid (Safe Roaming Guidance [7] + Quick Actions [5]) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            {/* Card 7: Safe Roaming Checklist & Tips (lg:col-span-7) */}
-            <div className="lg:col-span-7 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-4">
-              <div className="flex flex-col gap-3.5">
-                {/* Header */}
-                <div className="inline-flex items-center gap-3">
+            {/* Quick Actions (lg:col-span-6) */}
+            <div className="lg:col-span-6 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-between gap-3.5">
+              <div>
+                <div className="inline-flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-[#E01C5B]" />
+                    <Zap className="w-5 h-5 text-[#E01C5B]" />
                   </div>
                   <div className="flex flex-col">
                     <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                      Safe travel &amp; roaming checklist
+                      Quick actions
                     </h3>
                     <span className="text-[#54617E] text-xs font-normal leading-5">
-                      Essential steps before travelling abroad with {currentLine.number}
+                      Tools &amp; support while preparing or away
                     </span>
                   </div>
                 </div>
 
-                {/* 4 Essential Checklist Items */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#1E8E5A] shrink-0" />
-                      <span className="text-xs font-bold text-[#0D1935]">1. EU Surcharge-Free Area</span>
-                    </div>
-                    <p className="text-[11px] text-[#54617E] leading-4">
-                      Surcharge-free roaming strictly applies to 27 EU member states up to your plan&apos;s fair-use limit.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="text-xs font-bold text-[#0D1935]">2. Non-EU Surcharge Zones</span>
-                    </div>
-                    <p className="text-[11px] text-[#54617E] leading-4">
-                      Switzerland, Türkiye, Monaco, Jersey &amp; Guernsey are not standard EU. Standard roaming rates apply.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <Gauge className="w-4 h-4 text-[#E01C5B] shrink-0" />
-                      <span className="text-xs font-bold text-[#0D1935]">3. Spend Cap Protection</span>
-                    </div>
-                    <p className="text-[11px] text-[#54617E] leading-4">
-                      Your monthly mobile bill cap of £{billLimit.toFixed(2)} automatically blocks extra charges beyond your limit.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#F6F7FA] border border-[#E5E8EF] flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-[#203B7E] shrink-0" />
-                      <span className="text-xs font-bold text-[#0D1935]">4. Arrival SMS Welcome</span>
-                    </div>
-                    <p className="text-[11px] text-[#54617E] leading-4">
-                      When you land, we text you the exact verified tariff, included allowances, and emergency numbers.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Notice */}
-              <div className="pt-2 border-t border-[#ECEFF5] flex items-center justify-between text-xs text-[#54617E]">
-                <span>Need complete country tariffs?</span>
-                <Link
-                  href="/dashboard/rates-and-charges"
-                  className="font-bold text-[#E01C5B] hover:underline flex items-center gap-1"
-                >
-                  <span>View Rates &amp; Charges</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-
-            {/* Card 8: Quick actions (lg:col-span-5) */}
-            <div className="lg:col-span-5 p-5 bg-white rounded-[20px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-[#E5E8EF] flex flex-col justify-start gap-3.5">
-              {/* Header */}
-              <div className="inline-flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#FAF1F4] rounded-xl flex items-center justify-center shrink-0">
-                  <Zap className="w-5 h-5 text-[#E01C5B]" />
-                </div>
-                <div className="flex flex-col">
-                  <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                    Quick actions
-                  </h3>
-                  <span className="text-[#54617E] text-xs font-normal leading-5">
-                    Works from abroad too
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Rows */}
-              <div className="flex flex-col">
-                {/* 1. Check rates */}
-                <Link
-                  href="/dashboard/rates-and-charges"
-                  className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Search className="w-4 h-4 text-[#E01C5B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Check rates &amp; tariffs
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        For UK and all international destinations
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </Link>
-
-                {/* 2. View allowance details */}
-                <Link
-                  href="/dashboard/usage-and-allowances/allowance-details"
-                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Wallet className="w-4 h-4 text-[#E01C5B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        View allowance details
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        EU roaming, UK data, calls &amp; text balances
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </Link>
-
-                {/* 3. Manage bill limit */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTempBillLimit(billLimit.toFixed(2));
-                    setBillLimitModalOpen(true);
-                  }}
-                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Gauge className="w-4 h-4 text-[#E01C5B]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
+                <div className="flex flex-col divide-y divide-[#ECEFF5]">
+                  <Link
+                    href="/dashboard/rates-and-charges?tab=calls"
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
+                        <Search className="w-4 h-4 text-[#E01C5B]" />
+                      </div>
+                      <div className="flex flex-col">
                         <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                          Manage bill limit
+                          Check UK &amp; roaming rates
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                          Upcoming
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          Full rate checker for calls, texts &amp; destinations
                         </span>
                       </div>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        Currently £{billLimit.toFixed(2)} a month
-                      </span>
                     </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </button>
+                    <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
+                  </Link>
 
-                {/* 4. Roaming troubleshooting */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setGuideModal({
-                      title: "Roaming troubleshooting",
-                      subtitle: "No signal or data abroad?",
-                      steps: [
-                        "1. Confirm Data Roaming is turned ON in your phone's settings.",
-                        "2. Restart your phone or toggle Airplane Mode ON for 15 seconds, then OFF so it registers with the local partner tower.",
-                        "3. Check your APN is set to 'zoiko' under Mobile Data Network settings.",
-                        "4. Ensure your monthly mobile bill limit (£" +
-                          billLimit.toFixed(2) +
-                          ") hasn't been reached if you are outside the EU zone.",
-                      ],
-                    })
-                  }
-                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Wrench className="w-4 h-4 text-[#E01C5B]" />
+                  <button
+                    type="button"
+                    onClick={() => setClaimModalOpen(true)}
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
+                        <Link2 className="w-4 h-4 text-[#E01C5B]" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
+                          Link an existing Zoiko number
+                        </span>
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          Claim a SIM or number to see personalised quotes
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Roaming troubleshooting
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        No signal or data abroad?
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </button>
+                    <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
+                  </button>
 
-                {/* 5. Contact support */}
-                <button
-                  type="button"
-                  onClick={() => router.push("/dashboard/support")}
-                  className="py-2.5 border-t border-[#ECEFF5] flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
-                      <Headphones className="w-4 h-4 text-[#E01C5B]" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGuideModal({
+                        title: "Roaming troubleshooting",
+                        subtitle: "No signal or data abroad?",
+                        steps: [
+                          "1. Confirm Data Roaming is turned ON in your phone's settings.",
+                          "2. Restart your phone or toggle Airplane Mode ON for 15 seconds, then OFF so it registers with a local network.",
+                          "3. Check your APN is set to 'zoiko' under Mobile Data Network settings.",
+                          "4. If your account has an active spend control reached or your line status isn't active, contact our support team.",
+                        ],
+                      })
+                    }
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
+                        <Wrench className="w-4 h-4 text-[#E01C5B]" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
+                          Roaming troubleshooting
+                        </span>
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          No signal or data abroad?
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[#0D1935] text-sm font-semibold leading-5">
-                        Contact support
-                      </span>
-                      <span className="text-[#54617E] text-xs font-normal leading-4">
-                        We can help while you&apos;re away
-                      </span>
+                    <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const qId =
+                        activeQuote && isLineQuote(activeQuote)
+                          ? `?quote_id=${encodeURIComponent(activeQuote.quote_id)}`
+                          : "";
+                      router.push(`/dashboard/support${qId}`);
+                    }}
+                    className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-[#FAF1F4] rounded-[10px] flex items-center justify-center shrink-0">
+                        <Headphones className="w-4 h-4 text-[#E01C5B]" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[#0D1935] text-sm font-semibold leading-5">
+                          Contact support
+                        </span>
+                        <span className="text-[#54617E] text-xs font-normal leading-4">
+                          We can help before or during your trip
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
-                </button>
+                    <ChevronRight className="w-4 h-4 text-[#8F9BB3] shrink-0" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2205,7 +998,7 @@ export default function RoamingAndTravelPage() {
 
       {/* ── MODALS ── */}
 
-      {/* 1. Guide / Info Modal */}
+      {/* Guide Modal */}
       {guideModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
@@ -2245,192 +1038,117 @@ export default function RoamingAndTravelPage() {
         </div>
       )}
 
-      {/* 2. Manage Bill Limit Modal */}
-      {billLimitModalOpen && (
+      {/* Link Existing Zoiko Number Modal (POST /api/v1/lines/claims/) */}
+      {claimModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-[#FAF1F4] rounded-xl flex items-center justify-center">
-                  <Gauge className="w-4 h-4 text-[#E01C5B]" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-[#0D1935]">
-                      Monthly mobile bill limit
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                      Upcoming
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#54617E]">
-                    Covers roaming charges outside your plan
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setBillLimitModalOpen(false);
-                  setBillLimitError("");
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveBillLimit} className="pt-4 flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-[#0D1935]">
-                  Select preset or enter custom limit (£)
-                </label>
-                <div className="grid grid-cols-4 gap-2 pb-1">
-                  {[0, 25, 50, 100].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => {
-                        setTempBillLimit(preset.toFixed(2));
-                        setBillLimitError("");
-                      }}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                        parseFloat(tempBillLimit) === preset
-                          ? "bg-[#E01C5B] text-white border-[#E01C5B]"
-                          : "bg-slate-50 text-[#0D1935] border-slate-200 hover:border-[#E01C5B]/40"
-                      }`}
-                    >
-                      £{preset}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={tempBillLimit}
-                  onChange={(e) => {
-                    setTempBillLimit(e.target.value);
-                    if (billLimitError) setBillLimitError("");
-                  }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-[#0D1935] focus:outline-none transition ${
-                    billLimitError
-                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
-                      : "border-slate-200 focus:border-[#E01C5B]"
-                  }`}
-                />
-                {billLimitError && (
-                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{billLimitError}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBillLimitModalOpen(false);
-                    setBillLimitError("");
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#54617E] hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
-                >
-                  Save bill limit
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Usage Alerts Modal */}
-      {alertsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-[#FAF1F4] rounded-xl flex items-center justify-center">
-                  <Bell className="w-4 h-4 text-[#E01C5B]" />
+                  <Link2 className="w-4 h-4 text-[#E01C5B]" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#0D1935]">
-                    Roaming usage alerts
+                    Link an existing Zoiko number
                   </h3>
                   <p className="text-xs text-[#54617E]">
-                    Optional extra reminders for {currentLine.number}
+                    Provide any two details to verify your SIM
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setAlertsModalOpen(false)}
+                onClick={() => {
+                  setClaimModalOpen(false);
+                  setClaimError(null);
+                  setClaimResultMsg(null);
+                }}
                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="py-4 flex flex-col gap-3 text-xs">
-              <label className="p-3 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer">
-                <div>
-                  <div className="font-semibold text-[#0D1935]">
-                    80% EU fair use SMS alert
-                  </div>
-                  <div className="text-[#54617E]">
-                    Text me when I&apos;ve used 80% of my EU fair use allowance
-                  </div>
+            {claimResultMsg ? (
+              <div className="pt-4 space-y-4 text-xs">
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-medium">
+                  {claimResultMsg}
                 </div>
-                <input
-                  type="checkbox"
-                  checked={extraSmsAlertAt80}
-                  onChange={(e) => setExtraSmsAlertAt80(e.target.checked)}
-                  className="w-4 h-4 accent-[#E01C5B]"
-                />
-              </label>
-
-              <label className="p-3 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer">
-                <div>
-                  <div className="font-semibold text-[#0D1935]">
-                    Email roaming summary
-                  </div>
-                  <div className="text-[#54617E]">
-                    Send an email when roaming spend reaches 80% of limit
-                  </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClaimModalOpen(false);
+                      setClaimResultMsg(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white font-semibold cursor-pointer"
+                  >
+                    Done
+                  </button>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={extraEmailAlert}
-                  onChange={(e) => setExtraEmailAlert(e.target.checked)}
-                  className="w-4 h-4 accent-[#E01C5B]"
-                />
-              </label>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAlertsModalOpen(false);
-                  showToast("Roaming alert preferences saved", "success");
-                }}
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] cursor-pointer"
-              >
-                Save preferences
-              </button>
-            </div>
+              </div>
+            ) : (
+              <form onSubmit={handleClaimSubmit} className="pt-4 flex flex-col gap-3 text-xs">
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-[#0D1935]">Zoiko mobile number</label>
+                  <input
+                    type="text"
+                    value={claimMsisdn}
+                    onChange={(e) => setClaimMsisdn(e.target.value)}
+                    placeholder="e.g. 07700 900123"
+                    className="px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#E01C5B]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-[#0D1935]">SIM ICCID (18–22 digits)</label>
+                  <input
+                    type="text"
+                    value={claimIccid}
+                    onChange={(e) => setClaimIccid(e.target.value)}
+                    placeholder="e.g. 8944..."
+                    className="px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#E01C5B]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="font-semibold text-[#0D1935]">Order reference</label>
+                  <input
+                    type="text"
+                    value={claimOrderRef}
+                    onChange={(e) => setClaimOrderRef(e.target.value)}
+                    placeholder="e.g. ZMK-..."
+                    className="px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#E01C5B]"
+                  />
+                </div>
+                {claimError && (
+                  <p className="text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{claimError}</span>
+                  </p>
+                )}
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setClaimModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-[#54617E] font-semibold hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={claimSubmitting}
+                    className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white font-semibold hover:bg-[#c81750] disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {claimSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Verify &amp; link number</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {/* 5. Query a Roaming Charge Modal */}
+      {/* Query Roaming Charge Modal */}
       {queryRoamingModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
@@ -2444,7 +1162,7 @@ export default function RoamingAndTravelPage() {
                     Query a roaming charge
                   </h3>
                   <p className="text-xs text-[#54617E]">
-                    For {currentLine.number} · {currentLine.billingPeriodLabel}
+                    {currentLine ? `For ${currentLineDisplayNumber}` : "Support enquiry"}
                   </p>
                 </div>
               </div>
@@ -2461,7 +1179,7 @@ export default function RoamingAndTravelPage() {
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-[#0D1935]">
-                    Tell us which roaming session or charge you&apos;d like checked <span className="text-[#E01C5B]">*</span>
+                    Tell us what you&apos;d like checked <span className="text-[#E01C5B]">*</span>
                   </label>
                   <span className="text-[11px] text-[#54617E]">
                     {queryRoamingNote.length}/1000
@@ -2476,15 +1194,11 @@ export default function RoamingAndTravelPage() {
                     setQueryRoamingNote(e.target.value);
                     if (queryError) setQueryError("");
                   }}
-                  placeholder="e.g. Border roaming near Northern Ireland or unexpected roaming charge..."
-                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-[#0D1935] focus:outline-none transition ${
-                    queryError
-                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
-                      : "border-slate-200 focus:border-[#E01C5B]"
-                  }`}
+                  placeholder="Describe the destination, date, or charge you want checked..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
                 />
                 {queryError && (
-                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1 font-medium">
+                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{queryError}</span>
                   </p>
@@ -2506,14 +1220,8 @@ export default function RoamingAndTravelPage() {
                   disabled={isSubmittingQuery}
                   className="px-4 py-2 rounded-xl bg-[#E01C5B] text-white text-xs font-semibold hover:bg-[#c81750] disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
-                  {isSubmittingQuery ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <span>Submit query</span>
-                  )}
+                  {isSubmittingQuery && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Submit query</span>
                 </button>
               </div>
             </form>
@@ -2521,22 +1229,6 @@ export default function RoamingAndTravelPage() {
         </div>
       )}
 
-      {/* Shared Dashboard Modals */}
-      <BoosterModal
-        isOpen={boosterOpen}
-        onClose={() => setBoosterOpen(false)}
-        currentRemainingGb={currentLine.euFairUseRemainingGb || 15}
-        onApplyBooster={(addedGb: number, cost: number) => {
-          recordBoosterPurchase({
-            addedGb,
-            cost,
-            lineId: currentLine.id,
-            lineNumber: currentLine.number,
-            boosterName: `${addedGb} GB Data Booster`,
-          });
-          showToast(`Added +${addedGb}GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`, "success");
-        }}
-      />
       <ReportActivityModal
         isOpen={reportOpen}
         onClose={() => setReportOpen(false)}
@@ -2545,29 +1237,12 @@ export default function RoamingAndTravelPage() {
       <ComparePlansModal
         isOpen={comparePlansOpen}
         onClose={() => setComparePlansOpen(false)}
-        currentPlanName={currentLine.planName}
+        currentPlanName={currentLine?.plan?.name || ""}
         onSelectPlan={(planTitle: string) => {
           setComparePlansOpen(false);
           showToast(`Selected ${planTitle}`, "info");
         }}
       />
     </div>
-  );
-}
-
-function FileTextIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.3"
-    >
-      <rect x="3" y="2" width="10" height="12" rx="1.5" />
-      <line x1="5.5" y1="5.5" x2="10.5" y2="5.5" />
-      <line x1="5.5" y1="8" x2="10.5" y2="8" />
-      <line x1="5.5" y1="10.5" x2="8.5" y2="10.5" />
-    </svg>
   );
 }
