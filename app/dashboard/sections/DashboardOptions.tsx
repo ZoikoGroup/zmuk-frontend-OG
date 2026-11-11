@@ -24,12 +24,14 @@ const stepData = {
   ],
 
   security: [
+    /* 2FA - Two-factor authentication (Temporarily commented out)
     {
       id: 1,
       title: "Two-Factor Authentication",
       description: "Enable 2FA for an extra layer of account protection.",
       buttonText: "Enable 2FA",
     },
+    */
     {
       id: 2,
       title: "Change Password",

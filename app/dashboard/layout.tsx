@@ -28,24 +28,36 @@ function hasValidSession(): boolean {
       }
     }
 
+    /* OLD CODE (Always allowed demo session):
     // Default demo session support (matches "Demo data" in dashboard design)
     return true;
+    */
+    // Unauthenticated user must log in
+    return false;
   } catch {
-    return true;
+    return false;
   }
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+
+  /* OLD CODE:
   const [authorized, setAuthorized] = useState(true);
+  */
+  // Start unauthorized so unauthenticated users NEVER see the dashboard
+  const [authorized, setAuthorized] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     const check = () => {
       if (hasValidSession()) {
         setAuthorized(true);
+        setChecking(false);
       } else {
         setAuthorized(false);
+        setChecking(false);
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       }
     };
@@ -62,9 +74,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     };
   }, [router, pathname]);
 
-  // Render nothing protected until the check has passed, so the dashboard
-  // never flashes on screen for a logged-out user.
-  if (!authorized) {
+  // Block rendering protected dashboard content completely until valid auth session is verified
+  if (checking || !authorized) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6]">
         <div className="flex items-center gap-3 text-sm text-gray-500">

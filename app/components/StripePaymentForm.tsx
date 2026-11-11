@@ -20,10 +20,11 @@ export type StripePaymentFormRef = {
 interface StripePaymentFormProps {
   onPaymentSuccess?: () => void;
   onPaymentError?: (error: string) => void;
+  returnUrl?: string;
 }
 
 const StripePaymentForm = forwardRef<StripePaymentFormRef, StripePaymentFormProps>(
-  ({ onPaymentSuccess, onPaymentError }, ref) => {
+  ({ onPaymentSuccess, onPaymentError, returnUrl }, ref) => {
     const stripe = useStripe();
     const elements = useElements();
     const [loading, setLoading] = useState(false);
@@ -57,7 +58,7 @@ const StripePaymentForm = forwardRef<StripePaymentFormRef, StripePaymentFormProp
           const { error } = await stripe.confirmPayment({
             elements,
             confirmParams: {
-              return_url: `${window.location.origin}/payment-success`,
+              return_url: returnUrl || `${window.location.origin}/payment-success`,
             },
             redirect: "if_required",
           });

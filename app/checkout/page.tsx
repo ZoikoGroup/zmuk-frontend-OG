@@ -5,6 +5,8 @@ import { Elements } from "@stripe/react-stripe-js";
 import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePaymentForm";
 import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { isLoggedIn as checkIsLoggedIn, getUser } from "../utils/auth";
+import { ShieldCheck } from "lucide-react";
+
 
 // Initialize Stripe ONCE outside the component — calling loadStripe()
 // inside the component causes it to re-initialize on every render which
@@ -293,6 +295,7 @@ export default function CheckoutPage() {
   const paymentCardRef = useRef<HTMLDivElement>(null);
   const [isDark, setIsDark] = useState(false);
 
+
   useEffect(() => {
     const compute = () => {
       let el: HTMLElement | null = paymentCardRef.current;
@@ -369,19 +372,18 @@ export default function CheckoutPage() {
     };
   }, [clientSecret, isDark]);
 
-  const isDev = process.env.NODE_ENV === "development";
   const emptyAddress: Address = {
-    firstName: isDev ? "Test" : "",
-    lastName: isDev ? "User" : "",
+    firstName: "",
+    lastName: "",
     companyName: "",
     region: "United Kingdom (UK)",
     state: "",
-    city: isDev ? "London" : "",
-    street: isDev ? "123 Test Street" : "",
-    houseNumber: isDev ? "123" : "",
-    zip: isDev ? "SW1A 1AA" : "",
-    phone: isDev ? "07123456789" : "",
-    email: isDev ? "test@zoikomobile.co.uk" : "",
+    city: "",
+    street: "",
+    houseNumber: "",
+    zip: "",
+    phone: "",
+    email: "",
   };
 
   const [billingAddress, setBillingAddress] = useState<Address>(emptyAddress);
@@ -417,6 +419,40 @@ export default function CheckoutPage() {
         setLoginPromptReason("order");
         setShowLoginPopup(true);
       }
+
+      // Prefill switch & save details if arriving from /switch-and-save
+      try {
+        const switchAddrRaw = typeof window !== "undefined" ? sessionStorage.getItem("switch_checkout_address") : null;
+        if (switchAddrRaw) {
+          const s = JSON.parse(switchAddrRaw);
+          if (s && typeof s === "object") {
+            setBillingAddress((prev) => ({
+              ...prev,
+              firstName: s.firstName || prev.firstName || "",
+              lastName: s.lastName || prev.lastName || "",
+              email: s.email || prev.email || "",
+              phone: s.phone || prev.phone || "",
+              street: s.street || prev.street || "",
+              houseNumber: s.houseNumber || prev.houseNumber || "",
+              city: s.city || prev.city || "",
+              zip: s.zip || prev.zip || "",
+              region: s.region || prev.region || "United Kingdom (UK)",
+            }));
+            setShippingAddress((prev) => ({
+              ...prev,
+              firstName: s.firstName || prev.firstName || "",
+              lastName: s.lastName || prev.lastName || "",
+              email: s.email || prev.email || "",
+              phone: s.phone || prev.phone || "",
+              street: s.street || prev.street || "",
+              houseNumber: s.houseNumber || prev.houseNumber || "",
+              city: s.city || prev.city || "",
+              zip: s.zip || prev.zip || "",
+              region: s.region || prev.region || "United Kingdom (UK)",
+            }));
+          }
+        }
+      } catch {}
     } catch {
       setCart([]);
     }
@@ -429,6 +465,13 @@ export default function CheckoutPage() {
    * eSIMs are delivered by email and need none.
    */
   const hasPhysicalSim = cart.some((item) => item.simTypeKey === "psim");
+
+  const isSwitchOrder = useMemo(() => {
+    return (
+      cart.some((item) => (item._raw?.metadata as any)?.isSwitchAndSave) ||
+      (typeof window !== "undefined" && sessionStorage.getItem("is_switch_and_save") === "true")
+    );
+  }, [cart]);
 
   // ── Cart mutations ────────────────────────────────────────────────────────
 
@@ -739,6 +782,13 @@ export default function CheckoutPage() {
         localStorage.removeItem("cart");
         window.dispatchEvent(new Event("cart-updated"));
       } catch { /* ignore */ }
+
+      if (isSwitchOrder && orderRef) {
+        try {
+          sessionStorage.setItem("switchOrderRef", orderRef);
+        } catch {}
+      }
+
       setShowThankYou(true);
     } catch (err: unknown) {
       console.error("❌ caught error:", err);
@@ -837,6 +887,19 @@ export default function CheckoutPage() {
                             ? "eSIM — activation instructions sent by email after purchase."
                             : "Physical SIM — shipped to your address."}
                         </p>
+
+                        {(item._raw?.metadata as any)?.isSwitchAndSave && (
+                          <div className="mt-2 text-xs bg-pink-50 border border-pink-200 text-[#E01C5B] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5">
+                            <span className="font-bold">Switch request:</span>
+                            <span>
+                              {(item._raw?.metadata as any)?.switchRoute === "keep_pac"
+                                ? `Keep number ${(item._raw?.metadata as any)?.portOldNumber || ""}`
+                                : (item._raw?.metadata as any)?.switchRoute === "new_stac"
+                                ? "New number, close old provider"
+                                : "New Zoiko number"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* 💰 Price Display */}
@@ -1030,9 +1093,15 @@ export default function CheckoutPage() {
             {/* Payment */}
             <div
               ref={paymentCardRef}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 p-6"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6"
             >
-              <h2 className="font-bold text-gray-900 dark:text-white mb-4">Payment</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-900 dark:text-white">Payment Method</h2>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <span>Stripe Secure 256-bit</span>
+                </div>
+              </div>
 
               {clientSecret ? (
                 <Elements
@@ -1097,7 +1166,7 @@ export default function CheckoutPage() {
                     Processing payment…
                   </>
                 ) : (
-                  "Place Order"
+                  `Pay £${total.toFixed(2)}`
                 )}
               </button>
             </div>
@@ -1181,7 +1250,11 @@ export default function CheckoutPage() {
         onClose={() => {
           setShowThankYou(false);
           setCart([]);
-          window.location.href = "/dashboard";
+          if (isSwitchOrder && orderRef) {
+            window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
+          } else {
+            window.location.href = "/dashboard";
+          }
         }}
         title=""
       >
@@ -1226,11 +1299,15 @@ export default function CheckoutPage() {
             onClick={() => {
               setShowThankYou(false);
               setCart([]);
-              window.location.href = "/dashboard";
+              if (isSwitchOrder && orderRef) {
+                window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
+              } else {
+                window.location.href = "/dashboard";
+              }
             }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-bold text-sm transition-all shadow-md hover:shadow-lg mb-2"
           >
-            Go to Dashboard →
+            {isSwitchOrder ? "Track Your Switch & SIM →" : "Go to Dashboard →"}
           </button>
           <button
             onClick={() => {

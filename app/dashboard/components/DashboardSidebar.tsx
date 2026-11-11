@@ -77,6 +77,7 @@ export default function DashboardSidebar({
       id: "usage",
       label: "Usage & allowances",
       icon: BarChart2,
+      badge: "Upcoming",
       href: "/dashboard/usage-and-allowances",
     },
     {
@@ -107,12 +108,14 @@ export default function DashboardSidebar({
       icon: Zap,
       href: "/dashboard/addons-and-boosters",
     },
+    /*
     {
       id: "family",
       label: "Family & friends",
       icon: Users,
       href: "/dashboard/family-and-friends",
     },
+    */
     {
       id: "refer",
       label: "Refer & earn",
@@ -186,10 +189,10 @@ export default function DashboardSidebar({
       {/* ── MOBILE & TABLET TOP BAR + QUICK SCROLLABLE NAV (< lg) ── */}
       <div className="lg:hidden w-full bg-white rounded-2xl p-3 shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-slate-100 flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-2">
-          <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <div className="relative w-24 sm:w-28 h-8">
               <Image
-                src="/images/logo.png"
+                src="/images/zmuk-logo.png"
                 alt="Zoiko Mobile"
                 fill
                 priority
@@ -256,7 +259,7 @@ export default function DashboardSidebar({
               {/* Top Header: Logo + Close Button */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <Link
-                  href="/dashboard"
+                  href="/"
                   onClick={() => setMobileDrawerOpen(false)}
                   className="flex items-center gap-2"
                 >
@@ -312,10 +315,10 @@ export default function DashboardSidebar({
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.badge !== undefined && (
                             <span
-                              className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                 isActive
                                   ? "bg-white/20 text-white"
-                                  : "bg-slate-100 text-slate-600"
+                                  : typeof item.badge === "string" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-slate-100 text-slate-600"
                               }`}
                             >
                               {item.badge}
@@ -442,8 +445,9 @@ export default function DashboardSidebar({
           {/* Top Header: Logo + Collapse Button */}
           <div className="flex items-center justify-between px-1 pb-2 border-b border-slate-100">
             <Link
-              href="/dashboard"
+              href="/"
               className="flex items-center gap-2 overflow-hidden"
+              title="Go to Zoiko Mobile Home"
             >
               <div className={`relative ${collapsed ? "w-8 h-8" : "w-28 h-9"}`}>
                 <Image
@@ -509,9 +513,11 @@ export default function DashboardSidebar({
                       )}
                       {!collapsed && item.badge !== undefined && (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                             isActive
                               ? "bg-white/20 text-white"
+                              : typeof item.badge === "string"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
                               : "bg-slate-100 text-slate-600 group-hover:bg-slate-200"
                           }`}
                         >

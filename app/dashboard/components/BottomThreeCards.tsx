@@ -359,7 +359,7 @@ export default function BottomThreeCards({
 
           {/* Security Items List */}
           <div className="flex flex-col divide-y divide-slate-100 text-xs my-2">
-            {/* 2FA */}
+            {/* 2FA - Two-factor authentication (Temporarily commented out)
             <div
               onClick={onToggle2FA}
               className="py-3 flex items-center justify-between hover:bg-slate-50/60 px-1 rounded-xl transition cursor-pointer"
@@ -386,7 +386,6 @@ export default function BottomThreeCards({
                   {twoFAEnabled && <Check className="w-3 h-3 stroke-[3]" />}
                   <span>{twoFAEnabled ? "On" : "Off"}</span>
                 </span>
-                {/* Interactive Toggle Switch */}
                 <button
                   type="button"
                   role="switch"
@@ -409,6 +408,7 @@ export default function BottomThreeCards({
                 </button>
               </div>
             </div>
+            */}
 
             {/* Recent Sign-ins */}
             <a

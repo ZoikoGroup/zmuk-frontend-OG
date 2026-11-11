@@ -34,7 +34,10 @@ import {
   CheckCircle2,
   Trash2,
   Edit3,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
+import { validateEmail, validateUkMobile, validateName } from "../../utils/validators";
 
 interface FamilyLineRecord {
   id: string;
@@ -134,6 +137,7 @@ export default function FamilyAndFriendsPage() {
   const [inviteContact, setInviteContact] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState<boolean>(false);
 
   // Action menus & modals
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -143,8 +147,13 @@ export default function FamilyAndFriendsPage() {
     isOwner: boolean;
     sharesUsageSummary: boolean;
   } | null>(null);
+  const [memberEditError, setMemberEditError] = useState<string>("");
+
   const [editHouseholdModalOpen, setEditHouseholdModalOpen] = useState(false);
   const [draftHouseholdName, setDraftHouseholdName] = useState("");
+  const [householdNameError, setHouseholdNameError] = useState<string>("");
+
+  const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
 
   // Usage alerts modal
   const [usageAlertsModalOpen, setUsageAlertsModalOpen] = useState(false);
@@ -593,7 +602,7 @@ export default function FamilyAndFriendsPage() {
 
   const storageKeySuffix = userEmail || "default";
 
-  const handleSendInvite = (e: React.FormEvent) => {
+  const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteError(null);
 
@@ -603,16 +612,62 @@ export default function FamilyAndFriendsPage() {
       return;
     }
 
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
-    const digits = contact.replace(/\D/g, "");
-    const isUkMobile =
-      (digits.startsWith("07") && digits.length === 11) ||
-      (digits.startsWith("447") && digits.length === 12);
+    const emailRes = validateEmail(contact);
+    const mobileRes = validateUkMobile(contact);
 
-    if (!isEmail && !isUkMobile) {
+    if (!emailRes.isValid && !mobileRes.isValid) {
       setInviteError(
         "Enter a valid email address (e.g. name@example.com) or 11-digit UK mobile number starting with 07."
       );
+      return;
+    }
+
+    // Name validation if provided
+    if (inviteName.trim()) {
+      const nameCheck = validateName(inviteName, "Name");
+      if (!nameCheck.isValid) {
+        setInviteError(nameCheck.error || "Please enter a valid member name.");
+        return;
+      }
+    }
+
+    // Check self-invite
+    if (
+      (emailRes.isValid && userEmail && emailRes.normalized === userEmail.toLowerCase()) ||
+      (mobileRes.isValid &&
+        visibleActiveMembers.some(
+          (m) =>
+            m.isOwnerLine &&
+            m.number.replace(/\D/g, "").endsWith(contact.replace(/\D/g, "").slice(-10))
+        ))
+    ) {
+      setInviteError("You cannot invite yourself — you are the group owner.");
+      return;
+    }
+
+    // Check already active member
+    const isAlreadyActive = visibleActiveMembers.some((m) => {
+      const cleanNum = m.number.replace(/\D/g, "");
+      const cleanContact = contact.replace(/\D/g, "");
+      return cleanContact && cleanNum.endsWith(cleanContact.slice(-10));
+    });
+    if (isAlreadyActive) {
+      setInviteError("This mobile number is already an active member in your group.");
+      return;
+    }
+
+    // Check already pending invite
+    const isAlreadyPending = pendingInvites.some((inv) => {
+      if (emailRes.isValid && inv.rawContact.toLowerCase() === contact.toLowerCase()) return true;
+      if (mobileRes.isValid) {
+        const invDigits = inv.rawContact.replace(/\D/g, "");
+        const inputDigits = contact.replace(/\D/g, "");
+        return invDigits.endsWith(inputDigits.slice(-10));
+      }
+      return false;
+    });
+    if (isAlreadyPending) {
+      setInviteError("An invitation has already been sent to this contact.");
       return;
     }
 
@@ -623,39 +678,65 @@ export default function FamilyAndFriendsPage() {
       return;
     }
 
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 7);
-    const expiresLabel = `Expires ${expiry.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    })}`;
+    setIsSendingInvite(true);
 
-    const fallbackDisplayName =
-      inviteName.trim() ||
-      (isEmail ? contact.split("@")[0] : `Invited (${digits.slice(-3)})`);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") : null;
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/support/tickets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            category: "general",
+            subject: `Family Group Invite: ${contact}`,
+            message: `Group owner (${userEmail || "Account"}) sent a family invitation to ${contact} (${inviteName.trim() || "Member"}) for household group "${householdName}".`,
+          }),
+        }).catch(() => {});
+      }
 
-    const newInvite: PendingInviteRecord = {
-      id: `invite-${Date.now()}`,
-      displayName: fallbackDisplayName,
-      rawContact: contact,
-      maskedContact: maskContactString(contact),
-      roleLabel: "Adult member",
-      expiresLabel,
-      createdAt: new Date().toISOString(),
-    };
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
+      const expiresLabel = `Expires ${expiry.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      })}`;
 
-    const updated = [...pendingInvites, newInvite];
-    setPendingInvites(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        `zoiko_family_invites_${storageKeySuffix}`,
-        JSON.stringify(updated)
-      );
+      const fallbackDisplayName =
+        inviteName.trim() ||
+        (emailRes.isValid
+          ? contact.split("@")[0]
+          : `Invited (${contact.replace(/\D/g, "").slice(-3)})`);
+
+      const newInvite: PendingInviteRecord = {
+        id: `invite-${Date.now()}`,
+        displayName: fallbackDisplayName,
+        rawContact: contact,
+        maskedContact: maskContactString(contact),
+        roleLabel: "Adult member",
+        expiresLabel,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...pendingInvites, newInvite];
+      setPendingInvites(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `zoiko_family_invites_${storageKeySuffix}`,
+          JSON.stringify(updated)
+        );
+      }
+
+      setInviteContact("");
+      setInviteName("");
+      showToast(`Invitation sent to ${newInvite.displayName}`);
+    } catch {
+      setInviteError("Could not send invitation. Please try again or contact support.");
+    } finally {
+      setIsSendingInvite(false);
     }
-
-    setInviteContact("");
-    setInviteName("");
-    showToast(`Invitation sent to ${newInvite.displayName}`);
   };
 
   const handleRevokeInvite = (inviteId: string) => {
@@ -696,11 +777,18 @@ export default function FamilyAndFriendsPage() {
 
   const handleSaveMemberEdit = () => {
     if (!editingMember) return;
+    const nameCheck = validateName(editingMember.name, "Member name");
+    if (!nameCheck.isValid) {
+      setMemberEditError(nameCheck.error || "Please enter a valid member name.");
+      return;
+    }
+    setMemberEditError("");
+
     const nextOverrides = {
       ...memberOverrides,
       [editingMember.id]: {
         ...memberOverrides[editingMember.id],
-        name: editingMember.name.trim() || "Member",
+        name: nameCheck.cleaned || editingMember.name.trim(),
         sharesUsageSummary: editingMember.sharesUsageSummary,
       },
     };
@@ -715,7 +803,10 @@ export default function FamilyAndFriendsPage() {
     showToast("Member settings updated.");
   };
 
-  const handleRemoveMember = (lineId: string, memberName: string) => {
+  const handleConfirmRemoveMember = () => {
+    if (!memberToRemove) return;
+    const lineId = memberToRemove.id;
+    const memberName = memberToRemove.name;
     const nextOverrides = {
       ...memberOverrides,
       [lineId]: {
@@ -730,13 +821,18 @@ export default function FamilyAndFriendsPage() {
         JSON.stringify(nextOverrides)
       );
     }
+    setMemberToRemove(null);
     setOpenMenuId(null);
     showToast(`${memberName} removed from group.`);
   };
 
   const handleSaveHouseholdName = () => {
     const cleaned = draftHouseholdName.trim();
-    if (!cleaned) return;
+    if (!cleaned || cleaned.length < 3 || cleaned.length > 50) {
+      setHouseholdNameError("Group name must be between 3 and 50 characters.");
+      return;
+    }
+    setHouseholdNameError("");
     setHouseholdName(cleaned);
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -1192,12 +1288,13 @@ export default function FamilyAndFriendsPage() {
                                       {!member.isOwnerLine && (
                                         <button
                                           type="button"
-                                          onClick={() =>
-                                            handleRemoveMember(
-                                              member.id,
-                                              member.memberName
-                                            )
-                                          }
+                                          onClick={() => {
+                                            setOpenMenuId(null);
+                                            setMemberToRemove({
+                                              id: member.id,
+                                              name: member.memberName,
+                                            });
+                                          }}
                                           className="w-full px-3.5 py-2 text-xs font-medium text-[#E01C5B] hover:bg-rose-50 flex items-center gap-2 cursor-pointer"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
@@ -1572,17 +1669,28 @@ export default function FamilyAndFriendsPage() {
                     </div>
 
                     {inviteError && (
-                      <p className="text-xs text-[#E01C5B] font-medium">
-                        {inviteError}
-                      </p>
+                      <div className="p-3 bg-red-50 border border-red-200/80 rounded-xl flex items-start gap-2 text-xs text-red-700 leading-snug">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <span>{inviteError}</span>
+                      </div>
                     )}
 
                     <button
                       type="submit"
-                      className="w-full h-11 bg-[#E01C5B] hover:bg-[#c8164f] text-white rounded-xl inline-flex items-center justify-center gap-2 text-sm font-semibold transition cursor-pointer"
+                      disabled={isSendingInvite}
+                      className="w-full h-11 bg-[#E01C5B] hover:bg-[#c8164f] disabled:opacity-50 text-white rounded-xl inline-flex items-center justify-center gap-2 text-sm font-semibold transition cursor-pointer"
                     >
-                      <Mail className="w-4 h-4" />
-                      <span>Send invite</span>
+                      {isSendingInvite ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Sending invite...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-4 h-4" />
+                          <span>Send invite</span>
+                        </>
+                      )}
                     </button>
                   </form>
 
@@ -1791,16 +1899,27 @@ export default function FamilyAndFriendsPage() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-[#0D1935]">
-                  Display name in group
+                  Display name in group <span className="text-[#E01C5B]">*</span>
                 </label>
                 <input
                   type="text"
                   value={editingMember.name}
-                  onChange={(e) =>
-                    setEditingMember({ ...editingMember, name: e.target.value })
-                  }
-                  className="w-full h-10 px-3 rounded-xl border border-[#121B34]/15 text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                  onChange={(e) => {
+                    setEditingMember({ ...editingMember, name: e.target.value });
+                    if (memberEditError) setMemberEditError("");
+                  }}
+                  className={`w-full h-10 px-3 rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                    memberEditError
+                      ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                      : "border-[#121B34]/15 focus:border-[#E01C5B]"
+                  }`}
                 />
+                {memberEditError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{memberEditError}</span>
+                  </p>
+                )}
               </div>
 
               {!editingMember.isOwner && (
@@ -1832,7 +1951,10 @@ export default function FamilyAndFriendsPage() {
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setEditingMember(null)}
+                onClick={() => {
+                  setEditingMember(null);
+                  setMemberEditError("");
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
@@ -1864,7 +1986,10 @@ export default function FamilyAndFriendsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setEditHouseholdModalOpen(false)}
+                onClick={() => {
+                  setEditHouseholdModalOpen(false);
+                  setHouseholdNameError("");
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1873,20 +1998,36 @@ export default function FamilyAndFriendsPage() {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-[#0D1935]">
-                Group name
+                Group name <span className="text-[#E01C5B]">*</span>
               </label>
               <input
                 type="text"
                 value={draftHouseholdName}
-                onChange={(e) => setDraftHouseholdName(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-[#121B34]/15 text-sm text-[#0D1935] focus:outline-none focus:border-[#E01C5B]"
+                onChange={(e) => {
+                  setDraftHouseholdName(e.target.value);
+                  if (householdNameError) setHouseholdNameError("");
+                }}
+                className={`w-full h-10 px-3 rounded-xl border text-sm text-[#0D1935] focus:outline-none transition ${
+                  householdNameError
+                    ? "border-red-400 bg-red-50/20 focus:border-red-500"
+                    : "border-[#121B34]/15 focus:border-[#E01C5B]"
+                }`}
               />
+              {householdNameError && (
+                <p className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{householdNameError}</span>
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setEditHouseholdModalOpen(false)}
+                onClick={() => {
+                  setEditHouseholdModalOpen(false);
+                  setHouseholdNameError("");
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
@@ -1897,6 +2038,44 @@ export default function FamilyAndFriendsPage() {
                 className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold cursor-pointer"
               >
                 Save group name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Member Confirmation Modal */}
+      {memberToRemove && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#0D1935]">
+                  Remove {memberToRemove.name}?
+                </h3>
+                <p className="text-xs text-[#4C566A]">Line: {memberToRemove.id}</p>
+              </div>
+            </div>
+            <p className="text-xs text-[#4C566A] leading-relaxed">
+              This member will be detached from your family group. They will no longer share in multi-line bill discounts or shared group data summaries.
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setMemberToRemove(null)}
+                className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveMember}
+                className="px-4 py-2 rounded-xl bg-[#D92D20] hover:bg-[#b91c1c] text-white text-xs font-semibold cursor-pointer"
+              >
+                Confirm remove
               </button>
             </div>
           </div>

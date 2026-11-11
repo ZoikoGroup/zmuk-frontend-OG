@@ -768,6 +768,8 @@ export function ReportActivityModal({ isOpen, onClose, onSubmit }: ReportModalPr
   );
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 // ── 4. COMPARE PLANS MODAL ──
 interface ComparePlansModalProps {
   isOpen: boolean;
@@ -782,6 +784,61 @@ export function ComparePlansModal({
   currentPlanName,
   onSelectPlan,
 }: ComparePlansModalProps) {
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPlans = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/plans/v1/`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0 && mounted) {
+            setPlans(
+              data.map((p: any) => {
+                const rawData = String(p.data_allowance || p.name || "").toLowerCase();
+                const isUnlimited = rawData.includes("unlimited");
+                const gb = isUnlimited ? 999 : parseInt(rawData.replace(/\D/g, "") || "30", 10);
+                const priceNum = Number(p.final_price ?? p.sale_price ?? p.price_30 ?? p.price ?? 0);
+                const featuresList: string[] = Array.isArray(p.features)
+                  ? p.features.map((f: any) => (typeof f === "string" ? f : f?.title || "")).filter(Boolean)
+                  : [];
+                const roamingFeature = featuresList.find((f) => f.toLowerCase().includes("roaming"));
+                const callsFeature = featuresList.find((f) => f.toLowerCase().includes("call"));
+                const textsFeature = featuresList.find((f) => f.toLowerCase().includes("text"));
+
+                const roaming = roamingFeature || "EU Roaming Included";
+                const callsAndTexts = callsFeature && textsFeature
+                  ? `${callsFeature} & ${textsFeature}`
+                  : (callsFeature || "Unlimited UK Calls & Texts");
+
+                return {
+                  name: p.name || "Zoiko Plan",
+                  price: `£${priceNum.toFixed(2)}`,
+                  priceNum,
+                  gb,
+                  data: `${isUnlimited ? "Unlimited" : gb + " GB"} 5G Data`,
+                  calls: callsAndTexts,
+                  roaming,
+                };
+              })
+            );
+          }
+        }
+      } catch {
+        // network or server error handled gracefully
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    fetchPlans();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const effectiveCurrentPlan =
@@ -789,36 +846,6 @@ export function ComparePlansModal({
     (typeof window !== "undefined"
       ? localStorage.getItem("zoiko_active_plan") || "Zoiko SIM Plan"
       : "Zoiko SIM Plan");
-
-  const plans = [
-    {
-      name: "Zoiko Lite 10GB",
-      price: "£9.99",
-      priceNum: 9.99,
-      gb: 10,
-      data: "10 GB 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "EU Roaming Included",
-    },
-    {
-      name: "Zoiko Max 30GB",
-      price: "£19.99",
-      priceNum: 19.99,
-      gb: 30,
-      data: "30 GB 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "EU + 5 Travel Passes",
-    },
-    {
-      name: "Zoiko Unlimited",
-      price: "£19.99",
-      priceNum: 19.99,
-      gb: 100,
-      data: "Unlimited 5G Data",
-      calls: "Unlimited UK Calls & Texts",
-      roaming: "Worldwide Roaming Included",
-    },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
@@ -843,74 +870,94 @@ export function ComparePlansModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-2">
-          {plans.map((p) => {
-            const isCurrent =
-              effectiveCurrentPlan.toLowerCase() === p.name.toLowerCase() ||
-              (effectiveCurrentPlan.toLowerCase().includes("lite") && p.name.includes("Lite")) ||
-              (effectiveCurrentPlan.toLowerCase().includes("unlimited") && p.name.includes("Unlimited")) ||
-              (effectiveCurrentPlan.toLowerCase().includes("max") && p.name.includes("Max"));
-            return (
-              <div
-                key={p.name}
-                className={`p-4 rounded-2xl border flex flex-col justify-between text-xs ${
-                  isCurrent
-                    ? "border-[#E01C5B] bg-pink-50/30 ring-1 ring-[#E01C5B]"
-                    : "border-slate-200 bg-white"
-                }`}
-              >
-                <div>
-                  {isCurrent && (
-                    <span className="text-[10px] uppercase font-bold text-[#E01C5B] tracking-wider block mb-1">
-                      Your current plan
-                    </span>
-                  )}
-                  <h4 className="font-bold text-sm text-[#0D1935]">{p.name}</h4>
-                  <div className="text-xl font-extrabold text-[#0D1935] my-1">
-                    {p.price}
-                    <span className="text-xs font-normal text-slate-500"> /mo</span>
-                  </div>
-                  <div className="flex flex-col gap-1.5 mt-3 text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
-                      <span>{p.data}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
-                      <span>{p.calls}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
-                      <span>{p.roaming}</span>
-                    </div>
-                  </div>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="p-4 rounded-2xl border border-slate-200 bg-white animate-pulse h-48 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="h-4 w-2/3 bg-slate-200 rounded" />
+                  <div className="h-6 w-1/3 bg-slate-200 rounded mt-2" />
+                  <div className="h-3 w-full bg-slate-100 rounded mt-3" />
+                  <div className="h-3 w-4/5 bg-slate-100 rounded" />
                 </div>
-
-                <button
-                  type="button"
-                  disabled={isCurrent}
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("zoiko_active_plan", p.name);
-                      window.dispatchEvent(new Event("zoiko-auth"));
-                    }
-                    if (onSelectPlan) {
-                      onSelectPlan(p.name, p.gb, p.priceNum);
-                    }
-                    onClose();
-                  }}
-                  className={`w-full mt-4 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                <div className="h-8 w-full bg-slate-200 rounded-xl" />
+              </div>
+            ))}
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            No alternative plans available at this time.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 my-2">
+            {plans.map((p) => {
+              const isCurrent =
+                effectiveCurrentPlan.toLowerCase() === p.name.toLowerCase() ||
+                (effectiveCurrentPlan.toLowerCase().includes("lite") && p.name.includes("Lite")) ||
+                (effectiveCurrentPlan.toLowerCase().includes("unlimited") && p.name.includes("Unlimited")) ||
+                (effectiveCurrentPlan.toLowerCase().includes("max") && p.name.includes("Max"));
+              return (
+                <div
+                  key={p.name}
+                  className={`p-4 rounded-2xl border flex flex-col justify-between text-xs ${
                     isCurrent
-                      ? "bg-slate-100 text-slate-700 cursor-default"
-                      : "bg-[#E01C5B] hover:bg-[#c9144e] text-white"
+                      ? "border-[#E01C5B] bg-pink-50/30 ring-1 ring-[#E01C5B]"
+                      : "border-slate-200 bg-white"
                   }`}
                 >
-                  {isCurrent ? "Active" : "Switch to this plan"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                  <div>
+                    {isCurrent && (
+                      <span className="text-[10px] uppercase font-bold text-[#E01C5B] tracking-wider block mb-1">
+                        Your current plan
+                      </span>
+                    )}
+                    <h4 className="font-bold text-sm text-[#0D1935]">{p.name}</h4>
+                    <div className="text-xl font-extrabold text-[#0D1935] my-1">
+                      {p.price}
+                      <span className="text-xs font-normal text-slate-500"> /mo</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5 mt-3 text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
+                        <span>{p.data}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
+                        <span>{p.calls}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[3]" />
+                        <span>{p.roaming}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isCurrent}
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("zoiko_active_plan", p.name);
+                        window.dispatchEvent(new Event("zoiko-auth"));
+                      }
+                      if (onSelectPlan) {
+                        onSelectPlan(p.name, p.gb, p.priceNum);
+                      }
+                      onClose();
+                    }}
+                    className={`w-full mt-4 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                      isCurrent
+                        ? "bg-slate-100 text-slate-700 cursor-default"
+                        : "bg-[#E01C5B] hover:bg-[#c9144e] text-white"
+                    }`}
+                  >
+                    {isCurrent ? "Active" : "Switch to this plan"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
           <span className="text-slate-500">Want to explore all 30-day &amp; contract plans?</span>

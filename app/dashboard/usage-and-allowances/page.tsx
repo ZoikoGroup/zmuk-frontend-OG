@@ -47,6 +47,13 @@ import {
   getBoosterSummary,
   recordBoosterPurchase,
 } from "../../utils/dashboardSync";
+import {
+  fetchZoikoNexDailyUsage,
+  fetchZoikoNexMonthlyUsage,
+  ZoikoNexDailyUsageItem,
+  ZoikoNexCycleUsage,
+  ZOIKONEX_CONFIG,
+} from "../../utils/zoikoNexApi";
 
 export interface UsageLineItem {
   id: string;
@@ -207,100 +214,30 @@ function niceStatus(status?: string): string {
 }
 
 /**
- * Generates deterministic daily bars across the billing cycle that sum up
- * to the line's live API usage (`dataUsed`, `roamingUsed`, `callsUsed`, `textsUsed`).
+ * Maps ZoikoNex CDR daily usage records when available.
+ * If ZoikoNex is not yet connected, returns an empty array to avoid showing hardcoded/synthetic usage.
  */
 function buildDynamicCycleDays(
   lineId: string,
   cycleStartDate: Date,
   totalDays: number,
   completedDays: number,
-  metrics: LineAllowanceMetrics
+  metrics: LineAllowanceMetrics,
+  zoikoNexDays?: ZoikoNexDailyUsageItem[] | null
 ): DailyUsageBar[] {
-  const days: DailyUsageBar[] = [];
-  const safeTotalDays = Math.max(28, Math.min(31, totalDays || 30));
-  const safeCompleted = Math.max(1, Math.min(safeTotalDays - 1, completedDays || 16));
-
-  // Deterministic pattern per day
-  const basePattern = [
-    0.55, 0.65, 0.48, 0.78, 0.58, 0.88, 0.66, 0.58, 0.48, 0.78, 0.68, 0.58, 0.58, 0.48, 0.88, 1.6,
-  ];
-  const seedOffset = lineId
-    .split("")
-    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-
-  const weights: number[] = [];
-  let weightSum = 0;
-  for (let i = 0; i < safeCompleted; i++) {
-    const w = basePattern[(i + seedOffset) % basePattern.length];
-    weights.push(w);
-    weightSum += w;
+  if (zoikoNexDays && Array.isArray(zoikoNexDays) && zoikoNexDays.length > 0) {
+    return zoikoNexDays.map((z, idx) => ({
+      dayIndex: idx,
+      dayNumber: z.dayNumber,
+      dateLabel: z.date,
+      status: z.status,
+      ukDataGb: z.ukDataGb,
+      roamingDataGb: z.roamingDataGb,
+      callsMins: z.callsMins,
+      textsCount: z.textsCount,
+    }));
   }
-
-  const domesticDataUsed = Math.max(0, metrics.dataUsed - metrics.roamingDataUsed);
-
-  for (let i = 0; i < safeTotalDays; i++) {
-    const d = new Date(cycleStartDate);
-    d.setDate(cycleStartDate.getDate() + i);
-    const dateLabel = d.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    });
-
-    if (i < safeCompleted) {
-      const share = weightSum > 0 ? weights[i] / weightSum : 0;
-      const isRoamingDay =
-        metrics.roamingDataUsed > 0 &&
-        i >= Math.max(0, safeCompleted - 5) &&
-        i <= Math.max(0, safeCompleted - 3);
-      const roamGb = isRoamingDay
-        ? Number((metrics.roamingDataUsed / 3).toFixed(2))
-        : 0;
-      const ukGb =
-        domesticDataUsed > 0
-          ? Number((domesticDataUsed * share).toFixed(2))
-          : 0;
-      const callsMins =
-        metrics.callsUsed > 0 ? Math.round(metrics.callsUsed * share) : 0;
-      const textsCnt =
-        metrics.textsUsed > 0 ? Math.round(metrics.textsUsed * share) : 0;
-
-      days.push({
-        dayIndex: i,
-        dayNumber: d.getDate(),
-        dateLabel,
-        status: "completed",
-        ukDataGb: ukGb,
-        roamingDataGb: roamGb,
-        callsMins,
-        textsCount: textsCnt,
-      });
-    } else if (i === safeCompleted) {
-      days.push({
-        dayIndex: i,
-        dayNumber: d.getDate(),
-        dateLabel,
-        status: "today",
-        ukDataGb: 0,
-        roamingDataGb: 0,
-        callsMins: 0,
-        textsCount: 0,
-      });
-    } else {
-      days.push({
-        dayIndex: i,
-        dayNumber: d.getDate(),
-        dateLabel,
-        status: "future",
-        ukDataGb: 0,
-        roamingDataGb: 0,
-        callsMins: 0,
-        textsCount: 0,
-      });
-    }
-  }
-
-  return days;
+  return [];
 }
 
 export default function UsageAndAllowancesPage() {
@@ -341,6 +278,9 @@ export default function UsageAndAllowancesPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState<string>("");
   const [countryDropdownOpen, setCountryDropdownOpen] = useState<boolean>(false);
   const countryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // ZoikoNex CDR Daily usage state
+  const [zoikoNexDailyData, setZoikoNexDailyData] = useState<ZoikoNexDailyUsageItem[] | null>(null);
 
   // ── Usage Alerts Toggles (matching screenshot defaults: ON, OFF, ON) ──
   const [alertData80, setAlertData80] = useState<boolean>(true);
@@ -1165,6 +1105,21 @@ export default function UsageAndAllowancesPage() {
         )
       : 0;
 
+  // Dynamic ZoikoNex CDR daily usage integration — ready for ZoikoNex API
+  useEffect(() => {
+    let isMounted = true;
+    async function loadZoikoNexUsage() {
+      if (currentLine?.number) {
+        const data = await fetchZoikoNexDailyUsage(currentLine.number);
+        if (isMounted) setZoikoNexDailyData(data);
+      }
+    }
+    loadZoikoNexUsage();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentLine?.number]);
+
   // Daily cycle bars
   const dailyBars = useMemo(() => {
     return buildDynamicCycleDays(
@@ -1172,7 +1127,8 @@ export default function UsageAndAllowancesPage() {
       currentLine.cycleStartDate,
       currentLine.cycleTotalDays,
       currentLine.cycleCompletedDays,
-      currentMetrics
+      currentMetrics,
+      zoikoNexDailyData
     );
   }, [
     currentLine.id,
@@ -1180,6 +1136,7 @@ export default function UsageAndAllowancesPage() {
     currentLine.cycleTotalDays,
     currentLine.cycleCompletedDays,
     currentMetrics,
+    zoikoNexDailyData,
   ]);
 
   // Chart summary statistics based on active tab (Data / Calls / Texts)
@@ -1349,6 +1306,7 @@ export default function UsageAndAllowancesPage() {
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => handleOpenBooster()}
             customTitle="Usage & allowances"
+            customTitleBadge="Upcoming"
             customSubtitle="Check your data, calls and texts, see what your plan includes, and add more before you run out."
             hideDemoBadgeInHeader={true}
           />
@@ -1467,13 +1425,21 @@ export default function UsageAndAllowancesPage() {
 
                   <div className="flex flex-col gap-3.5">
                     {/* Card Header */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/16 rounded-xl flex items-center justify-center">
-                        <Database className="w-5 h-5 text-white" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/16 rounded-xl flex items-center justify-center">
+                          <Database className="w-5 h-5 text-white" />
+                        </div>
+                        <h2 className="text-lg font-bold text-white leading-7">
+                          Data
+                        </h2>
                       </div>
-                      <h2 className="text-lg font-bold text-white leading-7">
-                        Data
-                      </h2>
+                      {!ZOIKONEX_CONFIG.IS_CONNECTED && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white border border-white/30 backdrop-blur-xs flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Upcoming CDR
+                        </span>
+                      )}
                     </div>
 
                     {/* Donut Gauge + Right Metrics */}
@@ -1670,7 +1636,7 @@ export default function UsageAndAllowancesPage() {
                   {/* Footer Link */}
                   <div className="pt-2">
                     <Link
-                      href="/international-calling"
+                      href="/dashboard/rates-and-charges?tab=calls"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline"
                     >
                       <span>View call rates</span>
@@ -1743,7 +1709,7 @@ export default function UsageAndAllowancesPage() {
                   {/* Footer Link */}
                   <div className="pt-2">
                     <Link
-                      href="/zero-cost-sms"
+                      href="/dashboard/rates-and-charges?tab=texts"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline"
                     >
                       <span>View text rates</span>
@@ -1761,11 +1727,17 @@ export default function UsageAndAllowancesPage() {
                     {/* Header + Billing Cycle Selector */}
                     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-3">
                       <div>
-                        <h3 className="text-lg font-bold text-[#0D1935] leading-6">
-                          Usage this cycle
-                        </h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-[#0D1935] leading-6">
+                            Usage this cycle
+                          </h3>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            Upcoming
+                          </span>
+                        </div>
                         <p className="text-xs text-[#5E6E8C] leading-5 mt-0.5">
-                          Daily totals for the selected number
+                          Daily totals and session feeds are upcoming
                         </p>
                       </div>
 
@@ -1866,8 +1838,21 @@ export default function UsageAndAllowancesPage() {
                       </div>
                     </div>
 
-                    {/* Daily Bar Chart OR Table View */}
-                    {!showAsTable ? (
+                    {/* Daily Bar Chart OR Table View OR Upcoming ZoikoNex banner */}
+                    {dailyBars.length === 0 ? (
+                      <div className="mt-3 mb-4 p-8 rounded-2xl bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] border border-dashed border-[#CBD5E1] text-center flex flex-col items-center justify-center">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3] mb-3">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
+                          Upcoming
+                        </div>
+                        <h4 className="text-sm font-bold text-[#0D1935] mb-1.5">
+                          Daily &amp; Hourly Breakdown Upcoming
+                        </h4>
+                        <p className="text-xs text-[#5E6E8C] max-w-md leading-relaxed">
+                          Daily call records, SMS counts, and granular data usage will stream dynamically once available. Current cycle totals are tracked above.
+                        </p>
+                      </div>
+                    ) : !showAsTable ? (
                       <div className="mt-2 mb-3">
                         <div className="relative h-60 flex gap-2 pt-2">
                           {/* Y-Axis Labels */}
@@ -2001,12 +1986,12 @@ export default function UsageAndAllowancesPage() {
 
                             {/* X-Axis Day Labels */}
                             <div className="h-6 flex items-center justify-between text-[10px] text-[#5E6E8C] px-1 select-none">
-                              <span>{dailyBars[0]?.dateLabel || "28 Sep"}</span>
-                              <span>{dailyBars[7]?.dateLabel || "5 Oct"}</span>
-                              <span>{dailyBars[14]?.dateLabel || "12 Oct"}</span>
-                              <span>{dailyBars[21]?.dateLabel || "19 Oct"}</span>
+                              <span>{dailyBars[0]?.dateLabel || ""}</span>
+                              <span>{dailyBars[Math.floor(dailyBars.length * 0.25)]?.dateLabel || ""}</span>
+                              <span>{dailyBars[Math.floor(dailyBars.length * 0.5)]?.dateLabel || ""}</span>
+                              <span>{dailyBars[Math.floor(dailyBars.length * 0.75)]?.dateLabel || ""}</span>
                               <span>
-                                {dailyBars[dailyBars.length - 2]?.dateLabel ||
+                                {dailyBars[dailyBars.length - 1]?.dateLabel ||
                                   currentLine.cycleEndLabel}
                               </span>
                             </div>
@@ -2106,11 +2091,12 @@ export default function UsageAndAllowancesPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-lg font-extrabold text-[#0D1935] leading-6 truncate">
-                            {chartSummary.avgLabel}
+                            {dailyBars.length > 0 ? chartSummary.avgLabel : "—"}
                           </div>
                           <div className="text-xs text-[#5E6E8C] leading-4 mt-0.5">
-                            Daily average · {chartSummary.completedCount}{" "}
-                            complete days
+                            {dailyBars.length > 0
+                              ? `Daily average · ${chartSummary.completedCount} complete days`
+                              : "Daily average · Upcoming"}
                           </div>
                         </div>
                       </div>
@@ -2122,10 +2108,12 @@ export default function UsageAndAllowancesPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-lg font-extrabold text-[#0D1935] leading-6 truncate">
-                            {chartSummary.highestValLabel}
+                            {dailyBars.length > 0 ? chartSummary.highestValLabel : "—"}
                           </div>
                           <div className="text-xs text-[#5E6E8C] leading-4 mt-0.5">
-                            Highest day · {chartSummary.highestDayDate}
+                            {dailyBars.length > 0
+                              ? `Highest day · ${chartSummary.highestDayDate}`
+                              : "Highest day · Upcoming"}
                           </div>
                         </div>
                       </div>
@@ -2136,20 +2124,22 @@ export default function UsageAndAllowancesPage() {
                   <div className="mt-4 pt-2 flex items-center justify-between text-xs flex-wrap gap-2">
                     <span className="inline-flex items-center gap-1.5 text-[#5E6E8C]">
                       <Info className="w-3.5 h-3.5 text-[#5E6E8C]" />
-                      Average uses complete days only (
-                      {chartSummary.firstCompletedDate}–
-                      {chartSummary.lastCompletedDate}).
+                      {dailyBars.length > 0
+                        ? `Average uses complete days only (${chartSummary.firstCompletedDate}–${chartSummary.lastCompletedDate}).`
+                        : "Daily breakdown is upcoming."}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAsTable((prev) => !prev)}
-                      className="inline-flex items-center gap-1.5 font-semibold text-[#B8144A] hover:underline cursor-pointer"
-                    >
-                      <Table className="w-3.5 h-3.5" />
-                      <span>
-                        {showAsTable ? "Show as chart" : "Show as table"}
-                      </span>
-                    </button>
+                    {dailyBars.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAsTable((prev) => !prev)}
+                        className="inline-flex items-center gap-1.5 font-semibold text-[#B8144A] hover:underline cursor-pointer"
+                      >
+                        <Table className="w-3.5 h-3.5" />
+                        <span>
+                          {showAsTable ? "Show as chart" : "Show as table"}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2386,14 +2376,11 @@ export default function UsageAndAllowancesPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (currentLine.id) {
-                          router.push(`/dashboard/plan-usages/${currentLine.id}`);
-                        } else {
-                          showToast(
-                            "Select an active mobile line to inspect full service balances.",
-                            "info"
-                          );
-                        }
+                        router.push(
+                          currentLine.id
+                            ? `/dashboard/usage-and-allowances/allowance-details?lineId=${currentLine.id}`
+                            : "/dashboard/usage-and-allowances/allowance-details"
+                        );
                       }}
                       className="w-full h-11 rounded-xl border border-[#F5C2D3] bg-white text-[#B8144A] text-sm font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-[#FFF5F8] transition cursor-pointer"
                     >

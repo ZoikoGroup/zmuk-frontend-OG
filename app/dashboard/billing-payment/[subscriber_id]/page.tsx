@@ -311,7 +311,15 @@ export default function BillingPaymentPage() {
                       ) : (
                         <tr>
                           <td colSpan={6} className="text-center text-gray-400 py-4">
-                            No billing records found.
+                            <div className="py-2 flex flex-col items-center justify-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFF1F2] text-[#E01C5B] border border-[#FECDD3]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#E01C5B] animate-pulse" />
+                                Coming Soon
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Itemised bills and download attachments will appear here once generated.
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       )}

@@ -202,9 +202,14 @@ export default function QuickStatusStrip({
               <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <Smartphone className="w-4 h-4 text-slate-400" />
               </div>
-              <div className="text-xs">
-                <span className="text-slate-500 font-normal">Number: </span>
-                <span className="text-[#0D1935] font-bold">No SIM active</span>
+              <div className="text-xs flex items-center gap-2">
+                <div>
+                  <span className="text-slate-500 font-normal">Number: </span>
+                  <span className="text-[#0D1935] font-bold">No SIM active</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">
+                  Upcoming
+                </span>
               </div>
             </a>
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Bell,
@@ -37,6 +38,7 @@ interface TopNavProps {
   onOpenBoosterModal?: () => void;
   customTitle?: string;
   customSubtitle?: string;
+  customTitleBadge?: string;
   hideDemoBadgeInHeader?: boolean;
 }
 
@@ -56,14 +58,78 @@ export default function DashboardTopNav({
   onOpenBoosterModal,
   customTitle,
   customSubtitle,
+  customTitleBadge,
   hideDemoBadgeInHeader = true,
 }: TopNavProps) {
+  const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic user identity resolution (guarantees real name on all pages)
+  const [currentName, setCurrentName] = useState<string>(userName);
+  const [currentRole, setCurrentRole] = useState<string>(userRole);
+
+  useEffect(() => {
+    const placeholders = [
+      "account holder",
+      "account member",
+      "member",
+      "customer",
+      "alex morgan",
+      "alex",
+      "",
+    ];
+    if (userName && !placeholders.includes(userName.trim().toLowerCase())) {
+      setCurrentName(userName);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw =
+          localStorage.getItem("zoiko_user") ||
+          localStorage.getItem("driverx_user");
+        if (raw) {
+          const u = JSON.parse(raw);
+          const fullName =
+            (u.first_name ? `${u.first_name} ${u.last_name || ""}`.trim() : u.name) ||
+            u.preferred_name ||
+            u.username ||
+            u.email ||
+            "";
+          if (fullName) {
+            setCurrentName(fullName);
+          }
+          if (u.role) {
+            setCurrentRole(u.role);
+          }
+        }
+      } catch {}
+    }
+  }, [userName, userRole]);
+
+  // Universal logout fallback
+  const handleLogoutAction = () => {
+    if (onLogout) {
+      try {
+        onLogout();
+      } catch {}
+    }
+    try {
+      localStorage.removeItem("zoiko_token");
+      localStorage.removeItem("zoiko_user");
+      localStorage.removeItem("driverx_token");
+      localStorage.removeItem("driverx_2fa");
+      localStorage.setItem("zoiko_logged_out", "true");
+      sessionStorage.clear();
+      window.dispatchEvent(new Event("zoiko-auth"));
+    } catch {}
+    router.push("/login");
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -102,13 +168,20 @@ export default function DashboardTopNav({
     } catch {}
   }, []);
 
-  const firstName = userName.split(" ")[0] || "Alex";
-  const initials = userName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase())
-    .join("") || "AM";
+  const isGeneric =
+    !currentName ||
+    ["account holder", "account member", "member", "customer", ""].includes(
+      currentName.trim().toLowerCase()
+    );
+  const firstName = isGeneric ? "" : currentName.split(" ")[0] || "";
+  const initials = isGeneric
+    ? "ZM"
+    : currentName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((n) => n[0]?.toUpperCase())
+        .join("") || "ZM";
 
   const notifications: {
     id: number;
@@ -182,9 +255,9 @@ export default function DashboardTopNav({
       href: "/dashboard/orders",
     },
     {
-      title: "Two-factor authentication & security",
-      desc: "Manage 2FA, recent sign-ins, and suspicious activity",
-      keywords: "security 2fa two factor authentication login history",
+      title: "Security & account settings",
+      desc: "Manage password, recent sign-ins, and suspicious activity",
+      keywords: "security login history password sessions privacy",
       icon: Shield,
       href: "/dashboard/security",
     },
@@ -218,7 +291,7 @@ export default function DashboardTopNav({
       {/* Left: Greeting & Date (or Custom Title & Subtitle) */}
       <div className="flex flex-col gap-1 w-full lg:max-w-[480px] min-w-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#0D1935] leading-tight tracking-tight break-words">
-          {customTitle || `${greeting}, ${firstName}`}
+          {customTitle || (firstName ? `${greeting}, ${firstName}` : greeting)}
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs sm:text-sm lg:text-base text-[#3B4866] font-normal leading-5">
@@ -398,11 +471,11 @@ export default function DashboardTopNav({
               {initials}
             </div>
             <div className="text-left hidden sm:flex flex-col leading-4">
-              <span className="text-xs font-bold text-[#0D1935] truncate max-w-[110px]">
-                {userName}
+              <span className="text-xs font-bold text-[#0D1935] truncate max-w-[120px]">
+                {currentName}
               </span>
               <span className="text-xs text-[#54617E] font-normal">
-                {userRole}
+                {currentRole}
               </span>
             </div>
             <ChevronDown className="w-4 h-4 text-[#0D1935]" />
@@ -412,8 +485,8 @@ export default function DashboardTopNav({
           {profileOpen && (
             <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-2 animate-in fade-in zoom-in-95">
               <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                <p className="text-xs font-bold text-slate-900">{userName}</p>
-                <p className="text-[11px] text-slate-500">{userRole}</p>
+                <p className="text-xs font-bold text-slate-900 truncate">{currentName}</p>
+                <p className="text-[11px] text-slate-500">{currentRole}</p>
               </div>
 
               <Link
@@ -425,15 +498,15 @@ export default function DashboardTopNav({
               </Link>
 
               <Link
-                href={`/dashboard/my-devices-sims/${subIdStr}`}
+                href="/dashboard/my-mobile-numbers"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
               >
                 <Smartphone className="w-4 h-4 text-slate-500" />
-                <span>My Devices &amp; SIMs</span>
+                <span>My Numbers &amp; SIMs</span>
               </Link>
 
               <Link
-                href="/dashboard/orders"
+                href="/dashboard/bills-and-payments"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
               >
                 <ShoppingBag className="w-4 h-4 text-slate-500" />
@@ -460,7 +533,7 @@ export default function DashboardTopNav({
 
               <button
                 type="button"
-                onClick={onLogout}
+                onClick={handleLogoutAction}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer text-left"
               >
                 <LogOut className="w-4 h-4 text-red-600" />

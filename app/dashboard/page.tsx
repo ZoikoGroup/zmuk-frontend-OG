@@ -154,6 +154,7 @@ export default function DashboardPage() {
   // ── UI / State Helpers ──
   const [freshnessTime, setFreshnessTime] = useState<string>("Just now");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [storedBillLimit, setStoredBillLimit] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "info" } | null>(null);
 
   // ── Modals State ──
@@ -206,8 +207,14 @@ export default function DashboardPage() {
         localStorage.removeItem("zoiko_custom_lines");
       } catch {}
 
-      // If no auth token, redirect to login or show empty state
+      // If no auth token, redirect to login immediately
       if (!token || !email) {
+        /* OLD CODE (Returned without redirect):
+        setIsDemo(false);
+        setLines([]);
+        ...
+        return;
+        */
         setIsDemo(false);
         setLines([]);
         setDataMetrics({});
@@ -218,6 +225,7 @@ export default function DashboardPage() {
         setCycleDaysLeft(0);
         setLastPaymentAmount(0);
         setLastPaymentDate("—");
+        router.replace(`/login?next=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
 
@@ -562,38 +570,6 @@ export default function DashboardPage() {
           return [primaryLine];
         }
 
-        // Merge any user added lines from Add New Number wizard
-        try {
-          const storedAdded = localStorage.getItem("zoiko_added_lines");
-          if (storedAdded) {
-            const parsedAdded = JSON.parse(storedAdded);
-            if (Array.isArray(parsedAdded) && parsedAdded.length > 0) {
-              const existingIds = new Set(current.map((p) => p.id));
-              const existingNumbers = new Set(current.map((p) => p.number.replace(/\D/g, "")));
-              const toAdd = parsedAdded.filter(
-                (l: any) => !existingIds.has(l.id) && !existingNumbers.has(l.number.replace(/\D/g, ""))
-              );
-              if (toAdd.length > 0) {
-                setDataMetrics((prevMetrics) => {
-                  const updated = { ...prevMetrics };
-                  toAdd.forEach((line: any) => {
-                    if (!updated[line.id]) {
-                      const gb = line.planGb || (line.planName.toLowerCase().includes("unlimited") ? 100 : 30);
-                      updated[line.id] = {
-                        total: gb,
-                        remaining: gb,
-                        used: 0,
-                      };
-                    }
-                  });
-                  return updated;
-                });
-                return [...current, ...toAdd];
-              }
-            }
-          }
-        } catch {}
-
         return current;
       });
 
@@ -632,6 +608,9 @@ export default function DashboardPage() {
         note: pmNote,
         hasMandate: mandateActive,
       });
+
+      const storedLimit = typeof window !== "undefined" ? localStorage.getItem("zoiko_bill_limit") : null;
+      setStoredBillLimit(storedLimit || null);
     } catch (err) {
       console.error("Dashboard dynamic load error:", err);
     }
@@ -1077,12 +1056,12 @@ export default function DashboardPage() {
             paymentMethod={paymentMethodInfo.method}
             paymentMethodNote={paymentMethodInfo.note}
             mobileBillLimit={
-              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
-                ? `£${Number(localStorage.getItem("zoiko_bill_limit")).toFixed(2)}`
+              storedBillLimit
+                ? `£${Number(storedBillLimit).toFixed(2)}`
                 : "Not set"
             }
             mobileBillLimitNote={
-              typeof window !== "undefined" && localStorage.getItem("zoiko_bill_limit")
+              storedBillLimit
                 ? "/ month · safety spend cap"
                 : "· Set a spend limit"
             }

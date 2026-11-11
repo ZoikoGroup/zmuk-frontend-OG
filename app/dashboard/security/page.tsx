@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import { getMySimOrders } from "../../services/simOrderHistoryApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const SECURITY_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE}/api/security/`;
@@ -315,6 +316,37 @@ export default function SecurityPage() {
       try {
         user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
       } catch {}
+
+      // Fetch live user profile dynamically from backend
+      if (storedToken) {
+        try {
+          const userRes = await fetch(`${API_BASE}/api/accounts/dashboard/`, {
+            headers: { Authorization: `Token ${storedToken}` },
+          });
+          if (userRes.status === 401) {
+            localStorage.removeItem("zoiko_token");
+            localStorage.removeItem("zoiko_user");
+            window.location.href = "/login";
+            return;
+          }
+          if (userRes.ok) {
+            const backendUser = await userRes.json();
+            if (backendUser && (backendUser.email || backendUser.username)) {
+              user = { ...user, ...backendUser };
+              try {
+                localStorage.setItem("zoiko_user", JSON.stringify(user));
+              } catch {}
+              if (backendUser.last_password_change || backendUser.password_changed_at) {
+                setPasswordChangedAt(backendUser.last_password_change || backendUser.password_changed_at);
+              }
+              if (backendUser.last_login) {
+                persist("zoiko_session_started", backendUser.last_login);
+              }
+            }
+          }
+        } catch {}
+      }
+
       const userEmail: string = user?.email || "";
       const fullName =
         [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() ||
@@ -396,7 +428,36 @@ export default function SecurityPage() {
       }
       if (!phone && user?.phone) setPhone(formatMsisdn(user.phone));
 
-      // Optional: sync 2FA from backend
+      // Also check confirmed SIM orders from backend if numbersCount is still 0
+      if (storedToken) {
+        try {
+          const simOrders = await getMySimOrders();
+          if (Array.isArray(simOrders) && simOrders.length > 0) {
+            let simCount = 0;
+            let discoveredPhone = "";
+            let discoveredPlan = "";
+            for (const ord of simOrders) {
+              if (Array.isArray(ord.sims)) {
+                simCount += ord.sims.length;
+                for (const s of ord.sims) {
+                  if (!discoveredPhone && s.msisdn) {
+                    discoveredPhone = formatMsisdn(s.msisdn);
+                  }
+                }
+              }
+              if (!discoveredPlan && ord.items?.[0]?.name) {
+                discoveredPlan = ord.items[0].name;
+              }
+            }
+            setNumbersCount((prev) => (prev > 0 ? prev : simCount));
+            if (!phone && discoveredPhone) setPhone(discoveredPhone);
+            if (!planName && discoveredPlan) setPlanName(discoveredPlan);
+          }
+        } catch {}
+      }
+
+      // 2FA - Two-factor authentication (Temporarily commented out)
+      /*
       if (storedToken) {
         try {
           const r = await fetch(`${SECURITY_URL}two-fa/`, {
@@ -411,6 +472,7 @@ export default function SecurityPage() {
           }
         } catch {}
       }
+      */
 
       const now = new Date();
       setCheckedAt(
@@ -490,12 +552,26 @@ export default function SecurityPage() {
   };
 
   const submitReport = async () => {
-    if (!reportNote.trim()) return;
+    const note = reportNote.trim();
+    if (!note || note.length < 10) {
+      showToast("Please provide at least 10 characters describing the issue.");
+      return;
+    }
     if (token) {
       await fetch(`${SECURITY_URL}report/`, {
         method: "POST",
         headers: { Authorization: `Token ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ note: reportNote }),
+        body: JSON.stringify({ note }),
+      }).catch(() => {});
+
+      await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: { Authorization: `Token ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: "security",
+          subject: "Suspicious Activity Report",
+          message: note,
+        }),
       }).catch(() => {});
     }
     setReportNote("");
@@ -557,7 +633,7 @@ export default function SecurityPage() {
             </button>
           </div>
 
-          {/* Backup banner */}
+          {/* Backup banner - 2FA authenticator backup (Temporarily commented out)
           {!hasBackup && (
             <div className="relative overflow-hidden rounded-[20px] px-5 sm:px-6 py-5 bg-gradient-to-r from-[#0D1935] via-[#16224A] to-[#3A1D4F] flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="pointer-events-none absolute -right-6 -top-12 w-52 h-52 rounded-full bg-[#E01C5B]/20" />
@@ -583,12 +659,14 @@ export default function SecurityPage() {
               </button>
             </div>
           )}
+          */}
 
           {/* Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
             {/* Account security */}
             <div className={CARD}>
               <CardHeader icon={ShieldCheck} title="Account security" subtitle="Checked by our security service" />
+              {/* 2FA - Two-step verification (Temporarily commented out)
               <Row
                 first
                 icon={Key}
@@ -607,7 +685,9 @@ export default function SecurityPage() {
                 }
                 onClick={() => setModal("twofa")}
               />
+              */}
               <Row
+                first
                 icon={Lock}
                 title="Password"
                 subtitle={
@@ -664,6 +744,7 @@ export default function SecurityPage() {
             {/* Sign-in methods */}
             <div className={CARD}>
               <CardHeader icon={Fingerprint} title="Sign-in methods" subtitle="How you prove it’s you" />
+              {/* 2FA - Authenticator app (Temporarily commented out)
               <div
                 className={`p-3 rounded-2xl border flex items-center gap-3 ${
                   twoFAStatus ? "bg-[#FDF2F6] border-[#F8C9D9]" : "border-[#E6E8EE]"
@@ -701,6 +782,7 @@ export default function SecurityPage() {
                   Manage authenticator <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
+              */}
               <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
                   <MessageSquare className="w-5 h-5 text-[#E01C5B]" />
@@ -941,12 +1023,14 @@ export default function SecurityPage() {
                 subtitle="Fix your details or object to a use"
                 onClick={() => router.push("/dashboard/support")}
               />
+              {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
               <Row
                 icon={Trash2}
                 title="Close your account"
                 subtitle="Options for your service, login and data"
                 onClick={() => setModal("close")}
               />
+              */}
             </div>
           </div>
 
@@ -1083,6 +1167,7 @@ export default function SecurityPage() {
         </Modal>
       )}
 
+      {/* 2FA - Two-step verification modal (Temporarily commented out)
       {modal === "twofa" && (
         <Modal title="Two-step verification" onClose={() => setModal(null)}>
           <p className="text-xs text-[#54617E] mb-4">
@@ -1110,6 +1195,7 @@ export default function SecurityPage() {
           </div>
         </Modal>
       )}
+      */}
 
       {modal === "report" && (
         <Modal title="Report suspicious activity" onClose={() => setModal(null)}>
@@ -1117,7 +1203,7 @@ export default function SecurityPage() {
             rows={4}
             value={reportNote}
             onChange={(e) => setReportNote(e.target.value)}
-            placeholder="Describe what looked off (e.g. unfamiliar sign-in, unexpected SIM change)…"
+            placeholder="Describe what looked off (minimum 10 characters: unfamiliar sign-in, unexpected SIM change)…"
             className="w-full px-3.5 py-2.5 bg-[#F6F7FA] border border-[#E6E8EE] rounded-xl text-sm outline-none focus:border-[#E01C5B] focus:bg-white resize-none"
           />
           <div className="flex justify-end gap-2.5 pt-3">
@@ -1131,7 +1217,7 @@ export default function SecurityPage() {
             <button
               type="button"
               onClick={submitReport}
-              disabled={!reportNote.trim()}
+              disabled={reportNote.trim().length < 10}
               className="h-9 px-4 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
             >
               Submit report
@@ -1143,7 +1229,7 @@ export default function SecurityPage() {
       {modal === "data" && (
         <Modal title="Get a copy of your data" onClose={() => setModal(null)}>
           <p className="text-xs text-[#54617E] mb-4">
-            We’ll open a request for {email || "your account"} and reply within one month.
+            We’ll open a formal GDPR request for {email || "your account"} and send a secure archive to your email.
           </p>
           <div className="flex justify-end gap-2.5">
             <button
@@ -1155,7 +1241,21 @@ export default function SecurityPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                if (token) {
+                  await fetch(`${API_BASE}/api/support/tickets/`, {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Token ${token}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      category: "privacy",
+                      subject: "GDPR Data Copy Request",
+                      message: `Customer requested a complete copy of personal and account data for ${email || "user"}.`,
+                    }),
+                  }).catch(() => {});
+                }
                 setModal(null);
                 showToast("Data request opened. We’ll email you within a month.");
               }}
@@ -1192,6 +1292,7 @@ export default function SecurityPage() {
         </Modal>
       )}
 
+      {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
       {modal === "close" && (
         <Modal title="Close your account" onClose={() => setModal(null)}>
           <p className="text-xs text-[#54617E] mb-4">
@@ -1216,6 +1317,7 @@ export default function SecurityPage() {
           </div>
         </Modal>
       )}
+      */}
     </div>
   );
 }

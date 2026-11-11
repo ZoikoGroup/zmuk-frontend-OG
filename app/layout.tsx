@@ -5,6 +5,7 @@ import Header from "./components/header";
 import Footer from "./components/footer";
 import { CartProvider } from "./context/CartContext";
 import ChatbotWidget from "./components/ChatbotWidget";
+import BlackFridayPopup from "./components/BlackFridayPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +18,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zoiko Mobile",
+  title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
   description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  openGraph: {
+    title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
+    description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
+    description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  },
 };
 
 export default function RootLayout({
@@ -37,6 +47,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <ChatbotWidget />
+          <BlackFridayPopup />
         </CartProvider>
       </body>
     </html>

@@ -7,6 +7,7 @@ import {
   Calendar,
   Cpu,
 } from "lucide-react";
+import { ZOIKONEX_CONFIG } from "../../utils/zoikoNexApi";
 
 interface StatCardsGridProps {
   dataRemainingGb: number;
@@ -50,6 +51,8 @@ export default function StatCardsGrid({
     </div>
   );
 
+  const isLive = ZOIKONEX_CONFIG.IS_CONNECTED;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* ── CARD 1: Pink Hero Card (Data Remaining) ── */}
@@ -62,7 +65,7 @@ export default function StatCardsGrid({
             <Wifi className="w-5 h-5 text-white" />
           </div>
           <div className="px-2.5 py-1 bg-white text-[#E01C5B] text-xs font-bold rounded-full shadow-sm">
-            {dataTotalGb > 0 ? `${dataRemainingPct}% remaining` : "No active plan"}
+            {isLive && dataTotalGb > 0 ? `${dataRemainingPct}% remaining` : "Upcoming"}
           </div>
         </div>
 
@@ -73,14 +76,23 @@ export default function StatCardsGrid({
           </div>
           <div className="flex items-baseline gap-2 mt-0.5">
             <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-              {dataRemainingGb}
-              <span className="text-lg sm:text-xl font-bold ml-1 text-white/90">GB</span>
+              {isLive && dataTotalGb > 0 ? (
+                <>
+                  {dataRemainingGb}
+                  <span className="text-lg sm:text-xl font-bold ml-1 text-white/90">GB</span>
+                </>
+              ) : (
+                <>
+                  0
+                  <span className="text-lg sm:text-xl font-bold ml-1 text-white/90">GB</span>
+                </>
+              )}
             </div>
             <div className="text-xs text-white/80 leading-tight">
-              {dataTotalGb > 0 ? (
+              {isLive && dataTotalGb > 0 ? (
                 <>of {dataTotalGb} GB<br />this cycle</>
               ) : (
-                <>No allowance<br />linked yet</>
+                <>Live allowance<br />upcoming</>
               )}
             </div>
           </div>
@@ -91,7 +103,7 @@ export default function StatCardsGrid({
           <div className="w-full h-1.5 bg-white/25 rounded-full overflow-hidden">
             <div
               className="h-full bg-white rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, dataRemainingPct))}%` }}
+              style={{ width: `${isLive && dataTotalGb > 0 ? Math.min(100, Math.max(0, dataRemainingPct)) : 0}%` }}
             />
           </div>
         </div>
@@ -107,7 +119,7 @@ export default function StatCardsGrid({
             <CreditCard className="w-5 h-5 text-[#0D1935]" />
           </div>
           <div className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full border border-slate-200">
-            {linesCount > 0 ? "Direct Debit" : "No Charges"}
+            {isLive && linesCount > 0 ? "Direct Debit" : "Upcoming"}
           </div>
         </div>
 
@@ -118,13 +130,13 @@ export default function StatCardsGrid({
           </div>
           <div className="flex items-baseline gap-2 mt-0.5">
             <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0D1935]">
-              £{nextCollectionAmount.toFixed(2)}
+              £{isLive ? nextCollectionAmount.toFixed(2) : "0.00"}
             </div>
             <div className="text-xs text-slate-500 leading-tight">
-              {linesCount > 0 ? (
+              {isLive && linesCount > 0 ? (
                 <>on {nextCollectionDate}<br />{linesCount} {linesCount === 1 ? "line" : "lines"}</>
               ) : (
-                <>No scheduled<br />payments</>
+                <>Live collections<br />upcoming</>
               )}
             </div>
           </div>
@@ -144,11 +156,11 @@ export default function StatCardsGrid({
             <Calendar className="w-5 h-5 text-[#0D1935]" />
           </div>
           <div className={`px-2.5 py-1 text-xs font-bold rounded-full border ${
-            linesCount > 0
+            isLive && linesCount > 0
               ? "bg-pink-50 text-[#E01C5B] border-pink-100"
               : "bg-slate-100 text-slate-500 border-slate-200"
           }`}>
-            {linesCount > 0 ? `Renews ${renewDate}` : "Inactive"}
+            {isLive && linesCount > 0 ? `Renews ${renewDate}` : "Upcoming"}
           </div>
         </div>
 
@@ -158,7 +170,7 @@ export default function StatCardsGrid({
             Allowance cycle
           </div>
           <div className="flex items-baseline gap-2 mt-0.5">
-            {linesCount > 0 ? (
+            {isLive && linesCount > 0 ? (
               <>
                 <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0D1935]">
                   {cycleDaysLeft}
@@ -174,7 +186,7 @@ export default function StatCardsGrid({
                   —
                 </div>
                 <div className="text-xs text-slate-500 leading-tight">
-                  No active<br />cycle
+                  Cycle tracking<br />upcoming
                 </div>
               </>
             )}
@@ -195,7 +207,7 @@ export default function StatCardsGrid({
             <Cpu className="w-5 h-5 text-[#0D1935]" />
           </div>
           <div className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full border border-slate-200">
-            {linesCount > 0 ? simType : "No SIM"}
+            {isLive && linesCount > 0 ? simType : "Upcoming"}
           </div>
         </div>
 
@@ -206,13 +218,13 @@ export default function StatCardsGrid({
           </div>
           <div className="flex items-baseline gap-2 mt-0.5">
             <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#0D1935]">
-              {linesCount > 0 ? lineStatus : "No SIM"}
+              {isLive && linesCount > 0 ? lineStatus : "Upcoming"}
             </div>
             <div className="text-xs text-slate-500 leading-tight">
-              {linesCount > 0 ? (
+              {isLive && linesCount > 0 ? (
                 <>SIM status only —<br />not network health</>
               ) : (
-                <>Activate a SIM to<br />get connected</>
+                <>Live status<br />upcoming</>
               )}
             </div>
           </div>
