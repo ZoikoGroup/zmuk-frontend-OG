@@ -477,18 +477,29 @@ export default function EditProfilePage() {
         setMarketingMessages("Off");
       }
 
-      // Count open requests dynamically from support tickets
-      try {
-        const savedTickets = JSON.parse(localStorage.getItem("zoiko_support_tickets") || "[]");
-        if (Array.isArray(savedTickets)) {
-          const open = savedTickets.filter(
-            (t: any) => t.isOpen || t.status === "Open" || t.status === "In progress"
-          ).length;
-          setOpenRequestsCount(open);
-        } else {
+      // Count open requests dynamically from backend support tickets
+      if (storedToken) {
+        try {
+          const ticketsRes = await fetch(`${API_BASE}/api/support/tickets/`, {
+            headers: { Authorization: `Token ${storedToken}` },
+          });
+          if (ticketsRes.ok) {
+            const ticketList = await ticketsRes.json();
+            if (Array.isArray(ticketList)) {
+              const open = ticketList.filter(
+                (t: any) => String(t?.status || "").toLowerCase() !== "resolved"
+              ).length;
+              setOpenRequestsCount(open);
+            } else {
+              setOpenRequestsCount(0);
+            }
+          } else {
+            setOpenRequestsCount(0);
+          }
+        } catch {
           setOpenRequestsCount(0);
         }
-      } catch {
+      } else {
         setOpenRequestsCount(0);
       }
 
@@ -780,38 +791,12 @@ export default function EditProfilePage() {
 
     setSavingLoading(true);
     try {
-      if (token) {
-        const res = await fetch(UPDATE_PROFILE_URL, {
-          method: "PUT",
-          headers: {
-            Authorization: `Token ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: cleanEmail }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          const errMsg =
-            errData.email ||
-            errData.error ||
-            errData.detail ||
-            "Could not update email. It may already be in use.";
-          showToast(Array.isArray(errMsg) ? errMsg[0] : String(errMsg));
-          return;
-        }
-      }
-
-      setEmail(cleanEmail);
-      const user = JSON.parse(localStorage.getItem("zoiko_user") || "{}");
-      localStorage.setItem(
-        "zoiko_user",
-        JSON.stringify({ ...user, email: cleanEmail })
-      );
+      const savedUser = await saveProfile({ email: cleanEmail });
+      setEmail(savedUser.email || cleanEmail);
       setModal(null);
       showToast("Email address updated successfully.");
-    } catch {
-      showToast("Network error. Please try again later.");
+    } catch (err) {
+      showToast((err as Error).message || "Could not update email. Please try again.");
     } finally {
       setSavingLoading(false);
     }
@@ -826,10 +811,14 @@ export default function EditProfilePage() {
     setSavingLoading(true);
     try {
       const savedUser = await saveProfile({ phone_number: cleanPhone });
-      setContactMobile(savedUser.phone_number || cleanPhone);
+      setContactMobile(savedUser.phone_number ?? "");
       setPhoneError("");
       setModal(null);
-      showToast("Contact mobile number updated.");
+      showToast(
+        savedUser.phone_number
+          ? "Contact mobile number updated."
+          : "Contact mobile number cleared."
+      );
     } catch (err: any) {
       const errMsg = err?.message || "Please enter a valid UK mobile number.";
       setPhoneError(errMsg);
@@ -1035,8 +1024,19 @@ export default function EditProfilePage() {
     }
   };
 
-  // Sign out handlers
-  const handleSignOut = () => {
+  // Sign out handlers (invalidate token server-side via POST /api/accounts/logout/)
+  const handleSignOut = async () => {
+    const activeToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || ""
+        : "");
+    if (activeToken) {
+      await fetch(`${API_BASE}/api/accounts/logout/`, {
+        method: "POST",
+        headers: { Authorization: `Token ${activeToken}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem("zoiko_token");
     localStorage.removeItem("driverx_token");
     showToast("Signed out from this browser.");
@@ -1045,7 +1045,18 @@ export default function EditProfilePage() {
     }, 600);
   };
 
-  const handleSignOutEverywhere = () => {
+  const handleSignOutEverywhere = async () => {
+    const activeToken =
+      token ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || ""
+        : "");
+    if (activeToken) {
+      await fetch(`${API_BASE}/api/accounts/logout/`, {
+        method: "POST",
+        headers: { Authorization: `Token ${activeToken}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem("zoiko_token");
     localStorage.removeItem("driverx_token");
     localStorage.removeItem("zoiko_other_sessions");
