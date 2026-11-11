@@ -275,6 +275,13 @@ const inputError = "border-red-400 focus:ring-red-300 dark:border-red-500";
 
 // ─── COMPONENT ──────────────────────────────────────────────────────────────
 
+const checkboxValidators: Record<CheckboxFields, (checked: boolean) => string | null> = {
+  savePref: (checked) =>
+    checked ? null : "Please agree to save your details in this browser to continue.",
+  newsletter: (checked) =>
+    checked ? null : "Please agree to subscribe to our newsletter to continue.",
+};
+
 export default function ContactUs() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -323,12 +330,6 @@ export default function ContactUs() {
     return newErrors;
   }, [form, validateField]);
 
-  const checkboxValidators: Record<CheckboxFields, (checked: boolean) => string | null> = {
-    savePref: (checked) =>
-      checked ? null : "Please agree to save your details in this browser to continue.",
-    newsletter: (checked) =>
-      checked ? null : "Please agree to subscribe to our newsletter to continue.",
-  };
 
   // const handleChange = (
   //   e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>

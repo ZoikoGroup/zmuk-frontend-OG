@@ -107,14 +107,14 @@ export default function ChatbotWidget() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          /* Square ZMUK mark. The real file lives at /public/images/zovie-logo.png —
+          /* Square ZMUK mark. The real file lives at /public/chatbot_images/PNG/zoikomobileuk-icon-b-png.png —
              overwrite that file with your logo (square works best). Falls back to
              the site logo if it is ever missing. */
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src="/images/zovie-logo.png"
+            src="/chatbot_images/PNG/zoikomobileuk-icon-b-png.png"
             alt="Zoiko Mobile"
-            className="h-10 w-10 object-contain"
+            className="h-full w-full object-contain"
             onError={(e) => {
               const img = e.currentTarget;
               if (!img.dataset.fallback) {
