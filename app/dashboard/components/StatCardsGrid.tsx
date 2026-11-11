@@ -22,6 +22,22 @@ interface StatCardsGridProps {
   simType: string;
 }
 
+const DotMatrixWhite = () => (
+  <div className="absolute top-2 right-4 w-28 h-20 opacity-20 pointer-events-none grid grid-cols-7 gap-3">
+    {Array.from({ length: 28 }).map((_, i) => (
+      <span key={i} className="w-1 h-1 rounded-full bg-white" />
+    ))}
+  </div>
+);
+
+const DotMatrixGray = () => (
+  <div className="absolute top-2 right-4 w-28 h-20 opacity-5 pointer-events-none grid grid-cols-7 gap-3">
+    {Array.from({ length: 28 }).map((_, i) => (
+      <span key={i} className="w-1 h-1 rounded-full bg-[#0D1935]" />
+    ))}
+  </div>
+);
+
 export default function StatCardsGrid({
   dataRemainingGb = 0,
   dataTotalGb = 0,
@@ -35,22 +51,6 @@ export default function StatCardsGrid({
   simType = "—",
 }: StatCardsGridProps) {
   // Dot matrix SVG background pattern
-  const DotMatrixWhite = () => (
-    <div className="absolute top-2 right-4 w-28 h-20 opacity-20 pointer-events-none grid grid-cols-7 gap-3">
-      {Array.from({ length: 28 }).map((_, i) => (
-        <span key={i} className="w-1 h-1 rounded-full bg-white" />
-      ))}
-    </div>
-  );
-
-  const DotMatrixGray = () => (
-    <div className="absolute top-2 right-4 w-28 h-20 opacity-5 pointer-events-none grid grid-cols-7 gap-3">
-      {Array.from({ length: 28 }).map((_, i) => (
-        <span key={i} className="w-1 h-1 rounded-full bg-[#0D1935]" />
-      ))}
-    </div>
-  );
-
   const isLive = ZOIKONEX_CONFIG.IS_CONNECTED;
 
   return (

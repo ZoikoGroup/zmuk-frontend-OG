@@ -711,7 +711,7 @@ export default function FamilyAndFriendsPage() {
           : `Invited (${contact.replace(/\D/g, "").slice(-3)})`);
 
       const newInvite: PendingInviteRecord = {
-        id: `invite-${Date.now()}`,
+        id: `invite-${new Date().getTime()}`,
         displayName: fallbackDisplayName,
         rawContact: contact,
         maskedContact: maskContactString(contact),
