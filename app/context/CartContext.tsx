@@ -78,9 +78,54 @@ interface CartContextType {
     totalItems: number;
 
     totalPrice: number;
+
+    /** True once the cart has been loaded from localStorage on the client. */
+    hydrated: boolean;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
+
+const STORAGE_KEY = "cart";
+
+/**
+ * Make whatever is in localStorage safe to use as CartItem[].
+ * Older code wrote items without a `cartKey` and with `qty` instead of
+ * `quantity`; without this, those items could never be removed or updated.
+ */
+function sanitizeStoredCart(raw: unknown): CartItem[] {
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+        .filter(
+            (item): item is Record<string, any> =>
+                !!item && typeof item === "object" && item.id != null
+        )
+        .map((item, index) => {
+            const { qty, ...rest } = item;
+            const quantity =
+                Math.max(1, Math.floor(Number(rest.quantity ?? qty ?? 1)) || 1);
+
+            return {
+                ...rest,
+                cartKey:
+                    typeof rest.cartKey === "string" && rest.cartKey
+                        ? rest.cartKey
+                        : `${rest.type ?? "item"}-${rest.id}-${index}`,
+                quantity,
+                price: Number(rest.price) || 0,
+            } as CartItem;
+        });
+}
+
+function readStoredCart(): CartItem[] {
+    try {
+        return sanitizeStoredCart(
+            JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
+        );
+    } catch {
+        return [];
+    }
+}
 
 export function CartProvider({
     children,
@@ -88,20 +133,35 @@ export function CartProvider({
     children: ReactNode;
 }) {
     const [cart, setCart] = useState<CartItem[]>([]);
+    const [hydrated, setHydrated] = useState(false);
 
-    // Load cart from localStorage
+    // Load cart from localStorage once, on the client.
     useEffect(() => {
-        const storedCart = localStorage.getItem("cart");
-
-        if (storedCart) {
-            setCart(JSON.parse(storedCart));
-        }
+        setCart(readStoredCart());
+        setHydrated(true);
     }, []);
 
-    // Save cart whenever it changes
+    // Save cart whenever it changes — but never before the initial load,
+    // otherwise the empty initial state would overwrite the stored cart.
     useEffect(() => {
-        localStorage.setItem("cart", JSON.stringify(cart));
-    }, [cart]);
+        if (!hydrated) return;
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+        } catch {
+            /* storage full / blocked — keep the in-memory cart */
+        }
+    }, [cart, hydrated]);
+
+    // Keep multiple tabs in sync (the "storage" event only fires in OTHER tabs).
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === STORAGE_KEY || e.key === null) {
+                setCart(readStoredCart());
+            }
+        };
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
+    }, []);
 
     const addToCart = (item: CartItem) => {
         setCart((prev) => {
@@ -254,6 +314,7 @@ export function CartProvider({
                 clearCart,
                 totalItems,
                 totalPrice,
+                hydrated,
             }}
         >
             {children}
