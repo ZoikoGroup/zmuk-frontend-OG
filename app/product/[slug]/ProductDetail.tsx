@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useCart } from "../../context/CartContext";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -45,6 +46,7 @@ function ProductDetail({ slug }: { slug: string }) {
   const [activeImg, setActiveImg] = useState(0);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [qty, setQty] = useState(1);
+  const { addToCart: addItemToCart } = useCart();
 
   useEffect(() => {
     if (!slug) {
@@ -137,33 +139,25 @@ function ProductDetail({ slug }: { slug: string }) {
   const addToCart = () => {
   if (!matched || !product) return;
 
-  const item = {
+  // Go through CartContext (never write localStorage directly) so the cart,
+  // header badge and checkout all stay in sync. Adding the same variant again
+  // increases its quantity, because the cartKey is the variant id.
+  addItemToCart({
+    cartKey: `product-${matched.id}`,
     id: matched.id,
-    slug: product.slug,
-    name: product.name,
-    image: images[0] ? absUrl(images[0].image) : null,
-    price: Number(matched.price),
-    qty,
     type: "product",
-    attributes: matched.attributes_dict,
-  };
-
-  const existing = JSON.parse(localStorage.getItem("cart") || "[]");
-
-  // If same variant already exists, increase quantity
-  const index = existing.findIndex(
-    (x: any) => x.id === item.id && x.type === "product"
-  );
-
-  if (index >= 0) {
-    existing[index].qty += qty;
-  } else {
-    existing.push(item);
-  }
-
-  localStorage.setItem("cart", JSON.stringify(existing));
-
-  window.dispatchEvent(new Event("zoiko-cart"));
+    name: product.name,
+    slug: product.slug,
+    image: images[0] ? absUrl(images[0].image) : "",
+    price: Number(matched.price),
+    quantity: Math.max(1, Math.floor(qty) || 1),
+    metadata: {
+      productId: product.id,
+      brand: product.brand,
+      sku: matched.sku,
+      attributes: matched.attributes_dict,
+    },
+  });
 
   alert("Added to cart!");
 };

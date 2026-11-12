@@ -5,6 +5,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePaymentForm";
 import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { isLoggedIn as checkIsLoggedIn, getUser } from "../utils/auth";
+import { useCart } from "../context/CartContext";
 import { ShieldCheck } from "lucide-react";
 
 
@@ -278,7 +279,27 @@ export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState("");
   const [orderRef, setOrderRef] = useState("");
   const [showThankYou, setShowThankYou] = useState(false);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // The cart lives in CartContext (single source of truth). Never read or
+  // write localStorage["cart"] directly here — CartContext would overwrite it
+  // with its own (stale) copy on the next add-to-cart.
+  const {
+    cart: contextCart,
+    hydrated: cartHydrated,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+  } = useCart();
+  // Snapshot of the paid order. The cart is cleared once payment is confirmed,
+  // but the page (and the thank-you modal) must keep showing what was bought.
+  const [paidCart, setPaidCart] = useState<CartItem[] | null>(null);
+  const liveCart = useMemo<CartItem[]>(
+    () =>
+      contextCart.map((item, index) =>
+        normalizeCartItem(item as unknown as RawCartItem, index)
+      ),
+    [contextCart]
+  );
+  const cart = paidCart ?? liveCart;
   const [coupon, setCoupon] = useState("");
   const [loading, setLoading] = useState(false);
   const [discountData, setDiscountData] = useState<DiscountData | null>(null);
@@ -390,17 +411,9 @@ export default function CheckoutPage() {
   const [shippingAddress, setShippingAddress] = useState<Address>(emptyAddress);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // ── Load & normalise cart ─────────────────────────────────────────────────
+  // ── Login state & address prefill (cart itself comes from CartContext) ───
   useEffect(() => {
     try {
-      const storedCart = JSON.parse(
-        localStorage.getItem("cart") ?? "[]"
-      ) as RawCartItem[];
-      const normalized: CartItem[] = (Array.isArray(storedCart) ? storedCart : []).map(
-        normalizeCartItem
-      );
-      setCart(normalized);
-
       if (checkIsLoggedIn()) {
         setIsLoggedIn(true);
 
@@ -454,7 +467,7 @@ export default function CheckoutPage() {
         }
       } catch {}
     } catch {
-      setCart([]);
+      /* ignore — auth/session storage unavailable */
     }
   }, []);
 
@@ -475,43 +488,16 @@ export default function CheckoutPage() {
 
   // ── Cart mutations ────────────────────────────────────────────────────────
 
-  const persistCart = (next: CartItem[]) => {
-    try {
-      localStorage.setItem("cart", JSON.stringify(next.map((i) => i._raw)));
-      // Notify the header CartIcon (same-tab "storage" doesn't fire).
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch {
-      /* ignore storage errors */
-    }
+  // All mutations go through CartContext, which persists to localStorage and
+  // updates the header badge. Items are addressed by cartKey, not array index.
+
+  const handleRemove = (cartKey: string) => {
+    removeFromCart(cartKey);
   };
 
-  const handleRemove = (index: number) => {
-    const newCart = [...cart];
-    newCart.splice(index, 1);
-    setCart(newCart);
-    persistCart(newCart);
-  };
-
-  const handleQuantityChange = (index: number, nextQty: number) => {
+  const handleQuantityChange = (cartKey: string, nextQty: number) => {
     const qty = Math.max(1, Math.floor(nextQty) || 1);
-    setCart((prev) => {
-      const next = prev.map((item, i) => {
-        if (i !== index) return item;
-        return {
-          ...item,
-          quantity: qty,
-          _raw: { ...item._raw, quantity: qty },
-        };
-      });
-      persistCart(next);
-      return next;
-    });
-  };
-
-  const handleClearCart = () => {
-    setCart([]);
-    localStorage.removeItem("cart");
-    window.dispatchEvent(new Event("cart-updated"));
+    updateQuantity(cartKey, qty);
   };
 
   // ── Coupon ────────────────────────────────────────────────────────────────
@@ -778,10 +764,10 @@ export default function CheckoutPage() {
         return;
       }
 
-      try {
-        localStorage.removeItem("cart");
-        window.dispatchEvent(new Event("cart-updated"));
-      } catch { /* ignore */ }
+      // Order confirmed — freeze what was bought for the thank-you modal,
+      // then empty the real cart (localStorage + header badge via context).
+      setPaidCart(cart);
+      clearCart();
 
       if (isSwitchOrder && orderRef) {
         try {
@@ -803,6 +789,21 @@ export default function CheckoutPage() {
     const n = parseFloat(String(value));
     return Number.isInteger(n) ? n.toString() : n.toFixed(2);
   };
+
+  // ── Waiting for CartContext to load from localStorage ─────────────────────
+  // (avoids flashing "Your cart is empty" on a hard refresh of /checkout)
+  if (!cartHydrated && !paidCart) {
+    return (
+      <div className="min-h-screen dark:bg-gray-900 bg-gray-50 flex items-center justify-center">
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-4 border-red-500 border-t-transparent"
+          role="status"
+        >
+          <span className="sr-only">Loading cart...</span>
+        </div>
+      </div>
+    );
+  }
 
   // ── Empty Cart ────────────────────────────────────────────────────────────
   if (cart.length === 0) {
@@ -840,7 +841,7 @@ export default function CheckoutPage() {
                 <span className="text-xs text-gray-400 font-medium">{cart.length} item{cart.length !== 1 ? "s" : ""}</span>
               </div>
               <div className="divide-y divide-gray-50">
-                {cart.map((item, idx) => (
+                {cart.map((item) => (
                   <div key={item.cartKey} className="px-6 py-4">
                     <div className="flex items-start gap-4">
                       {/* 📦 Plan Information */}
@@ -916,7 +917,7 @@ export default function CheckoutPage() {
                         <div className="mt-2 inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                           <button
                             type="button"
-                            onClick={() => handleQuantityChange(idx, item.quantity - 1)}
+                            onClick={() => handleQuantityChange(item.cartKey, item.quantity - 1)}
                             disabled={loading || item.quantity <= 1}
                             aria-label="Decrease quantity"
                             className="px-2.5 py-1 text-base leading-none text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -928,12 +929,12 @@ export default function CheckoutPage() {
                             min={1}
                             value={item.quantity}
                             disabled={loading}
-                            onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value, 10))}
+                            onChange={(e) => handleQuantityChange(item.cartKey, parseInt(e.target.value, 10))}
                             className="w-10 py-1 text-center text-sm font-semibold bg-transparent text-gray-900 dark:text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                           <button
                             type="button"
-                            onClick={() => handleQuantityChange(idx, item.quantity + 1)}
+                            onClick={() => handleQuantityChange(item.cartKey, item.quantity + 1)}
                             disabled={loading}
                             aria-label="Increase quantity"
                             className="px-2.5 py-1 text-base leading-none text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 transition-colors"
@@ -943,7 +944,8 @@ export default function CheckoutPage() {
                         </div>
                         <div>
                           <button
-                            onClick={() => handleRemove(idx)}
+                            onClick={() => handleRemove(item.cartKey)}
+                            disabled={loading || !!paidCart}
                             className="text-xs text-red-500 hover:underline mt-1"
                           >
                             Remove
@@ -1249,7 +1251,6 @@ export default function CheckoutPage() {
         show={showThankYou}
         onClose={() => {
           setShowThankYou(false);
-          setCart([]);
           if (isSwitchOrder && orderRef) {
             window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
           } else {
@@ -1298,7 +1299,6 @@ export default function CheckoutPage() {
           <button
             onClick={() => {
               setShowThankYou(false);
-              setCart([]);
               if (isSwitchOrder && orderRef) {
                 window.location.href = `/switch-and-save?step=5&ref=${orderRef}`;
               } else {
@@ -1311,7 +1311,6 @@ export default function CheckoutPage() {
           </button>
           <button
             onClick={() => {
-              setCart([]);
               window.location.href = "/";
             }}
             className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-medium transition-colors"
