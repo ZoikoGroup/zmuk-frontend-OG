@@ -1,118 +1,317 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ZOIKO RECHARGE — matches zoikomobile.co.uk/recharge/
-   Light + Dark mode via CSS custom properties
+   ZOIKO TOP-UP — redesigned layout (design only, behaviour unchanged)
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── Tokens — always light for recharge components ───────────────────── */
 :root {
-  --rc-pink: #e91e63;
-  --rc-teal: #00bfa5;
-  --rc-red: #e53935;
-  --rc-red-hover: #c62828;
-  --rc-navy: #1a237e;
-  --rc-navy-hover: #0d1642;
+  --rc-magenta: #d10f5b;
+  --rc-magenta-hover: #b00c4d;
+  --rc-green: #0d4a33;
+  --rc-ink: #14194a;
+  --rc-muted: #5b6078;
+  --rc-line: #e6e8f0;
+  --rc-tint: #fff5f8;
+  /* legacy tokens kept so the modal / success page keep working */
+  --rc-pink: var(--rc-magenta);
+  --rc-teal: var(--rc-magenta);
+  --rc-red: var(--rc-magenta);
+  --rc-red-hover: var(--rc-magenta-hover);
+  --rc-navy: var(--rc-ink);
+  --rc-navy-hover: #0b0f33;
 }
 
-/* ── Page ─────────────────────────────────────────────────────────────── */
 .page {
   min-height: 100vh;
-  background: #ffffff;
-  color: #1a1a2e;
+  background: #f7f7fb;
+  color: var(--rc-ink);
 }
 
-/* ── Hero — full-width banner image ───────────────────────────────────── */
+/* ── Hero ─────────────────────────────────────────────────────────────── */
 .hero {
-  width: 100%;
-  overflow: hidden;
-  line-height: 0;
+  background: linear-gradient(100deg, var(--rc-tint) 0%, #ffffff 60%);
+  border-bottom: 1px solid var(--rc-line);
+  padding: 3rem 1rem 2.25rem;
+}
+.heroInner, .wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.eyebrow {
+  display: inline-block;
+  margin: 0;
+  padding-bottom: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--rc-ink);
+  border-bottom: 4px solid var(--rc-magenta);
+}
+.heroTitle {
+  margin: 1.25rem 0 0.75rem;
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--rc-green);
+}
+.heroTitle span { display: block; color: var(--rc-magenta); }
+.heroLead {
+  margin: 0 0 1.5rem;
+  max-width: 46rem;
+  font-size: 1rem;
+  color: var(--rc-ink);
 }
 
-.heroBanner {
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: cover;
+/* ── Progress pills ───────────────────────────────────────────────────── */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stepPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.4rem;
+  border: 1px solid var(--rc-line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--rc-muted);
+}
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: #eceef6;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--rc-muted);
+}
+.stepActive { border-color: #f3b6cd; color: var(--rc-magenta); background: #fff; }
+.stepActive .stepNum { background: var(--rc-magenta); color: #fff; }
+.stepDone .stepNum { background: var(--rc-green); color: #fff; }
+
+/* ── Main grid ────────────────────────────────────────────────────────── */
+.main { padding: 2.5rem 1rem 1rem; }
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.col { display: flex; flex-direction: column; gap: 1.25rem; }
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 768px) {
-  .heroBanner {
-    min-height: 180px;
-    object-position: left center;
-  }
-}
+.formWrap { width: 100%; }
 
-/* ── Form area — centered below hero ──────────────────────────────────── */
-.formWrap {
-  max-width: 640px;
-  margin: 2rem auto 3rem;
-  padding: 0 1rem;
+.card, .phoneForm, .simCard {
+  background: #fff;
+  border: 1px solid var(--rc-line);
+  border-radius: 18px;
+  padding: 1.75rem;
+  box-shadow: 0 8px 28px rgba(20, 25, 74, 0.07);
+  color: var(--rc-ink);
 }
-
-/* ── Phone form — always white card regardless of site dark mode ──── */
-.phoneForm, .simCard {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 2rem;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  color: #1a1a2e;
+.cardTitle {
+  margin: 0 0 0.3rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--rc-green);
 }
+.cardSub { margin: 0 0 1.25rem; font-size: 0.92rem; color: var(--rc-muted); }
 
 .label {
   display: block;
   font-size: 0.9rem;
-  font-weight: 600;
-  color: #333333;
-  margin-bottom: 0.5rem;
+  font-weight: 700;
+  color: var(--rc-ink);
+  margin-bottom: 0.2rem;
 }
+.hint { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--rc-muted); }
+.req { color: var(--rc-magenta); }
 
-.req { color: var(--rc-pink); }
-
-.phoneInput {
-  width: 100%;
-  padding: 0.85rem 1rem;
-  font-size: 1rem;
-  border: 2px solid var(--rc-teal);
-  border-radius: 6px;
-  outline: none;
-  background: #ffffff;
-  color: #1a1a2e;
-  box-sizing: border-box;
+.phoneRow { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.phoneField {
+  flex: 1 1 14rem;
+  display: flex;
+  align-items: center;
+  border: 1px solid #cfd3e2;
+  border-radius: 12px;
+  background: #fff;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
-.phoneInput:focus {
-  border-color: #00acc1;
-  box-shadow: 0 0 0 3px rgba(0, 191, 165, 0.15);
+.phoneField:focus-within {
+  border-color: var(--rc-magenta);
+  box-shadow: 0 0 0 3px rgba(209, 15, 91, 0.14);
 }
-
+.prefix {
+  padding: 0 0.85rem;
+  font-weight: 700;
+  color: var(--rc-ink);
+  border-right: 1px solid var(--rc-line);
+  line-height: 1.6rem;
+}
+.phoneInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 12px;
+  outline: none;
+  background: transparent;
+  color: var(--rc-ink);
+}
 .phoneInput:disabled { opacity: 0.6; }
 
-.validating {
-  color: var(--rc-teal);
-  font-size: 0.85rem;
-  margin: 0.5rem 0 0;
-}
+.validating { color: var(--rc-muted); font-size: 0.85rem; margin: 0.6rem 0 0; }
+.error { color: #c62828; font-size: 0.85rem; margin: 0.6rem 0 0; }
 
-.error {
-  color: var(--rc-red);
-  font-size: 0.85rem;
-  margin: 0.5rem 0 0;
-}
-
-.validateBtn {
-  margin-top: 1rem;
-  padding: 0.7rem 2rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+.validateBtn, .rechargeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.95rem 1.6rem;
+  font-size: 0.98rem;
+  font-weight: 700;
   color: #fff;
-  background: var(--rc-teal);
+  background: linear-gradient(135deg, #e0176a, var(--rc-magenta-hover));
   border: none;
-  border-radius: 6px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: opacity 0.2s;
+  box-shadow: 0 6px 16px rgba(209, 15, 91, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
 }
-.validateBtn:hover:not(:disabled) { opacity: 0.85; }
-.validateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.validateBtn:hover:not(:disabled), .rechargeBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(209, 15, 91, 0.35);
+}
+.validateBtn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.rechargeBtn { width: 100%; }
+
+.secureNote {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dfe4f6;
+  border-radius: 12px;
+  background: #f1f4fd;
+  font-size: 0.88rem;
+  color: var(--rc-ink);
+}
+.secureNote svg { flex: none; margin-top: 2px; color: #3b4bb0; }
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.25rem 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rc-muted);
+}
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--rc-line); }
+
+.signin {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.signinIcon, .iconBubble {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: #fde4ee;
+  color: var(--rc-magenta);
+}
+.iconBubble { width: 2.6rem; height: 2.6rem; }
+.signinText { flex: 1 1 14rem; }
+.signinText h3 { margin: 0 0 0.2rem; font-size: 1.1rem; font-weight: 800; color: var(--rc-green); }
+.signinText p { margin: 0; font-size: 0.9rem; color: var(--rc-muted); }
+.outlineBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  color: var(--rc-magenta);
+  background: #fff;
+  border: 2px solid var(--rc-magenta);
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.outlineBtn:hover { background: var(--rc-magenta); color: #fff; }
+
+/* ── Side cards ───────────────────────────────────────────────────────── */
+.sideTitle { margin: 0 0 1.1rem; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.01em; color: var(--rc-ink); }
+.can { display: flex; flex-direction: column; gap: 1rem; margin: 0 0 1.1rem; padding: 0; list-style: none; }
+.can li { display: flex; gap: 1rem; align-items: center; }
+.can .iconBubble { width: 3.4rem; height: 3.4rem; flex: none; }
+.can .iconBubble svg { width: 1.4rem; height: 1.4rem; }
+.can strong { display: block; font-size: 1.05rem; font-weight: 800; line-height: 1.3; color: var(--rc-ink); }
+.can div span { display: block; margin-top: 0.15rem; font-size: 0.95rem; line-height: 1.4; color: var(--rc-muted); }
+.sideNote { margin: 0; font-size: 0.98rem; line-height: 1.5; color: var(--rc-muted); }
+.sideText { margin: 0 0 0.75rem; font-size: 0.98rem; line-height: 1.5; color: var(--rc-muted); }
+.textLink { font-weight: 700; font-size: 0.9rem; color: var(--rc-magenta); text-decoration: none; }
+.textLink:hover { text-decoration: underline; }
+
+/* ── FAQ ──────────────────────────────────────────────────────────────── */
+.faq { padding: 1rem 0 3.5rem; }
+.faqTitle { margin: 1.5rem 0 1rem; font-size: 1.7rem; font-weight: 800; color: var(--rc-green); }
+.faqBox {
+  max-width: 62rem;
+  padding: 0.5rem 1.75rem;
+  background: #fff;
+  border: 1px solid var(--rc-line);
+  border-radius: 18px;
+  box-shadow: 0 8px 28px rgba(20, 25, 74, 0.06);
+}
+.faqItem { border-bottom: 1px solid var(--rc-line); }
+.faqItem:last-child { border-bottom: none; }
+.faqItem summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 0;
+  font-weight: 700;
+  color: var(--rc-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.faqItem summary::-webkit-details-marker { display: none; }
+.faqItem summary::after {
+  content: "";
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid var(--rc-magenta);
+  border-bottom: 2px solid var(--rc-magenta);
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+.faqItem[open] summary::after { transform: rotate(-135deg); }
+.faqItem p { margin: 0 0 1.1rem; font-size: 0.92rem; color: var(--rc-muted); }
 
 /* ── SIM details ─────────────────────────────────────────────────────── */
 .validated {
