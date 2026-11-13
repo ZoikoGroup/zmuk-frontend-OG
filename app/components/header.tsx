@@ -1171,28 +1171,6 @@ export default function Header() {
                     <div className="h-px w-full bg-gray-200 dark:bg-gray-800" />
 
                     <Link
-                      href="/data-only-plans"
-                      className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400">
-                          <Wifi className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400">
-                            Business Data Options
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 leading-tight">
-                            Explore data-only connectivity for business devices.
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-rose-600 dark:group-hover:text-rose-400" />
-                    </Link>
-
-                    <div className="h-px w-full bg-gray-200 dark:bg-gray-800" />
-
-                    <Link
                       href="/international-calling"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
@@ -1310,7 +1288,7 @@ export default function Header() {
                       <span className="text-rose-600 dark:text-rose-400">business</span> connected.
                     </h4>
                     <p className="mt-2 text-xs text-zinc-700 dark:text-gray-300 leading-relaxed">
-                      Flexible business SIM plans and data options for teams, anywhere in the UK and abroad.
+                      Flexible business SIM plans for teams, anywhere in the UK and abroad.
                     </p>
 
                     <Link
@@ -2088,13 +2066,6 @@ export default function Header() {
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >
                   Business SIM-Only Plans
-                </Link>
-                <Link
-                  href="/data-only-plans"
-                  onClick={() => setMobileOpen(false)}
-                  className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
-                >
-                  Business Data Options
                 </Link>
                 <Link
                   href="/contact-us"

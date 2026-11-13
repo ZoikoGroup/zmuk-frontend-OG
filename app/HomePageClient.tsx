@@ -275,18 +275,18 @@ export default function ZoikoMobileHome() {
       
       {/* ─── 1. HERO SECTION ───────────────────────────────────────────────── */}
       <section className="relative w-full overflow-hidden bg-gradient-to-r from-[#F6F6F8] via-[#F9F9FB] via-35% to-white to-55% min-h-0 md:min-h-[520px] lg:min-h-[572px] flex items-center">
-        {/* Right-aligned Hero Photo on tablet/desktop (66% width matching 950.39 / 1440 Figma frame) */}
-        <div className="hidden md:block absolute right-0 top-0 w-[66%] h-full pointer-events-none z-0">
+        {/* Right-aligned Hero Photo (66% width on desktop, full-bleed on mobile with smooth blend) */}
+        <div className="absolute right-0 top-0 w-full md:w-[66%] h-full pointer-events-none z-0 overflow-hidden">
           <Image
             src="/images/updated-home-page/A smiling woman wearing headphones.png"
             alt="Smiling woman wearing headphones with dog in London"
             fill
             priority
-            className="object-cover object-center"
-            sizes="66vw"
+            className="object-cover object-[78%_top] sm:object-[75%_top] md:object-center"
+            sizes="(max-width: 768px) 100vw, 66vw"
           />
-          {/* Left-edge gradient melt matching Figma 6% -> 28% */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#F8F9FA] via-[#F8F9FA]/90 via-[8%] to-transparent to-[32%]" />
+          {/* Left-edge gradient melt to ensure text readability on all viewports */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#F6F6F8] via-[#F6F6F8]/85 via-[48%] sm:via-[35%] to-transparent to-[82%] sm:to-[55%]" />
         </div>
 
         {/* Bottom Curved / Slanted Accent Band & White Floor (Figma top-[443.35px] frame) */}
@@ -325,77 +325,68 @@ export default function ZoikoMobileHome() {
           </svg>
         </div>
 
-        {/* Left Hero Content (Pinned cleanly to left side; stacks with mobile photo on < md) */}
-        <div className="relative z-20 w-full px-4 sm:px-8 lg:px-12 pt-6 sm:pt-8 lg:pt-7 pb-14 sm:pb-24 lg:pb-36">
-          <div className="w-full md:max-w-[56%] lg:max-w-[680px] xl:max-w-[777.60px] mr-auto flex flex-col items-start text-left gap-4 sm:gap-5">
+        {/* Left Hero Content */}
+        <div className="relative z-20 w-full px-4 sm:px-8 lg:px-12 pt-6 sm:pt-8 lg:pt-7 pb-12 sm:pb-24 lg:pb-36">
+          <div className="w-full md:max-w-[56%] lg:max-w-[680px] xl:max-w-[777.60px] mr-auto flex flex-col items-start text-left gap-3.5 sm:gap-5">
             {/* Tagline & Divider */}
-            <div className="flex flex-col items-start gap-2">
-              <span className="text-[#141A45] text-[11px] sm:text-sm lg:text-base font-extrabold uppercase leading-5 sm:leading-6 tracking-[1.8px] sm:tracking-[3px] lg:tracking-[4.07px]">
+            <div className="flex flex-col items-start gap-1.5 sm:gap-2">
+              <span className="text-[#141A45] text-[11px] sm:text-sm lg:text-base font-extrabold uppercase leading-tight sm:leading-6 tracking-[1.8px] sm:tracking-[3px] lg:tracking-[4.07px]">
                 The Animal &amp; Music Loving Network
               </span>
-              <div className="w-24 sm:w-32 h-1 bg-[#E81D5F] rounded-xs" />
+              <div className="w-20 sm:w-32 h-1 bg-[#E81D5F] rounded-xs" />
             </div>
 
             {/* Main Heading */}
-            <h1 className="pt-0.5 sm:pt-1.5 flex flex-col items-start gap-0.5 text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight sm:leading-[48px] lg:leading-[54px] tracking-tight">
+            <h1 className="pt-0.5 sm:pt-1.5 flex flex-col items-start gap-0.5 text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight sm:leading-[48px] lg:leading-[54px] tracking-tight">
               <span className="text-[#0D4A36]">Stay connected to</span>
               <span className="text-[#C80F57]">what you love.</span>
             </h1>
 
-            {/* Subheading */}
-            <p className="w-full max-w-[654.80px] text-[#141A45] text-base sm:text-xl lg:text-2xl font-medium leading-6 sm:leading-7 lg:leading-8">
-              Flexible mobile plans, easy switching and more freedom to
-              <br className="hidden sm:inline" /> stay connected across the UK and beyond.
+            {/* Subheading - Drops 'and more' to the line below so it never covers the woman's face/mouth */}
+            <p className="w-full max-w-[280px] xs:max-w-[340px] sm:max-w-[500px] lg:max-w-[654.80px] text-[#141A45] text-sm xs:text-base sm:text-xl lg:text-2xl font-medium leading-snug sm:leading-7 lg:leading-8">
+              Flexible mobile plans, easy switching
+              <br />
+              and more freedom to
+              <br className="inline sm:hidden" />
+              <span className="inline sm:ml-1.5">stay connected across the UK and beyond.</span>
             </p>
 
-            {/* Mobile-only Hero Photo Preview (< 768px) */}
-            <div className="block md:hidden relative w-full h-48 sm:h-60 rounded-2xl overflow-hidden border border-pink-100 shadow-sm">
-              <Image
-                src="/images/updated-home-page/A smiling woman wearing headphones.png"
-                alt="Smiling woman wearing headphones with dog in London"
-                fill
-                priority
-                className="object-cover object-center"
-                sizes="100vw"
-              />
-            </div>
-
             {/* Frosted Deal Card */}
-            <div className="w-full sm:w-auto px-5 py-4 sm:px-6 sm:pt-5 sm:pb-3.5 relative bg-gradient-to-r from-[#F0F1F5]/90 to-[#F6F7FA]/90 rounded-2xl sm:rounded-3xl outline outline-1 outline-offset-[-1px] outline-[#F9C6DA] backdrop-blur-[6px] shadow-[0px_14px_30px_-18px_rgba(200,15,87,0.45)] flex sm:inline-flex flex-col sm:flex-row items-start sm:items-center">
-              <div className="w-full sm:w-auto pb-3.5 sm:pb-0 sm:pr-9 border-b sm:border-b-0 sm:border-r-2 border-[#F5B8D0] flex flex-col items-start gap-0.5 sm:gap-1">
-                <div className="text-[#C80F57] text-3xl sm:text-4xl font-extrabold leading-9">30GB</div>
-                <div className="text-[#C80F57] text-base sm:text-lg font-medium leading-6 sm:leading-7">
+            <div className="w-full max-w-[340px] sm:max-w-none sm:w-auto px-4 py-3 sm:px-6 sm:pt-5 sm:pb-3.5 relative bg-gradient-to-r from-[#F0F1F5]/90 to-[#F6F7FA]/90 rounded-2xl sm:rounded-3xl outline outline-1 outline-offset-[-1px] outline-[#F9C6DA] backdrop-blur-[6px] shadow-[0px_14px_30px_-18px_rgba(200,15,87,0.45)] inline-flex flex-row items-center">
+              <div className="pr-3.5 sm:pr-9 border-r-2 border-[#F5B8D0] flex flex-col items-start gap-0.5 sm:gap-1 shrink-0">
+                <div className="text-[#C80F57] text-2xl sm:text-4xl font-extrabold leading-tight">30GB</div>
+                <div className="text-[#C80F57] text-xs sm:text-lg font-medium leading-tight">
                   Unlimited UK Calls &amp; Texts
                 </div>
               </div>
-              <div className="w-full sm:w-auto sm:pl-9 pt-3.5 sm:pt-0 flex flex-col items-start">
-                <div className="text-[#141A45] text-base sm:text-lg font-medium leading-6 sm:leading-7">From just</div>
+              <div className="pl-3.5 sm:pl-9 flex flex-col items-start min-w-0">
+                <div className="text-[#141A45] text-xs sm:text-lg font-medium leading-tight">From just</div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-[#C80F57] text-3xl sm:text-4xl font-extrabold leading-9 sm:leading-10">£16.99</span>
-                  <span className="text-[#C80F57] text-lg sm:text-xl font-medium leading-6">/month</span>
+                  <span className="text-[#C80F57] text-2xl sm:text-4xl font-extrabold leading-tight">£16.99</span>
+                  <span className="text-[#C80F57] text-sm sm:text-xl font-medium leading-tight">/month</span>
                 </div>
-                <div className="text-[#4E5A8A] text-[11px] sm:text-xs font-normal leading-4 mt-0.5">
-                  Zoiko Max 30GB · 24-month contract · observed price
+                <div className="text-[#4E5A8A] text-[10px] sm:text-xs font-normal leading-tight mt-0.5 truncate">
+                  Zoiko Max 30GB · 24-month contract
                 </div>
               </div>
             </div>
 
             {/* Hero CTA Buttons */}
-            <div className="w-full sm:w-auto pt-1 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3.5 sm:gap-5">
+            <div className="w-full sm:w-auto pt-1 flex flex-row flex-wrap items-center gap-2.5 sm:gap-5">
               <a
                 href="#plans"
-                className="w-full sm:w-auto sm:min-w-[224px] min-h-12 sm:min-h-14 px-6 sm:px-8 py-3 rounded-full bg-gradient-to-b from-[#FA2268] to-[#C80F57] shadow-[0px_12px_24px_-10px_rgba(200,15,87,0.60)] text-white text-base sm:text-xl font-extrabold leading-6 hover:brightness-105 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                className="flex-1 sm:flex-initial sm:min-w-[200px] min-h-11 sm:min-h-14 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full bg-gradient-to-b from-[#FA2268] to-[#C80F57] shadow-[0px_12px_24px_-10px_rgba(200,15,87,0.60)] text-white text-sm sm:text-xl font-extrabold leading-6 hover:brightness-105 transition-all flex items-center justify-center gap-1.5 sm:gap-2 group cursor-pointer"
               >
                 <span>View Plans</span>
-                <ChevronRight className="w-5 h-5 stroke-[2.4] transition-transform group-hover:translate-x-1" />
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4] transition-transform group-hover:translate-x-1" />
               </a>
 
               <Link
                 href="/switch-and-save"
-                className="w-full sm:w-auto sm:min-w-[256px] min-h-12 sm:min-h-14 px-6 sm:px-8 py-3 rounded-full bg-white/90 outline outline-2 outline-offset-[-2px] outline-[#E81D5F] text-[#C80F57] text-base sm:text-xl font-extrabold leading-6 hover:bg-pink-50 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                className="flex-1 sm:flex-initial sm:min-w-[220px] min-h-11 sm:min-h-14 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full bg-white/90 outline outline-2 outline-offset-[-2px] outline-[#E81D5F] text-[#C80F57] text-sm sm:text-xl font-extrabold leading-6 hover:bg-pink-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2 group cursor-pointer"
               >
                 <span>Switch &amp; Save</span>
-                <ChevronRight className="w-5 h-5 stroke-[2.4] text-[#C80F57] transition-transform group-hover:translate-x-1" />
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4] text-[#C80F57] transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
           </div>
@@ -403,16 +394,16 @@ export default function ZoikoMobileHome() {
       </section>
 
       {/* ─── 2. QUICK NAVIGATION RIBBON (Full-Width Left-to-Right Bar) ─── */}
-      <section className="relative z-20 w-full -mt-8 sm:-mt-12 lg:-mt-16">
-        <div className="w-full bg-gradient-to-b from-[#F9FAFB] to-[#F4F5F7] rounded-none px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 border-y border-slate-200/90 shadow-[0px_18px_40px_-26px_rgba(20,26,69,0.35)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 lg:divide-x divide-[#D5EDE2]">
+      <section className="relative z-20 w-full -mt-6 sm:-mt-10 lg:-mt-14">
+        <div className="w-full bg-gradient-to-b from-[#F9FAFB] to-[#F4F5F7] rounded-none px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 border-y border-slate-200/90 shadow-[0px_18px_40px_-26px_rgba(20,26,69,0.35)] grid grid-cols-2 lg:grid-cols-4 divide-[#D5EDE2]">
           
           {/* 1. Personal SIM-only */}
           <Link
             href="/plans"
-            className="flex items-center gap-3.5 px-3 sm:px-4 py-3.5 sm:py-4 rounded-[20px] hover:bg-white/80 transition group cursor-pointer sm:border-b sm:border-r lg:border-b-0 lg:border-r-0 border-[#D5EDE2]"
+            className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-xl sm:rounded-[20px] hover:bg-white/80 transition group cursor-pointer border-r border-b lg:border-b-0 border-[#D5EDE2]"
           >
             <div className="text-[#E01C5B] shrink-0 group-hover:scale-105 transition-transform">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 sm:w-10 sm:h-10">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-10 sm:h-10">
                 <path d="M7.3 2.5H13.5L18.5 7.5V19.7A1.8 1.8 0 0 1 16.7 21.5H7.3A1.8 1.8 0 0 1 5.5 19.7V4.3A1.8 1.8 0 0 1 7.3 2.5Z" />
                 <rect x="8.5" y="11" width="7" height="6.5" rx="1" />
                 <path d="M12 11v6.5" />
@@ -420,69 +411,71 @@ export default function ZoikoMobileHome() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-5">
+              <div className="text-xs sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-tight sm:leading-5 truncate">
                 Personal SIM-only
               </div>
-              <div className="text-xs sm:text-sm text-slate-600 leading-4 sm:leading-5 mt-0.5 sm:mt-1">Flexible plans for everyday life</div>
+              <div className="text-[10px] sm:text-sm text-slate-600 leading-tight sm:leading-5 mt-0.5 sm:mt-1 line-clamp-2">
+                Flexible plans for everyday life
+              </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
+            <ChevronRight className="hidden sm:block w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
           </Link>
 
           {/* 2. Business SIM-only */}
           <Link
             href="/business-deals_sim-only-plans"
-            className="flex items-center gap-3.5 px-3 sm:px-4 py-3.5 sm:py-4 rounded-[20px] hover:bg-white/80 transition group cursor-pointer sm:border-b lg:border-b-0 border-[#D5EDE2]"
+            className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-xl sm:rounded-[20px] hover:bg-white/80 transition group cursor-pointer border-b lg:border-b-0 lg:border-r border-[#D5EDE2]"
           >
             <div className="text-[#E01C5B] shrink-0 group-hover:scale-105 transition-transform">
-              <Briefcase className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.8]" />
+              <Briefcase className="w-6 h-6 sm:w-10 sm:h-10 stroke-[1.8]" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-5">
+              <div className="text-xs sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-tight sm:leading-5 truncate">
                 Business SIM-only
               </div>
-              <div className="text-xs sm:text-sm text-slate-600 leading-4 sm:leading-5 mt-0.5 sm:mt-1">
-                Reliable, cost-effective mobile<br className="hidden xl:inline" /> for your business
+              <div className="text-[10px] sm:text-sm text-slate-600 leading-tight sm:leading-5 mt-0.5 sm:mt-1 line-clamp-2">
+                Reliable mobile for your business
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
+            <ChevronRight className="hidden sm:block w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
           </Link>
 
           {/* 3. Data-only SIMs */}
           <Link
             href="/data-only-plans"
-            className="flex items-center gap-3.5 px-3 sm:px-4 py-3.5 sm:py-4 rounded-[20px] hover:bg-white/80 transition group cursor-pointer sm:border-r lg:border-r-0 border-[#D5EDE2]"
+            className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-xl sm:rounded-[20px] hover:bg-white/80 transition group cursor-pointer border-r lg:border-r border-[#D5EDE2]"
           >
             <div className="text-[#E01C5B] shrink-0 group-hover:scale-105 transition-transform">
-              <Layers className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.8]" />
+              <Layers className="w-6 h-6 sm:w-10 sm:h-10 stroke-[1.8]" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-5">
+              <div className="text-xs sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-tight sm:leading-5 truncate">
                 Data-only SIMs
               </div>
-              <div className="text-xs sm:text-sm text-slate-600 leading-4 sm:leading-5 mt-0.5 sm:mt-1">
-                Stay connected on your tablet,<br className="hidden xl:inline" /> router or device
+              <div className="text-[10px] sm:text-sm text-slate-600 leading-tight sm:leading-5 mt-0.5 sm:mt-1 line-clamp-2">
+                For tablets, routers &amp; devices
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
+            <ChevronRight className="hidden sm:block w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
           </Link>
 
           {/* 4. Phones & Devices */}
           <Link
             href="/devices"
-            className="flex items-center gap-3.5 px-3 sm:px-4 py-3.5 sm:py-4 rounded-[20px] hover:bg-white/80 transition group cursor-pointer"
+            className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-xl sm:rounded-[20px] hover:bg-white/80 transition group cursor-pointer"
           >
             <div className="text-[#E01C5B] shrink-0 group-hover:scale-105 transition-transform">
-              <Smartphone className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.8]" />
+              <Smartphone className="w-6 h-6 sm:w-10 sm:h-10 stroke-[1.8]" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-5">
+              <div className="text-xs sm:text-base font-extrabold text-[#0D382D] group-hover:text-[#E01C5B] transition leading-tight sm:leading-5 truncate">
                 Phones &amp; Devices
               </div>
-              <div className="text-xs sm:text-sm text-slate-600 leading-4 sm:leading-5 mt-0.5 sm:mt-1">
-                Great value phones, including<br className="hidden xl:inline" /> refurbished options
+              <div className="text-[10px] sm:text-sm text-slate-600 leading-tight sm:leading-5 mt-0.5 sm:mt-1 line-clamp-2">
+                Great value phones &amp; options
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
+            <ChevronRight className="hidden sm:block w-5 h-5 text-[#E01C5B] group-hover:translate-x-1 transition ml-1 shrink-0" />
           </Link>
 
         </div>
@@ -537,11 +530,11 @@ export default function ZoikoMobileHome() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Section Header */}
-        <div className="relative z-10 text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-5xl sm:text-6xl font-extrabold text-[#0D382D] tracking-tight">
+        <div className="relative z-10 text-center max-w-3xl mx-auto mb-8 sm:mb-10 px-2 sm:px-0">
+          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#0D382D] tracking-tight">
             Find your fit
           </h2>
-          <div className="mt-3 flex items-center justify-center gap-1.5 text-xl sm:text-2xl text-slate-700 font-normal">
+          <div className="mt-2 sm:mt-3 flex flex-wrap items-center justify-center gap-1.5 text-sm sm:text-xl lg:text-2xl text-slate-700 font-normal">
             <span>Plans for you, your</span>
             <span className="relative font-normal text-slate-800 px-1">
               business
@@ -554,59 +547,59 @@ export default function ZoikoMobileHome() {
         </div>
 
         {/* Category Switcher Pill Container (Figma 1190px pill) */}
-        <div className="relative z-10 flex justify-center mb-8">
-          <div className="w-full max-w-4xl p-1.5 bg-white rounded-full border border-slate-200/90 shadow-[0_10px_26px_-18px_rgba(20,26,69,0.25)] flex flex-wrap sm:flex-nowrap items-center justify-center gap-2">
+        <div className="relative z-10 flex justify-center mb-6 sm:mb-8 px-1 sm:px-0">
+          <div className="w-full max-w-4xl p-1 sm:p-1.5 bg-white rounded-full border border-slate-200/90 shadow-[0_10px_26px_-18px_rgba(20,26,69,0.25)] flex items-center justify-center gap-1 sm:gap-2">
             
             {/* Personal SIM-only */}
             <button
               onClick={() => setCategoryTab("personal")}
-              className={`flex-1 min-h-[52px] px-6 sm:px-10 py-3 rounded-full text-base sm:text-lg font-extrabold transition-all flex items-center justify-center gap-3 cursor-pointer ${
+              className={`flex-1 min-h-[42px] sm:min-h-[52px] px-2 sm:px-10 py-2 sm:py-3 rounded-full text-xs xs:text-sm sm:text-lg font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-3 cursor-pointer ${
                 categoryTab === "personal"
                   ? "bg-gradient-to-r from-[#E01C5B] to-[#C80F57] text-white shadow-[0_10px_22px_-12px_rgba(200,15,87,0.7)]"
                   : "text-[#0D382D] hover:text-[#E01C5B] hover:bg-slate-50"
               }`}
             >
-              <User className={`w-5 h-5 stroke-[2.2] ${categoryTab === "personal" ? "text-white" : "text-[#E01C5B]"}`} />
-              <span>Personal SIM-only</span>
+              <User className={`w-3.5 h-3.5 sm:w-5 sm:h-5 stroke-[2.2] shrink-0 ${categoryTab === "personal" ? "text-white" : "text-[#E01C5B]"}`} />
+              <span className="truncate">Personal SIM-only</span>
             </button>
 
             {/* Business SIM-only */}
             <button
               onClick={() => setCategoryTab("business")}
-              className={`flex-1 min-h-[52px] px-6 sm:px-10 py-3 rounded-full text-base sm:text-lg font-extrabold transition-all flex items-center justify-center gap-3 cursor-pointer ${
+              className={`flex-1 min-h-[42px] sm:min-h-[52px] px-2 sm:px-10 py-2 sm:py-3 rounded-full text-xs xs:text-sm sm:text-lg font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-3 cursor-pointer ${
                 categoryTab === "business"
                   ? "bg-gradient-to-r from-[#E01C5B] to-[#C80F57] text-white shadow-[0_10px_22px_-12px_rgba(200,15,87,0.7)]"
                   : "text-[#0D382D] hover:text-[#E01C5B] hover:bg-slate-50"
               }`}
             >
-              <Briefcase className={`w-5 h-5 stroke-[2.2] ${categoryTab === "business" ? "text-white" : "text-[#E01C5B]"}`} />
-              <span>Business SIM-only</span>
+              <Briefcase className={`w-3.5 h-3.5 sm:w-5 sm:h-5 stroke-[2.2] shrink-0 ${categoryTab === "business" ? "text-white" : "text-[#E01C5B]"}`} />
+              <span className="truncate">Business SIM-only</span>
             </button>
 
             {/* Data-only SIMs */}
             <button
               onClick={() => setCategoryTab("data-only")}
-              className={`flex-1 min-h-[52px] px-6 sm:px-10 py-3 rounded-full text-base sm:text-lg font-extrabold transition-all flex items-center justify-center gap-3 cursor-pointer ${
+              className={`flex-1 min-h-[42px] sm:min-h-[52px] px-2 sm:px-10 py-2 sm:py-3 rounded-full text-xs xs:text-sm sm:text-lg font-extrabold transition-all flex items-center justify-center gap-1.5 sm:gap-3 cursor-pointer ${
                 categoryTab === "data-only"
                   ? "bg-gradient-to-r from-[#E01C5B] to-[#C80F57] text-white shadow-[0_10px_22px_-12px_rgba(200,15,87,0.7)]"
                   : "text-[#0D382D] hover:text-[#E01C5B] hover:bg-slate-50"
               }`}
             >
-              <Layers className={`w-5 h-5 stroke-[2.2] ${categoryTab === "data-only" ? "text-white" : "text-[#E01C5B]"}`} />
-              <span>Data-only SIMs</span>
+              <Layers className={`w-3.5 h-3.5 sm:w-5 sm:h-5 stroke-[2.2] shrink-0 ${categoryTab === "data-only" ? "text-white" : "text-[#E01C5B]"}`} />
+              <span className="truncate">Data-only SIMs</span>
             </button>
           </div>
         </div>
 
         {/* Contract Duration Switcher */}
-        <div className="relative z-10 flex flex-wrap items-center justify-center gap-5 sm:gap-7 mb-12">
+        <div className="relative z-10 flex flex-wrap items-center justify-center gap-3 sm:gap-7 mb-10 sm:mb-12 px-2">
           
           {/* Label with pink calendar icon & vertical divider */}
-          <div className="flex items-center gap-3 pr-0 sm:pr-7 sm:border-r border-slate-300">
-            <div className="w-8 h-8 rounded-lg bg-pink-50 border border-pink-200/80 flex items-center justify-center text-[#E01C5B]">
-              <Calendar className="w-4 h-4 stroke-[2.4]" />
+          <div className="flex items-center gap-2 sm:gap-3 pr-0 sm:pr-7 sm:border-r border-slate-300">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-pink-50 border border-pink-200/80 flex items-center justify-center text-[#E01C5B]">
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.4]" />
             </div>
-            <span className="text-[#0D382D] font-extrabold text-lg sm:text-xl">
+            <span className="text-[#0D382D] font-extrabold text-sm sm:text-xl">
               Choose your contract length
             </span>
           </div>
@@ -615,7 +608,7 @@ export default function ZoikoMobileHome() {
           <div className="bg-white rounded-full border border-slate-200/90 shadow-[0px_1px_2px_0px_rgba(20,26,69,0.05)] flex items-center overflow-hidden">
             <button
               onClick={() => setDurationTab("24-months")}
-              className={`w-36 min-h-11 px-4 py-2.5 rounded-full font-bold text-base transition-all cursor-pointer ${
+              className={`w-24 sm:w-36 min-h-9 sm:min-h-11 px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-full font-bold text-xs sm:text-base transition-all cursor-pointer ${
                 durationTab === "24-months"
                   ? "bg-gradient-to-b from-[#FA2268] to-[#E01C5B] text-white shadow-sm"
                   : "text-[#0D382D] hover:text-[#E01C5B]"
@@ -625,7 +618,7 @@ export default function ZoikoMobileHome() {
             </button>
             <button
               onClick={() => setDurationTab("12-months")}
-              className={`w-36 min-h-11 px-4 py-2.5 rounded-full font-bold text-base transition-all cursor-pointer ${
+              className={`w-24 sm:w-36 min-h-9 sm:min-h-11 px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-full font-bold text-xs sm:text-base transition-all cursor-pointer ${
                 durationTab === "12-months"
                   ? "bg-gradient-to-b from-[#FA2268] to-[#E01C5B] text-white shadow-sm"
                   : "text-[#0D382D] hover:text-[#E01C5B]"
@@ -635,7 +628,7 @@ export default function ZoikoMobileHome() {
             </button>
             <button
               onClick={() => setDurationTab("30-days")}
-              className={`w-36 min-h-11 px-4 py-2.5 rounded-full font-bold text-base transition-all cursor-pointer ${
+              className={`w-24 sm:w-36 min-h-9 sm:min-h-11 px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-full font-bold text-xs sm:text-base transition-all cursor-pointer ${
                 durationTab === "30-days"
                   ? "bg-gradient-to-b from-[#FA2268] to-[#E01C5B] text-white shadow-sm"
                   : "text-[#0D382D] hover:text-[#E01C5B]"
