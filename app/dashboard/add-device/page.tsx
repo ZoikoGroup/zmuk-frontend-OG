@@ -106,7 +106,7 @@ export default function AddDevicePage() {
   };
 
   // ---------- Progress Bar ----------
-  const ProgressBar = () => (
+  const renderProgressBar = () => (
     <div className="w-full bg-gray-200 rounded-full h-1.5 mb-4">
       <div
         className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
@@ -270,7 +270,7 @@ export default function AddDevicePage() {
 
             {/* Main Steps */}
             <div className="lg:col-span-2">
-              <ProgressBar />
+              {renderProgressBar()}
               {step === 1 && renderStep1()}
               {step === 2 && renderStep2()}
               {step === 3 && renderStep3()}

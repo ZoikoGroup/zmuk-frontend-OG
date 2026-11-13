@@ -195,6 +195,13 @@ const FIELD_ORDER: { err: string; focus: string }[] = [
     { err: "declarationDate", focus: "declarationDate" },
 ];
 
+const ErrorText = ({ id, msg }: { id: string; msg?: string }) =>
+    msg ? (
+        <p id={id} className="mt-1 text-sm text-red-500">
+            {msg}
+        </p>
+    ) : null;
+
 export default function StudentDiscountApplication() {
     const initialFormData: FormData = {
         fullName: "",
@@ -414,13 +421,6 @@ export default function StudentDiscountApplication() {
             ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
             : "border-gray-300 dark:border-zinc-700 focus:border-emerald-500 focus:ring-emerald-500/20"
         }`;
-
-    const ErrorText = ({ id, msg }: { id: string; msg?: string }) =>
-        msg ? (
-            <p id={id} className="mt-1 text-sm text-red-500">
-                {msg}
-            </p>
-        ) : null;
 
     return (
         <>

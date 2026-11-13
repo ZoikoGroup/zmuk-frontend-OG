@@ -1427,7 +1427,7 @@ export default function ZoikoMobileHome() {
 
           <div className="mt-4 text-xs text-slate-500 flex items-center justify-center gap-1.5">
             <Radio className="w-3.5 h-3.5 text-[#E01C5B]" />
-            <span>Opens live UK EE coverage map powered by the UK's No.1 network</span>
+            <span>Opens live UK EE coverage map powered by the UK&apos;s No.1 network</span>
           </div>
 
         </div>

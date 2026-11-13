@@ -156,6 +156,8 @@ function AddNewNumberContent() {
   const [portOldNumber, setPortOldNumber] = useState<string>("");
   const [portCode, setPortCode] = useState<string>("");
   const [wishedDate, setWishedDate] = useState<string>("");
+  // Earliest selectable port date (tomorrow), computed once to keep render pure.
+  const [minPortDate] = useState(() => new Date(Date.now() + 86400000).toISOString().split("T")[0]);
   const [portChecking, setPortChecking] = useState<boolean>(false);
   const [portCheckError, setPortCheckError] = useState<string | null>(null);
   const [portFormatOkMessage, setPortFormatOkMessage] = useState<string | null>(null);
@@ -1220,7 +1222,7 @@ function AddNewNumberContent() {
                       </label>
                       <input
                         type="date"
-                        min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+                        min={minPortDate}
                         value={wishedDate}
                         onChange={(e) => {
                           setWishedDate(e.target.value);
