@@ -58,6 +58,10 @@ interface PlanItem {
   terms: string;
   promoSubtext?: string;
   promoNotice?: string;
+  /** contract lengths the backend has a price for */
+  hasMonthly: boolean;
+  has12: boolean;
+  has24: boolean;
 }
 
 interface UserLine {
@@ -70,11 +74,12 @@ interface UserLine {
   status: string;
 }
 
-function computeDynamicPromoNotice(): string {
-  const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const formatted = lastDay.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  return `Offer ends 23:59 GMT, ${formatted}`;
+// Only shown when the backend sends an offer end date (no invented dates).
+function promoNoticeFrom(raw: any): string | undefined {
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return undefined;
+  return `Offer ends ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 function parseGb(val: any, fallbackName: string): number {
@@ -93,6 +98,16 @@ function formatDataAllowance(val: any, name: string): string {
   if (str.includes("unlimited")) return "Unlimited";
   const gb = parseGb(val, name);
   return `${gb} GB`;
+}
+
+// Contract terms come from which prices the backend actually has for the plan.
+function termsFor(p: any): string {
+  const parts: string[] = [];
+  if (p.price_30 != null) parts.push("30-day rolling");
+  if (p.price_12 != null) parts.push("12-month");
+  if (p.price_24 != null) parts.push("24-month");
+  parts.push("prices include VAT");
+  return parts.join(" · ");
 }
 
 function mapApiPlanToItem(p: any): PlanItem {
@@ -121,17 +136,15 @@ function mapApiPlanToItem(p: any): PlanItem {
       !allText.includes("no roaming") &&
       !allText.includes("roaming not included"));
 
-  const roamingStr = roamingFeature || (roamingIncluded ? "EU roaming included" : "Not included");
+  const roamingStr = roamingFeature || (roamingIncluded ? "EU roaming included" : "Not confirmed");
 
-  const roamingDetailsStr = roamingIncluded
-    ? "Fair use policy applies"
-    : "EU Day Pass available";
+  const roamingDetailsStr = roamingIncluded ? "Fair use policy applies" : "";
 
   const callsFeature = featuresList.find((f) => f.toLowerCase().includes("call"));
-  const callsStr = callsFeature || "Unlimited UK calls";
+  const callsStr = callsFeature || "Not confirmed";
 
   const textsFeature = featuresList.find((f) => f.toLowerCase().includes("text"));
-  const textsStr = textsFeature || "Unlimited UK texts";
+  const textsStr = textsFeature || "Not confirmed";
 
   const tier: "5G" | "4G" = is5G ? "5G" : "4G";
 
@@ -153,9 +166,14 @@ function mapApiPlanToItem(p: any): PlanItem {
     roaming: roamingStr,
     roamingDetails: roamingDetailsStr,
     is5G: is5G,
-    terms: "Monthly rolling · no exit fee · prices include VAT · no price rises announced",
-    promoSubtext: isDiscounted ? `for 3 months, then £${standardPrice.toFixed(2)} a month` : undefined,
-    promoNotice: isDiscounted ? computeDynamicPromoNotice() : undefined,
+    terms: termsFor(p),
+    promoSubtext: isDiscounted
+      ? `${p.promo_months ? `for ${p.promo_months} months, ` : ""}then £${standardPrice.toFixed(2)} a month`
+      : undefined,
+    promoNotice: isDiscounted ? promoNoticeFrom(p.promo_ends || p.offer_ends || p.offer_end_date) : undefined,
+    hasMonthly: p.price_30 != null,
+    has12: p.price_12 != null,
+    has24: p.price_24 != null,
   };
 }
 
@@ -177,18 +195,12 @@ function computeDynamicRenewalDate(dateStr?: string | Date): string {
 
 function computeDynamicCheckedAt(): string {
   const now = new Date();
-  return `${now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} BST, ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
-}
-
-function computeCatalogueCode(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}-A`;
+  const tz = new Intl.DateTimeFormat("en-GB", { timeZoneName: "short" }).formatToParts(now).find((x) => x.type === "timeZoneName")?.value || "";
+  return `${now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} ${tz}, ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`.replace(" ,", ",");
 }
 
 function formatUkNumber(mdn?: string | number): string {
-  if (!mdn) return "07700 900123";
+  if (!mdn) return "No number on file";
   let s = String(mdn).replace(/\D/g, "");
   if (s.startsWith("44")) s = "0" + s.slice(2);
   if (s.length === 10 && !s.startsWith("0")) s = "0" + s;
@@ -287,7 +299,7 @@ export default function ComparePlansPage() {
   const [plansLoading, setPlansLoading] = useState(true);
   const [lines, setLines] = useState<UserLine[]>(() => {
     if (typeof window === "undefined") return [];
-    const savedPlanName = localStorage.getItem("zoiko_active_plan") || "Zoiko Max 100GB";
+    const savedPlanName = localStorage.getItem("zoiko_active_plan") || "";
     const userPhone =
       initialUser?.phone_number ||
       initialUser?.phone ||
@@ -295,16 +307,12 @@ export default function ComparePlansPage() {
       initialUser?.mobile ||
       localStorage.getItem("zoiko_user_phone") ||
       "";
-    const planId = savedPlanName.toLowerCase().includes("lite")
-      ? "plan-lite"
-      : savedPlanName.toLowerCase().includes("unlimited")
-      ? "plan-unlimited"
-      : "plan-max";
+    const planId = "";
 
     return [
       {
         id: "line-1",
-        number: formatUkNumber(userPhone || "07700 900123"),
+        number: formatUkNumber(userPhone),
         planId,
         planName: savedPlanName,
         renewDate: computeDynamicRenewalDate(),
@@ -432,9 +440,8 @@ export default function ComparePlansPage() {
                     if (lLower.includes("max") && pLower.includes("max")) return true;
                     if (lLower.includes("lite") && pLower.includes("lite")) return true;
                     return false;
-                  }) ||
-                  mappedPlans[0];
-                return { ...l, planId: match.id, planName: match.name };
+                  });
+                return match ? { ...l, planId: match.id, planName: match.name } : l;
               })
             );
           }
@@ -479,7 +486,7 @@ export default function ComparePlansPage() {
                 entry.cart?.[0]?.name ||
                 entry.plan?.title ||
                 entry.plan_name ||
-                "Zoiko Max 30GB";
+                "";
 
               const isEsim =
                 entry.sim_type?.toLowerCase() === "esim" ||
@@ -488,12 +495,8 @@ export default function ComparePlansPage() {
 
               fetchedLines.push({
                 id: String(entry.order_db_id || orderId || `line-${idx + 1}`),
-                number: formatUkNumber(linePhone || userPhone || "07700 900123"),
-                planId: pTitle.toLowerCase().includes("lite")
-                  ? "plan-lite"
-                  : pTitle.toLowerCase().includes("unlimited")
-                  ? "plan-unlimited"
-                  : "plan-max",
+                number: formatUkNumber(linePhone || userPhone),
+                planId: "",
                 planName: pTitle,
                 renewDate: computeDynamicRenewalDate(entry.created_at || entry.order_date || entry.date),
                 simType: isEsim ? "eSIM" : "SIM card",
@@ -528,9 +531,9 @@ export default function ComparePlansPage() {
                 const isEsim = entry.sim_type?.toLowerCase() === "esim";
                 fetchedLines.push({
                   id: String(entry.id || orderId),
-                  number: formatUkNumber(entry.phone_number || entry.msisdn || userPhone || "07700 900123"),
-                  planId: "plan-unlimited",
-                  planName: entry.plan_name || entry.plan?.title || "Zoiko Unlimited",
+                  number: formatUkNumber(entry.phone_number || entry.msisdn || userPhone),
+                  planId: "",
+                  planName: entry.plan_name || entry.plan?.title || "",
                   renewDate: computeDynamicRenewalDate(entry.created_at || entry.order_date),
                   simType: isEsim ? "eSIM" : "SIM card",
                   status: "Pending",
@@ -543,16 +546,12 @@ export default function ComparePlansPage() {
 
       // If no orders found, provide sensible primary line for the active user
       if (fetchedLines.length === 0) {
-        const savedPlanName = localStorage.getItem("zoiko_active_plan") || (plans[0]?.name || "Zoiko Max 100GB");
+        const savedPlanName = localStorage.getItem("zoiko_active_plan") || "";
         fetchedLines = [
           {
             id: "line-1",
-            number: formatUkNumber(userPhone || "07700 900123"),
-            planId: savedPlanName.toLowerCase().includes("lite")
-              ? "plan-lite"
-              : savedPlanName.toLowerCase().includes("unlimited")
-              ? "plan-unlimited"
-              : (plans[0]?.id || "plan-max"),
+            number: formatUkNumber(userPhone),
+            planId: "",
             planName: savedPlanName,
             renewDate: computeDynamicRenewalDate(),
             simType: "eSIM",
@@ -583,9 +582,9 @@ export default function ComparePlansPage() {
   const currentLine = useMemo(() => {
     return lines.find((l) => l.id === selectedLineId) || lines[0] || {
       id: "line-1",
-      number: "07700 900123",
-      planId: plans[0]?.id || "plan-max",
-      planName: plans[0]?.name || "Zoiko Max 100GB",
+      number: "No number on file",
+      planId: "",
+      planName: "",
       renewDate: computeDynamicRenewalDate(),
       simType: "eSIM",
       status: "Active",
@@ -605,12 +604,15 @@ export default function ComparePlansPage() {
         billingCycle: "a month",
         dataAllowance: "Loading...",
         dataAmountGb: 0,
-        calls: "Unlimited UK calls",
-        texts: "Unlimited UK texts",
-        roaming: "Roaming available",
+        calls: "Not confirmed",
+        texts: "Not confirmed",
+        roaming: "Not confirmed",
         roamingDetails: "",
-        is5G: true,
-        terms: "Monthly rolling · no exit fee",
+        is5G: false,
+        terms: "",
+        hasMonthly: false,
+        has12: false,
+        has24: false,
       };
     }
     let found = plans.find(
@@ -628,26 +630,43 @@ export default function ComparePlansPage() {
         return false;
       });
     }
-    return found || plans[0];
+    // No match -> don't pretend the customer is on the first catalogue plan.
+    return found || {
+      ...plans[0],
+      id: currentLine.planId || "unknown-current-plan",
+      name: currentLine.planName || "Your current plan",
+      shortName: currentLine.planName || "Your current plan",
+      subtitle: "Current plan details unavailable",
+      price: 0,
+      dataAllowance: "Not confirmed",
+      dataAmountGb: 0,
+      calls: "Not confirmed",
+      texts: "Not confirmed",
+      roaming: "Not confirmed",
+      roamingDetails: "",
+      is5G: false,
+      terms: "",
+      promoSubtext: undefined,
+      promoNotice: undefined,
+    };
   }, [plans, currentLine]);
 
   // Dynamic average data usage for this line based on storage or plan baseline
-  const averageUsageGb = useMemo(() => {
-    if (typeof window === "undefined") return 14.2;
+  const averageUsageGb = useMemo((): number | null => {
+    if (typeof window === "undefined") return null;
     const storedUsed = localStorage.getItem("zoiko_data_used");
     if (storedUsed && !isNaN(Number(storedUsed))) return Number(storedUsed);
     const storedRemaining = localStorage.getItem("zoiko_data_remaining");
-    if (storedRemaining && !isNaN(Number(storedRemaining))) {
-      const tot = currentPlan.dataAmountGb;
-      const used = Math.max(0, tot - Number(storedRemaining));
+    if (storedRemaining && !isNaN(Number(storedRemaining)) && currentPlan.dataAmountGb > 0) {
+      const used = Math.max(0, currentPlan.dataAmountGb - Number(storedRemaining));
       return Number(used.toFixed(1));
     }
-    return Number((currentPlan.dataAmountGb * 0.47).toFixed(1));
+    return null; // no usage data yet - don't invent one
   }, [currentPlan]);
 
   // Dynamic recommendation based on actual usage
   const recommendedPlan = useMemo(() => {
-    if (plans.length === 0) return currentPlan;
+    if (plans.length === 0 || averageUsageGb == null) return currentPlan;
     if (plans.length <= 1) return plans[0];
 
     const sorted = [...plans].sort((a, b) => a.dataAmountGb - b.dataAmountGb);
@@ -672,8 +691,9 @@ export default function ComparePlansPage() {
       if (budgetFilter === "25plus" && p.price <= 25) return false;
 
       // Contract filter
-      if (contractFilter === "12mo" && !p.terms.toLowerCase().includes("12") && !p.name.toLowerCase().includes("12")) return false;
-      if (contractFilter === "24mo" && !p.terms.toLowerCase().includes("24") && !p.name.toLowerCase().includes("24")) return false;
+      if (contractFilter === "monthly" && !p.hasMonthly) return false;
+      if (contractFilter === "12mo" && !p.has12) return false;
+      if (contractFilter === "24mo" && !p.has24) return false;
 
       // More filters
       if (filter5GOnly && !p.is5G) return false;
@@ -775,7 +795,7 @@ export default function ComparePlansPage() {
             <div className="flex items-center gap-2 text-xs text-[#54617E]">
               <Clock className="w-3.5 h-3.5 text-[#54617E] shrink-0" />
               <span>
-                Plans checked {checkedAt} · catalogue {computeCatalogueCode()}
+                Plans checked {checkedAt}
               </span>
               <button
                 type="button"
@@ -1796,7 +1816,11 @@ export default function ComparePlansPage() {
 
             <div className="pt-4 space-y-3.5 text-xs text-[#54617E] leading-relaxed">
               <p>
-                Based on your last 2 billing cycles on <strong>{currentLine.number}</strong>, your average monthly data usage was <strong>{averageUsageGb} GB</strong>.
+                {averageUsageGb == null ? (
+                  <>We don’t have usage data for <strong>{currentLine.number}</strong> yet, so we can’t recommend a plan. Check back after your next billing cycle.</>
+                ) : (
+                  <>Based on your recent usage on <strong>{currentLine.number}</strong>, your average monthly data usage was <strong>{averageUsageGb} GB</strong>.</>
+                )}
               </p>
               <div className="p-3.5 bg-[#FDE8F1] rounded-2xl border border-[#FBCFE8] text-[#0D1935]">
                 <div className="font-bold text-sm text-[#E01C5B] mb-1">Recommended: {recommendedPlan.name}</div>

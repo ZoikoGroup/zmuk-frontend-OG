@@ -104,7 +104,7 @@ function PlanCard({ plan, duration, term, onChoose }: {
             £{priceFor(plan, duration)}
             <span className="ml-1 text-base font-semibold text-[#141A45]">/month</span>
           </div>
-          <p className="mt-1 text-[11px] text-[#7a7f96]">{term} contract</p>
+          <p className="mt-1 text-[11px] text-[#7a7f96]">incl. VAT · {term} contract</p>
         </div>
 
         <ul className="my-5 flex-1 space-y-2.5">
@@ -203,7 +203,7 @@ export default function Buisinessdeal() {
               {/* Subheading 2 (Regular) */}
               <div className="pt-2 sm:pt-3">
                 <p className="text-base sm:text-lg font-normal leading-relaxed text-[#4E5A8A] max-w-xl">
-                  Clear per-line prices with and without VAT, a choice of contract length, and help from our team when you need more lines.
+                  Clear per-line prices including VAT, a choice of contract length, and help from our team when you need more lines.
                 </p>
               </div>
 
