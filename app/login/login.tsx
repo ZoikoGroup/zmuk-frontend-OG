@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { validateEmail, validatePassword, validateName } from "../utils/validators";
-import { Mail, Lock, Eye, EyeOff, User, ArrowLeft, Heart, Radio, Check } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, ArrowLeft, Heart, Radio, Check, Phone } from "lucide-react";
 
 // ─── CONFIG (PRESERVED ORIGINAL) ─────────────────────────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -100,10 +100,10 @@ const MicrosoftLogo = () => (
 
 // Concentric rings icon for 'Made for life on the move'
 const ConcentricRingsIcon = () => (
-  <svg className="w-8 h-8 text-[#E01C5B]" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-    <circle cx="16" cy="16" r="3" fill="#E01C5B" />
-    <circle cx="16" cy="16" r="7.5" stroke="#E01C5B" strokeWidth="2.2" />
-    <circle cx="16" cy="16" r="12" stroke="#E01C5B" strokeWidth="2.2" />
+  <svg className="w-8 h-8 text-[#E91E63]" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <circle cx="16" cy="16" r="3" fill="#E91E63" />
+    <circle cx="16" cy="16" r="7.5" stroke="#E91E63" strokeWidth="2.2" />
+    <circle cx="16" cy="16" r="12" stroke="#E91E63" strokeWidth="2.2" />
   </svg>
 );
 
@@ -362,174 +362,133 @@ function LoginInner() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#F4F6F9] flex flex-col lg:flex-row overflow-x-hidden font-sans">
-      {/* ─── LEFT COLUMN: LIFESTYLE IMAGE WITH BRANDING & FLOATING PILLS ─── */}
-      <div className="relative w-full lg:w-[54%] xl:w-[58%] min-h-[500px] lg:min-h-screen overflow-hidden flex flex-col justify-between p-6 sm:p-10 lg:p-14">
-        {/* Background Image */}
+    <div className="min-h-screen w-full bg-[#F4F7FB] flex flex-col lg:flex-row overflow-x-hidden font-sans">
+      {/* ─── LEFT COLUMN ─── */}
+      <div className="relative w-full lg:w-[52%] min-h-[560px] lg:min-h-screen overflow-hidden flex flex-col justify-between p-6 sm:p-10 lg:p-[41px]">
         <div className="absolute inset-0 z-0">
           <Image
-            src="/images/new home and header/Aside - About Zoiko HR.png"
+            src="/images/login.png"
             alt="Stay connected to what moves you"
             fill
             priority
-            sizes="(max-width: 1024px) 100vw, 60vw"
+            sizes="(max-width: 1024px) 100vw, 52vw"
             className="object-cover object-center"
           />
-          {/* Subtle gradient overlay to guarantee text readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
         </div>
 
-        {/* Top-Left Zoiko Mobile Logo */}
+        {/* Logo */}
         <div className="relative z-10">
-          <Link href="/" className="inline-block ">
+          <Link href="/" className="inline-flex items-center justify-center bg-white rounded-xl shadow-md px-4 py-2">
             <Image
               src="/images/zmuk-logo.png"
               alt="Zoiko Mobile Logo"
               width={190}
               height={60}
-              className="h-10 sm:h-12 w-auto object-contain "
+              className="h-12 w-auto object-contain"
             />
           </Link>
         </div>
 
-        {/* Middle Content: Headline, Subtitle & Horizontal Pills */}
+        {/* Headline, subtitle, pills */}
         <div className="relative z-10 max-w-xl my-auto py-8">
-          {/* Headline */}
-          <h1 className="text-4xl sm:text-5xl xl:text-6xl font-extrabold text-[#0F1E3C] tracking-tight leading-[1.12]">
-            Stay connected to what <br />
-            <span className="text-[#E01C5B]">moves you.</span>
+          <h1 className="text-4xl sm:text-5xl xl:text-[52px] font-extrabold text-white tracking-tight leading-[1.1] [text-shadow:0_2px_12px_rgba(0,0,0,0.35)]">
+            Stay connected to <span className="text-[#E91E63]">what moves you.</span>
           </h1>
-
-          {/* Subtitle */}
-          <p className="mt-3.5 text-base sm:text-lg text-[#0F1E3C]/80 font-normal leading-relaxed max-w-lg">
+          <p className="mt-5 text-base text-white font-normal leading-relaxed max-w-lg">
             A wireless network for life, music, and the moments that matter
           </p>
 
-          {/* Side-by-Side Floating Feature Pills */}
-          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            {/* Pill 1: Made for life on the move */}
-            <div className="flex-1 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-[0px_8px_24px_rgba(15,30,60,0.10)] border border-white/80 p-3 flex items-center gap-3.5 transition-transform hover:-translate-y-0.5">
-              <div className="w-14 h-14 rounded-full bg-[#FCE7F0] flex items-center justify-center flex-shrink-0 shadow-xs">
+          <div className="mt-8 flex flex-col sm:flex-row items-stretch gap-4">
+            <div className="flex-1 bg-black/30 backdrop-blur-md rounded-2xl border border-white/25 p-2 flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-[#FCE7F0] flex items-center justify-center flex-shrink-0">
                 <ConcentricRingsIcon />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">
-                  Made for life on
-                </span>
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">
-                  the move
-                </span>
-              </div>
+              <span className="text-white text-base font-medium leading-tight">
+                Made for life on <br className="hidden sm:block" />the move
+              </span>
             </div>
-
-            {/* Pill 2: Rooted in music & animal love (paw + music in one rounded badge) */}
-            <div className="flex-1 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-[0px_8px_24px_rgba(15,30,60,0.10)] border border-white/80 p-3 flex items-center gap-3.5 transition-transform hover:-translate-y-0.5">
-              <div className="w-14 h-14 rounded-full bg-[#FFF0E5] flex items-center justify-center flex-shrink-0 shadow-xs">
+            <div className="flex-1 bg-black/30 backdrop-blur-md rounded-2xl border border-white/25 p-2 flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-[#FFF0E5] flex items-center justify-center flex-shrink-0">
                 <PawAndMusicIcon />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">
-                  Rooted in music &amp;
-                </span>
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">
-                  animal love
-                </span>
-              </div>
+              <span className="text-white text-base font-medium leading-tight">
+                Rooted in music &amp; <br className="hidden sm:block" />animal love
+              </span>
             </div>
           </div>
-
-          {/* PREVIOUS PILLS CODE (PRESERVED AS COMMENTS):
-          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <div className="flex-1 bg-white/95 backdrop-blur-md rounded-3xl shadow-[0px_8px_24px_rgba(15,30,60,0.12)] border border-white/60 p-3 flex items-center gap-3.5">
-              <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0 text-[#E01C5B] shadow-sm">
-                <Radio className="w-7 h-7 stroke-[2]" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">Made for life on</span>
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">the move</span>
-              </div>
-            </div>
-            <div className="flex-1 bg-white/95 backdrop-blur-md rounded-3xl shadow-[0px_8px_24px_rgba(15,30,60,0.12)] border border-white/60 p-3 flex items-center gap-3.5">
-              <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 text-orange-500 shadow-sm">
-                <Heart className="w-7 h-7 stroke-[2]" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">Rooted in music &amp;</span>
-                <span className="text-[#0F1E3C] text-sm sm:text-base font-semibold leading-tight">animal love</span>
-              </div>
-            </div>
-          </div>
-          */}
         </div>
 
-        {/* Empty bottom space to maintain vertical balance */}
-        <div className="relative z-10 hidden lg:block h-2" />
+        {/* Contact info */}
+        <div className="relative z-10 flex flex-col gap-6 text-white">
+          <div className="flex items-start gap-4">
+            <Phone className="w-6 h-6 text-[#E91E63] mt-0.5 fill-[#E91E63]" />
+            <div>
+              <div className="text-base font-medium">020 7164 6399</div>
+              <div className="text-xs text-white/80">Mon-Fri 8am-8pm, Sat 9am-5pm ( UK time )</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Mail className="w-6 h-6 text-[#E91E63]" />
+            <a href="mailto:info@zoikomobile.co.uk" className="text-base font-medium hover:underline">
+              info@zoikomobile.co.uk
+            </a>
+          </div>
+        </div>
       </div>
 
-      {/* ─── RIGHT COLUMN: FLOATING AUTH CARD ON LIGHT GREY BACKGROUND ─── */}
-      <div className="w-full lg:w-[46%] xl:w-[42%] min-h-screen bg-[#F4F6F9] flex flex-col justify-between items-center p-4 sm:p-8 lg:p-10 xl:p-12">
-        {/* Mobile quick link to home */}
-        <div className="w-full max-w-[470px] flex items-center justify-end lg:hidden mb-2">
+      {/* ─── RIGHT COLUMN ─── */}
+      <div className="w-full lg:w-[48%] min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
+        <div className="lg:hidden w-full max-w-[473px] flex justify-end mb-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#E01C5B] bg-white px-3 py-1.5 rounded-full shadow border border-[#E01C5B]/30"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#E91E63] bg-white px-3 py-1.5 rounded-full shadow border border-[#E91E63]/30"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Website</span>
           </Link>
         </div>
 
-        {/* ─── CENTRAL WHITE CARD ─── */}
-        <div className="w-full max-w-[473px] bg-white rounded-3xl shadow-[0px_24px_60px_-25px_rgba(15,30,60,0.15)] border border-slate-100 p-6 sm:p-9 my-auto flex flex-col">
-          {/* Top Tabs */}
-          <div className="w-full border-b border-slate-200 pb-0 flex items-center justify-between relative">
-            <div className="flex items-center gap-4 sm:gap-6 w-full">
-              {/* Login Tab */}
-              <button
-                type="button"
-                onClick={() => switchTab("Login")}
-                className={`pb-3.5 text-sm sm:text-base font-semibold transition-colors relative cursor-pointer ${
-                  tab === "Login" ? "text-[#E01C5B]" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Login
-                {tab === "Login" && (
-                  <div className="absolute -bottom-px left-0 right-0 h-[3.5px] bg-[#E01C5B] rounded-full" />
-                )}
-              </button>
-
-              {/* Register Tab */}
-              <button
-                type="button"
-                onClick={() => switchTab("Register")}
-                className={`pb-3.5 text-sm sm:text-base font-medium transition-colors relative cursor-pointer ${
-                  tab === "Register" ? "text-[#E01C5B] font-semibold" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Register
-                {tab === "Register" && (
-                  <div className="absolute -bottom-px left-0 right-0 h-[3.5px] bg-[#E01C5B] rounded-full" />
-                )}
-              </button>
-
-              {/* Divider before Reset Password */}
-              <div className="h-4 w-px bg-slate-300" />
-
-              {/* Reset Password Tab */}
-              <button
-                type="button"
-                onClick={() => switchTab("Reset Password")}
-                className={`pb-3.5 text-sm sm:text-base font-medium transition-colors relative cursor-pointer ${
-                  tab === "Reset Password" ? "text-[#E01C5B] font-semibold" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Reset Password
-                {tab === "Reset Password" && (
-                  <div className="absolute -bottom-px left-0 right-0 h-[3.5px] bg-[#E01C5B] rounded-full" />
-                )}
-              </button>
-            </div>
+        {/* Outer white panel */}
+        <div className="w-full max-w-[473px] bg-white rounded-[32px] shadow-[0px_20px_60px_-30px_rgba(15,30,60,0.2)] p-4 sm:p-8 flex flex-col lg:min-h-[806px]">
+          {/* Tabs */}
+          <div className="w-full flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => switchTab("Login")}
+              className={`flex-1 pb-3 text-sm font-semibold transition-colors relative cursor-pointer ${
+                tab === "Login" ? "text-[#E91E63]" : "text-[#0F1E3C] hover:text-[#E91E63]"
+              }`}
+            >
+              Login
+              {tab === "Login" && <div className="absolute -bottom-px left-0 right-0 h-[3px] bg-[#E91E63] rounded-full" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTab("Register")}
+              className={`flex-1 pb-3 text-sm font-semibold transition-colors relative cursor-pointer ${
+                tab === "Register" ? "text-[#E91E63]" : "text-[#0F1E3C] hover:text-[#E91E63]"
+              }`}
+            >
+              Register
+              {tab === "Register" && <div className="absolute -bottom-px left-0 right-0 h-[3px] bg-[#E91E63] rounded-full" />}
+            </button>
+            <div className="h-4 w-px bg-slate-200 mb-3" />
+            <button
+              type="button"
+              onClick={() => switchTab("Reset Password")}
+              className={`flex-1 pb-3 text-sm font-semibold transition-colors relative cursor-pointer ${
+                tab === "Reset Password" ? "text-[#E91E63]" : "text-[#0F1E3C] hover:text-[#E91E63]"
+              }`}
+            >
+              Reset Password
+              {tab === "Reset Password" && <div className="absolute -bottom-px left-0 right-0 h-[3px] bg-[#E91E63] rounded-full" />}
+            </button>
           </div>
 
+          {/* Inner bordered card */}
+          <div className="rounded-2xl border border-slate-200 p-5 sm:p-8">
           {/* ─── TAB 1: LOGIN ─── */}
           {tab === "Login" && (
             <form onSubmit={handleLogin} className="flex flex-col mt-6" noValidate>
@@ -563,7 +522,7 @@ function LoginInner() {
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] focus:border-transparent transition-all placeholder:text-slate-400"
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] focus:border-transparent transition-all placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -580,7 +539,7 @@ function LoginInner() {
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] focus:border-transparent transition-all placeholder:text-slate-400"
+                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] focus:border-transparent transition-all placeholder:text-slate-400"
                     required
                   />
                   <button
@@ -600,7 +559,7 @@ function LoginInner() {
                   <div
                     onClick={() => setRemember(!remember)}
                     className={`w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer ${
-                      remember ? "bg-[#E01C5B] text-white" : "border border-slate-300 bg-white"
+                      remember ? "bg-[#E91E63] text-white" : "border border-slate-300 bg-white"
                     }`}
                   >
                     {remember && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -611,7 +570,7 @@ function LoginInner() {
                 <button
                   type="button"
                   onClick={() => switchTab("Reset Password")}
-                  className="text-sm text-[#E01C5B] hover:underline font-normal cursor-pointer"
+                  className="text-sm text-[#E91E63] hover:underline font-normal cursor-pointer"
                 >
                   Forgot password?
                 </button>
@@ -621,7 +580,7 @@ function LoginInner() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 mt-5 bg-[#E01C5B] hover:bg-[#c91250] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
+                className="w-full h-12 mt-5 bg-[#E91E63] hover:bg-[#D81B60] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
               >
                 {loading ? "Logging in..." : "Log In"}
               </button>
@@ -683,7 +642,7 @@ function LoginInner() {
                 <button
                   type="button"
                   onClick={() => switchTab("Register")}
-                  className="font-semibold text-[#E01C5B] hover:underline cursor-pointer"
+                  className="font-semibold text-[#E91E63] hover:underline cursor-pointer"
                 >
                   Register
                 </button>
@@ -725,7 +684,7 @@ function LoginInner() {
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="Your full name"
-                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] placeholder:text-slate-400"
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -742,7 +701,7 @@ function LoginInner() {
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] placeholder:text-slate-400"
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -760,7 +719,7 @@ function LoginInner() {
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     placeholder="Min 8 characters"
-                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] placeholder:text-slate-400"
+                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] placeholder:text-slate-400"
                     required
                   />
                   <button
@@ -786,7 +745,7 @@ function LoginInner() {
                     value={regConfirm}
                     onChange={(e) => setRegConfirm(e.target.value)}
                     placeholder="Repeat password"
-                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] placeholder:text-slate-400"
+                    className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] placeholder:text-slate-400"
                     required
                   />
                   <button
@@ -803,7 +762,7 @@ function LoginInner() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 mt-5 bg-[#E01C5B] hover:bg-[#c91250] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
+                className="w-full h-12 mt-5 bg-[#E91E63] hover:bg-[#D81B60] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
               >
                 {loading ? "Creating account..." : "Create Account"}
               </button>
@@ -847,7 +806,7 @@ function LoginInner() {
                 <button
                   type="button"
                   onClick={() => switchTab("Login")}
-                  className="font-semibold text-[#E01C5B] hover:underline cursor-pointer"
+                  className="font-semibold text-[#E91E63] hover:underline cursor-pointer"
                 >
                   Log in
                 </button>
@@ -889,7 +848,7 @@ function LoginInner() {
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full h-11 px-3.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E01C5B] placeholder:text-slate-400"
+                  className="w-full h-11 px-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#E91E63] placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -898,7 +857,7 @@ function LoginInner() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 mt-6 bg-[#E01C5B] hover:bg-[#c91250] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
+                className="w-full h-12 mt-6 bg-[#E91E63] hover:bg-[#D81B60] text-white font-semibold text-base rounded-lg shadow-[0px_8px_18px_-8px_rgba(224,28,91,0.5)] transition-all cursor-pointer disabled:opacity-70"
               >
                 {loading ? "Sending..." : "Send Reset Link"}
               </button>
@@ -908,40 +867,34 @@ function LoginInner() {
                 <button
                   type="button"
                   onClick={() => switchTab("Login")}
-                  className="font-semibold text-[#E01C5B] hover:underline cursor-pointer"
+                  className="font-semibold text-[#E91E63] hover:underline cursor-pointer"
                 >
                   Log in
                 </button>
               </div>
             </form>
           )}
-        </div>
-
-        {/* ─── MINI FOOTER UNDER CARD (RIGHT COLUMN) ─── */}
-        <div className="w-full max-w-[473px] pt-6 pb-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <Link href="/privacy-policy" className="hover:text-slate-600 transition-colors">
-              Privacy
-            </Link>
-            <span>•</span>
-            <Link href="/terms-and-conditions" className="hover:text-slate-600 transition-colors">
-              Terms
-            </Link>
-            <span>•</span>
-            <Link href="/vulnerability-policy" className="hover:text-slate-600 transition-colors">
-              Accessibility
-            </Link>
-            <span>•</span>
-            <Link href="/faqs" className="hover:text-slate-600 transition-colors">
-              Help
-            </Link>
           </div>
-          <span>&copy; 2026 Zoiko Mobile Inc.</span>
+
+          {/* Footer inside panel */}
+          <div className="mt-auto pt-10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <Link href="/privacy-policy" className="hover:text-slate-700 transition-colors">Privacy</Link>
+              <span>•</span>
+              <Link href="/terms-and-conditions" className="hover:text-slate-700 transition-colors">Terms</Link>
+              <span>•</span>
+              <Link href="/vulnerability-policy" className="hover:text-slate-700 transition-colors">Accessibility</Link>
+              <span>•</span>
+              <Link href="/faqs" className="hover:text-slate-700 transition-colors">Help</Link>
+            </div>
+            <span>&copy; 2026 Zoiko Mobile Inc.</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ─── LOGIN PROVIDER WRAPPER ──────────────────────────────────────────────────
 

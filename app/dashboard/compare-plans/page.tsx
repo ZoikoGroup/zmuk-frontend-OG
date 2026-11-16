@@ -36,6 +36,7 @@ import DashboardTopNav from "../components/DashboardTopNav";
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
+import { getLines } from "../add-new-number/addLineApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -455,7 +456,29 @@ export default function ComparePlansPage() {
       // 2. Fetch real user lines from bqorders or sims orders
       let fetchedLines: UserLine[] = [];
 
-      if (email) {
+      // Primary source: the customer's own lines from GET /api/v1/lines/
+      if (storedToken) {
+        try {
+          const linesData = await getLines();
+          const apiLines = Array.isArray(linesData?.lines) ? linesData.lines : [];
+          fetchedLines = apiLines
+            .filter((l) => l.status !== "terminated" && l.status !== "cancelled")
+            .map((l, idx) => ({
+              id: String(l.id ?? `line-${idx + 1}`),
+              number: l.msisdn ? formatUkNumber(l.msisdn) : "Number on its way",
+              planId: l.plan?.id != null ? String(l.plan.id) : "",
+              planName: l.plan?.name || "",
+              renewDate: computeDynamicRenewalDate(l.activated_at || l.created_at),
+              simType: l.sim?.type === "esim" ? "eSIM" : "SIM card",
+              status:
+                l.status === "active" ? "Active" : l.status === "pending_activation" ? "Pending" : "Suspended",
+            }));
+        } catch (err) {
+          console.warn("Could not load /api/v1/lines/:", err);
+        }
+      }
+
+      if (email && fetchedLines.length === 0) {
         try {
           const res = await fetch(`${API_BASE}/api/v1/bqorders/by-user/`, {
             method: "POST",
@@ -674,6 +697,23 @@ export default function ComparePlansPage() {
     return suitable || sorted[sorted.length - 1];
   }, [plans, averageUsageGb, currentPlan]);
 
+  // Highlight cards are derived from the live catalogue (no fixed plan names/numbers)
+  const highlights = useMemo(() => {
+    const join = (names: string[]) =>
+      names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    const fiveG = plans.filter((p) => p.is5G);
+    const eu = plans.filter((p) => p.roaming.toLowerCase().includes("included"));
+    const monthly = plans.filter((p) => p.hasMonthly);
+    return {
+      fiveGTitle: plansLoading ? "5G plans" : fiveG.length ? `5G on ${join(fiveG.map((p) => p.name))}` : "5G plans",
+      fiveGSub: plansLoading ? "Checking availability…" : fiveG.length ? "Where available, with a 5G phone" : "No 5G plans listed right now",
+      euTitle: plansLoading ? "EU roaming" : eu.length ? `EU roaming on ${join(eu.map((p) => p.name))}` : "EU roaming",
+      euSub: plansLoading ? "Checking availability…" : eu.length ? eu[0].roamingDetails || "Fair use policy applies" : "No EU roaming plans listed right now",
+      monthlyTitle: "Monthly rolling plans",
+      monthlySub: plansLoading ? "Checking availability…" : `${monthly.length} of ${plans.length} plans available monthly`,
+    };
+  }, [plans, plansLoading]);
+
   // Filter non-current plans
   const filteredOtherPlans = useMemo(() => {
     return plans.filter((p) => {
@@ -723,33 +763,58 @@ export default function ComparePlansPage() {
   }, [plans, currentPlan, selectedCompareIds]);
 
   // Handle plan switch confirmation
-  const handleConfirmSwitch = () => {
-    if (!targetPlanForSwitch) return;
+  const handleConfirmSwitch = async () => {
+    if (!targetPlanForSwitch || switchLoading) return;
+    const target = targetPlanForSwitch;
+    const line = currentLine;
     setSwitchLoading(true);
 
-    setTimeout(() => {
-      // Update local state
-      const updatedLines = lines.map((l) => {
-        if (l.id === currentLine.id) {
-          return {
-            ...l,
-            planId: targetPlanForSwitch.id,
-            planName: targetPlanForSwitch.name,
-          };
-        }
-        return l;
+    try {
+      const authToken =
+        localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || token;
+      if (!authToken) {
+        showToast("Please log in again to switch plans.");
+        return;
+      }
+
+      // Plan-change requests are recorded server-side as a "plan_change" support request.
+      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${authToken}`,
+        },
+        body: JSON.stringify({
+          category: "plan_change",
+          subject: `Plan change to ${target.name} for ${line.number}`,
+          message:
+            `Customer requested a plan change from ${line.planName || "current plan"} to ${target.name} ` +
+            `(Plan ID: ${target.id}, £${target.price.toFixed(2)}/month), effective from next renewal ${line.renewDate}.
+` +
+            `Line: ${line.number} (ID: ${line.id}).`,
+        }),
       });
 
-      setLines(updatedLines);
-      localStorage.setItem("zoiko_active_plan", targetPlanForSwitch.name);
-      window.dispatchEvent(new Event("zoiko-auth"));
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(
+          (typeof err?.detail === "string" && err.detail) ||
+            "We couldn't submit your plan change. Please try again."
+        );
+        return;
+      }
 
-      setSelectedCompareIds((prev) => prev.filter((id) => id !== targetPlanForSwitch.id));
-      setSwitchLoading(false);
+      setSelectedCompareIds((prev) => prev.filter((id) => id !== target.id));
       setModal(null);
       setSwitchAgreed(false);
-      showToast(`Plan switch confirmed for ${currentLine.number}. Your switch to ${targetPlanForSwitch.name} takes effect on ${currentLine.renewDate}.`);
-    }, 1200);
+      showToast(
+        `Plan change to ${target.name} requested for ${line.number}. It takes effect on ${line.renewDate}.`
+      );
+    } catch {
+      showToast("Network error. Your plan has not been changed.");
+    } finally {
+      setSwitchLoading(false);
+    }
   };
 
   return (
@@ -872,8 +937,8 @@ export default function ComparePlansPage() {
                 5G
               </div>
               <div className="min-w-0">
-                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">5G on Max and Unlimited</h4>
-                <p className="text-xs text-[#54617E] mt-0.5 truncate">Where available, with a 5G phone</p>
+                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">{highlights.fiveGTitle}</h4>
+                <p className="text-xs text-[#54617E] mt-0.5 truncate">{highlights.fiveGSub}</p>
               </div>
             </div>
 
@@ -883,8 +948,8 @@ export default function ComparePlansPage() {
                 <Globe className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">EU roaming on Max and Unlimited</h4>
-                <p className="text-xs text-[#54617E] mt-0.5 truncate">8 named countries · 15 GB fair use</p>
+                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">{highlights.euTitle}</h4>
+                <p className="text-xs text-[#54617E] mt-0.5 truncate">{highlights.euSub}</p>
               </div>
             </div>
 
@@ -894,8 +959,8 @@ export default function ComparePlansPage() {
                 <RotateCw className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">Monthly rolling plans</h4>
-                <p className="text-xs text-[#54617E] mt-0.5 truncate">No exit fee on these plans</p>
+                <h4 className="text-sm font-bold text-[#0D1935] leading-tight">{highlights.monthlyTitle}</h4>
+                <p className="text-xs text-[#54617E] mt-0.5 truncate">{highlights.monthlySub}</p>
               </div>
             </div>
           </div>
@@ -1002,7 +1067,7 @@ export default function ComparePlansPage() {
               </div>
 
               <div className="h-9 px-3.5 py-1.5 bg-[#FDE8F1]/50 rounded-full border border-[#E01C5B] text-[#E01C5B] text-xs font-semibold flex items-center self-start sm:self-auto">
-                Monthly plans
+                {contractFilter === "12mo" ? "12-month plans" : contractFilter === "24mo" ? "24-month plans" : contractFilter === "monthly" ? "Monthly plans" : "All plans"}
               </div>
             </div>
 
@@ -1557,7 +1622,7 @@ export default function ComparePlansPage() {
                     <td className="py-3 px-3 font-semibold text-[#54617E]">Calls & Texts</td>
                     {plansToCompare.map((p) => (
                       <td key={p.id} className="py-3 px-3 text-[#0D1935]">
-                        Unlimited UK
+                        {p.calls} · {p.texts}
                       </td>
                     ))}
                   </tr>
@@ -1588,7 +1653,7 @@ export default function ComparePlansPage() {
                     <td className="py-3 px-3 font-semibold text-[#54617E]">Commitment</td>
                     {plansToCompare.map((p) => (
                       <td key={p.id} className="py-3 px-3 text-[#54617E]">
-                        Monthly rolling (no exit fees)
+                        {p.terms.replace(" · prices include VAT", "") || "Not confirmed"}
                       </td>
                     ))}
                   </tr>
@@ -1693,7 +1758,7 @@ export default function ComparePlansPage() {
                   className="w-4 h-4 mt-0.5 rounded border-slate-300 text-[#E01C5B] focus:ring-[#E01C5B] cursor-pointer"
                 />
                 <span className="leading-tight">
-                  I agree to switch {currentLine.number} to {targetPlanForSwitch.name} on monthly rolling terms with no exit fee.
+                  I agree to switch {currentLine.number} to {targetPlanForSwitch.name} on {targetPlanForSwitch.terms.replace(" · prices include VAT", "") || "its standard"} terms.
                 </span>
               </label>
 
@@ -1764,19 +1829,19 @@ export default function ComparePlansPage() {
                 </div>
                 <div className="pt-2 flex justify-between">
                   <span className="text-[#54617E]">Standard UK Calls & Texts:</span>
-                  <span className="font-bold">Unlimited</span>
+                  <span className="font-bold">{targetPlanForDetails.calls} · {targetPlanForDetails.texts}</span>
                 </div>
                 <div className="pt-2 flex justify-between">
                   <span className="text-[#54617E]">Network coverage:</span>
-                  <span className="font-bold">{targetPlanForDetails.tier} 99% UK population</span>
+                  <span className="font-bold">{targetPlanForDetails.is5G ? "5G (where available)" : "4G"}</span>
                 </div>
                 <div className="pt-2 flex justify-between">
                   <span className="text-[#54617E]">EU Roaming allowance:</span>
-                  <span className="font-bold">{targetPlanForDetails.roamingDetails}</span>
+                  <span className="font-bold">{targetPlanForDetails.roamingDetails || targetPlanForDetails.roaming}</span>
                 </div>
                 <div className="pt-2 flex justify-between">
                   <span className="text-[#54617E]">Contract duration:</span>
-                  <span className="font-bold">30-day monthly rolling</span>
+                  <span className="font-bold">{targetPlanForDetails.terms || "Not confirmed"}</span>
                 </div>
               </div>
 
@@ -1853,7 +1918,7 @@ export default function ComparePlansPage() {
                 </div>
               )}
               <p>
-                Switching plans takes effect on your next renewal ({currentLine.renewDate}) with zero downtime and no exit fees!
+                Switching plans takes effect on your next renewal ({currentLine.renewDate}).
               </p>
               <div className="pt-2 flex justify-end">
                 <button

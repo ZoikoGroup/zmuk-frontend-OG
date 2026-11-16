@@ -42,6 +42,8 @@ import {
   Heart,
   RefreshCw,
   MessageSquare,
+  Compass,
+  Scale,
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { openChat } from "./ChatbotWidget";
@@ -636,7 +638,7 @@ export default function Header() {
                     </a>
 
                     <Link
-                      href="/plans"
+                      href="/dashboard/compare-plans"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
@@ -1413,6 +1415,11 @@ export default function Header() {
                       </div>
                       <ChevronRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-rose-600 dark:group-hover:text-rose-400" />
                     </Link>
+
+
+                   
+
+
                   </div>
                 </div>
 
@@ -1519,7 +1526,7 @@ export default function Header() {
                     </p>
 
                     <Link
-                      href="/about-us"
+                      href="/customer-journey"
                       className="mt-4 inline-flex items-center gap-2 rounded-lg bg-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-[#c8164f]"
                     >
                       <span>DISCOVER OUR STORY</span>
@@ -2107,6 +2114,7 @@ export default function Header() {
                 >
                   Switch &amp; Save
                 </Link>
+               
                 <Link
                   href="/refer-a-friend"
                   onClick={() => setMobileOpen(false)}

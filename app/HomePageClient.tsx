@@ -275,18 +275,17 @@ export default function ZoikoMobileHome() {
       
       {/* ─── 1. HERO SECTION ───────────────────────────────────────────────── */}
       <section className="relative w-full overflow-hidden bg-gradient-to-r from-[#F6F6F8] via-[#F9F9FB] via-35% to-white to-55% min-h-0 md:min-h-[520px] lg:min-h-[572px] flex items-center">
-        {/* Right-aligned Hero Photo (66% width on desktop, full-bleed on mobile with smooth blend) */}
-        <div className="absolute right-0 top-0 w-full md:w-[66%] h-full pointer-events-none z-0 overflow-hidden">
+        <div className="hidden md:block absolute right-0 top-0 md:w-[66%] h-full pointer-events-none z-0">
           <Image
             src="/images/updated-home-page/A smiling woman wearing headphones.png"
             alt="Smiling woman wearing headphones with dog in London"
             fill
             priority
-            className="object-cover object-[78%_top] sm:object-[75%_top] md:object-center"
+              className="object-cover object-[78%_top] sm:object-[75%_top] md:object-center"
             sizes="(max-width: 768px) 100vw, 66vw"
           />
-          {/* Left-edge gradient melt to ensure text readability on all viewports */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#F6F6F8] via-[#F6F6F8]/85 via-[48%] sm:via-[35%] to-transparent to-[82%] sm:to-[55%]" />
+          {/* Left-edge gradient melt matching Figma 6% -> 28% */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#F8F9FA] via-[#F8F9FA]/90 via-[8%] to-transparent to-[32%]" />
         </div>
 
         {/* Bottom Curved / Slanted Accent Band & White Floor (Figma top-[443.35px] frame) */}
