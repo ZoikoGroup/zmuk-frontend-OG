@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { getMyStatus, PsApiError } from "../civilservants/publicSectorApi";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -312,7 +314,42 @@ const TextField = ({
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 
+const OFFER_PATH = "/civilservants";
+const loginHref = `/login?next=${encodeURIComponent("/public-sector-workers-form")}`;
+
 export default function PublicSectorWorkersForm() {
+    const router = useRouter();
+
+    // The application needs a logged-in user (guide: 401 without a token).
+    // Pending or approved users already have a registration (guide: 409 ALREADY_APPLIED),
+    // so send them to the offer page, which shows their status, before they fill the form.
+    useEffect(() => {
+        let token: string | null = null;
+        try {
+            token = localStorage.getItem("zoiko_token");
+        } catch {
+            /* storage unavailable: the 401 handler below still covers it */
+        }
+        if (!token) {
+            router.replace(loginHref);
+            return;
+        }
+        let active = true;
+        getMyStatus()
+            .then((me) => {
+                if (active && (me.status === "pending" || me.status === "approved")) {
+                    router.replace(OFFER_PATH);
+                }
+            })
+            .catch((e) => {
+                if (active && e instanceof PsApiError && e.status === 401) router.replace(loginHref);
+                // Any other error: let the person fill the form; submit still returns 409 if needed.
+            });
+        return () => {
+            active = false;
+        };
+    }, [router]);
+
     const [form, setForm] = useState<FormState>(initialForm);
     const [nominees, setNominees] = useState<Nominee[]>(() => [newNominee()]);
     const [errors, setErrors] = useState<MainErrors>({});
@@ -490,9 +527,18 @@ export default function PublicSectorWorkersForm() {
 
         setIsSubmitting(true);
         try {
+            let token: string | null = null;
+            try {
+                token = localStorage.getItem("zoiko_token");
+            } catch {
+                token = null;
+            }
             const res = await fetch(API_URL, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Token ${token}` } : {}),
+                },
                 body: JSON.stringify(payload),
             });
             const data = await res.json().catch(() => ({}));
@@ -503,6 +549,23 @@ export default function PublicSectorWorkersForm() {
                     data.message || "Registration submitted. We'll email you once it's been reviewed.",
                     "success",
                 );
+                // Back to the offer page, which now shows the "pending" state.
+                setTimeout(() => router.push(OFFER_PATH), 1800);
+                return;
+            }
+
+            if (res.status === 401) {
+                router.push(loginHref);
+                return;
+            }
+
+            if (res.status === 409) {
+                // Already pending or approved: the offer page shows the real status.
+                showToast(
+                    data.message || "You already have a registration that is pending or approved.",
+                    "error",
+                );
+                setTimeout(() => router.push(OFFER_PATH), 1800);
                 return;
             }
 

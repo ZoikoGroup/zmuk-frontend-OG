@@ -4,7 +4,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePaymentForm";
 import type { StripeElementsOptions } from "@stripe/stripe-js";
-import { isLoggedIn as checkIsLoggedIn, getUser } from "../utils/auth";
+import { isLoggedIn as checkIsLoggedIn, getUser, getToken } from "../utils/auth";
 import { useCart } from "../context/CartContext";
 import { ShieldCheck } from "lucide-react";
 
@@ -72,6 +72,18 @@ interface Address {
 interface DiscountData {
   type: "percentage" | "flat";
   discount: string | number;
+}
+
+/** Problem reported by create-intent (guide section 6.3) that the customer must act on. */
+interface CheckoutIssue {
+  code: string;
+  message: string;
+  /** cartKey of the line the problem is about (PLAN_NOT_AVAILABLE, PLAN_NOT_ELIGIBLE ...) */
+  item?: string;
+  /** Server prices for PRICE_CHANGED */
+  lines?: { cartKey: string; unit_price: string }[];
+  serverDiscount?: number;
+  serverTotal?: number;
 }
 
 interface FormErrors {
@@ -288,6 +300,7 @@ export default function CheckoutPage() {
     removeFromCart,
     updateQuantity,
     clearCart,
+    updateLinePrices,
   } = useCart();
   // Snapshot of the paid order. The cart is cleared once payment is confirmed,
   // but the page (and the thank-you modal) must keep showing what was bought.
@@ -304,6 +317,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [discountData, setDiscountData] = useState<DiscountData | null>(null);
   const [couponMessage, setCouponMessage] = useState("");
+  const [checkoutIssue, setCheckoutIssue] = useState<CheckoutIssue | null>(null);
+  // Discount confirmed by the customer after the server recalculated it (409 PRICE_CHANGED).
+  const [serverDiscount, setServerDiscount] = useState<number | null>(null);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   const [loginPromptReason, setLoginPromptReason] = useState<"coupon" | "order">("order");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -526,6 +542,7 @@ export default function CheckoutPage() {
       });
       const data = await res.json();
       if (data.success) {
+        setServerDiscount(null);
         setDiscountData(data.data);
         const num = parseFloat(data.data.discount);
         const clean = Number.isInteger(num) ? num.toString() : num.toFixed(2);
@@ -548,6 +565,7 @@ export default function CheckoutPage() {
   const handleCancelCoupon = () => {
     setCoupon("");
     setDiscountData(null);
+    setServerDiscount(null);
     setCouponMessage("Coupon cancelled.");
   };
 
@@ -557,41 +575,111 @@ export default function CheckoutPage() {
     return acc + (item.price || 0) * item.quantity;
   }, 0);
 
-  const discountAmount = discountData
+  const computedDiscount = discountData
     ? discountData.type === "percentage"
       ? (subtotal * Number(discountData.discount)) / 100
       : Number(discountData.discount)
     : 0;
+  const discountAmount = discountData && serverDiscount !== null ? serverDiscount : computedDiscount;
 
   const total = Math.max(subtotal - (discountAmount || 0), 0);
 
   // ── Create Stripe payment intent ──────────────────────────────────────────
 
+  // The server prices the cart itself and refuses a total that differs from the one
+  // the customer sees (409 PRICE_CHANGED). Prices are never retried automatically.
+  const appliedCoupon = discountData ? coupon.trim() : "";
+
   useEffect(() => {
-    if (total > 0 && cart.length > 0) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/checkout/create-intent/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          total,
-          subtotal,
-          discountAmount,
-          cart,
-          billingAddress,
-          shippingAddress,
-        }),
+    if (!(total > 0 && cart.length > 0)) return;
+    let cancelled = false;
+    const token = getToken();
+
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/checkout/create-intent/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Token ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        total: Number(total.toFixed(2)),
+        subtotal,
+        discountAmount,
+        couponCode: appliedCoupon,
+        cart,
+        billingAddress,
+        shippingAddress,
+      }),
+    })
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }))
+      .then(({ status, body }) => {
+        if (cancelled) return;
+
+        if (body.clientSecret) {
+          setClientSecret(body.clientSecret);
+          setOrderRef(body.order_ref || "");
+          setCheckoutIssue(null);
+          return;
+        }
+
+        // Anything else: don't leave a payment form open for an old total.
+        setClientSecret("");
+        const code: string = body.code || "";
+        const message: string =
+          body.message || body.error || "We couldn't prepare your payment. Please try again.";
+
+        if (code === "LOGIN_REQUIRED" || status === 401) {
+          setLoginPromptReason("order");
+          setShowLoginPopup(true);
+          setCheckoutIssue({ code: "LOGIN_REQUIRED", message: "Please log in to continue with this order." });
+        } else if (code === "COUPON_INVALID") {
+          setCouponMessage(message);
+          setDiscountData(null);
+          setServerDiscount(null);
+          setCoupon("");
+          setCheckoutIssue(null);
+        } else if (code === "PRICE_CHANGED") {
+          const t = body.totals ?? {};
+          setCheckoutIssue({
+            code,
+            message,
+            lines: Array.isArray(body.lines)
+              ? body.lines.map((l: { cartKey: string; unit_price: string }) => ({
+                  cartKey: l.cartKey,
+                  unit_price: l.unit_price,
+                }))
+              : [],
+            serverDiscount: t.discount !== undefined ? Number(t.discount) : undefined,
+            serverTotal: t.total !== undefined ? Number(t.total) : undefined,
+          });
+        } else {
+          setCheckoutIssue({ code: code || "ERROR", message, item: body.item });
+        }
       })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.clientSecret) {
-            setClientSecret(d.clientSecret);
-            setOrderRef(d.order_ref || "");
-          }
-        })
-        .catch(() => {});
-    }
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [total, subtotal, discountAmount, cart]);
+  }, [total, subtotal, discountAmount, cart, appliedCoupon, isLoggedIn]);
+
+  /** The customer confirms the server's prices; the next create-intent call then succeeds. */
+  const acceptServerPrices = () => {
+    if (!checkoutIssue || checkoutIssue.code !== "PRICE_CHANGED") return;
+    const prices: Record<string, number> = {};
+    (checkoutIssue.lines ?? []).forEach((l) => {
+      prices[l.cartKey] = Number(l.unit_price);
+    });
+    updateLinePrices(prices);
+    if (discountData && checkoutIssue.serverDiscount !== undefined) {
+      setServerDiscount(checkoutIssue.serverDiscount);
+    }
+    setCheckoutIssue(null);
+  };
+
+  const verifyLink = (message: string) =>
+    /student/i.test(message) ? "/student-deals" : "/civilservants";
 
   // ── field validators ──────────────────────────────
   const validateZip = (zip: string) => {
@@ -1092,6 +1180,62 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {/* Checkout problems reported by the server (prices, eligibility, availability) */}
+            {checkoutIssue && checkoutIssue.code !== "LOGIN_REQUIRED" && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100"
+              >
+                <p className="font-semibold">{checkoutIssue.message}</p>
+
+                {checkoutIssue.code === "PRICE_CHANGED" && (
+                  <div className="mt-2">
+                    {checkoutIssue.serverTotal !== undefined && (
+                      <p className="mb-2">New total: £{checkoutIssue.serverTotal.toFixed(2)}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={acceptServerPrices}
+                      className="rounded-lg bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-600"
+                    >
+                      Update my order and continue
+                    </button>
+                  </div>
+                )}
+
+                {checkoutIssue.code === "PLAN_NOT_ELIGIBLE" && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <a
+                      href={verifyLink(checkoutIssue.message)}
+                      className="rounded-lg bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-600"
+                    >
+                      Verify my eligibility
+                    </a>
+                    {checkoutIssue.item && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(checkoutIssue.item!)}
+                        className="rounded-lg border border-amber-400 px-4 py-2 text-xs font-semibold"
+                      >
+                        Remove this plan
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {(checkoutIssue.code === "PLAN_NOT_AVAILABLE" || checkoutIssue.code === "PRODUCT_NOT_AVAILABLE") &&
+                  checkoutIssue.item && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(checkoutIssue.item!)}
+                      className="mt-2 rounded-lg bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-600"
+                    >
+                      Remove this item
+                    </button>
+                  )}
+              </div>
+            )}
+
             {/* Payment */}
             <div
               ref={paymentCardRef}
@@ -1199,8 +1343,8 @@ export default function CheckoutPage() {
               : "You need to log in to apply a coupon code."}
           </p>
           <a
-            href={`/login?redirect=${encodeURIComponent(
-              typeof window !== "undefined" ? window.location.href : "/"
+            href={`/login?next=${encodeURIComponent(
+              typeof window !== "undefined" ? window.location.pathname + window.location.search : "/checkout"
             )}`}
             className="block w-full py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-colors mb-2"
           >

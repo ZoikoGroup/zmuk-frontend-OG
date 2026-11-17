@@ -39,7 +39,7 @@ function catMatch(p: Plan, ...keywords: string[]): boolean {
 
 // Same price rule as before: 30-day price first.
 function monthlyNumber(plan: Plan): number {
-  return Number(plan.price_30 ?? plan.price_12 ?? plan.price);
+  return Number(plan.price_30 ?? plan.price);
 }
 const monthly = (plan: Plan) => monthlyNumber(plan).toFixed(2);
 
@@ -259,7 +259,7 @@ function ThirtyDayPlans() {
   // Same flow as before: pick SIM type -> add to cart -> /checkout.
   const confirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    addPlanToCart(simTypePlan, simType);
+    addPlanToCart(simTypePlan, simType, "30D");
     setSimTypePlan(null);
     router.push("/checkout");
   };

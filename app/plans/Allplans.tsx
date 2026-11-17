@@ -251,12 +251,12 @@ export function Allplans() {
 
   const confirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    const finalPlan = {
-      ...simTypePlan,
-      final_price: getPlanPrice(simTypePlan),
-      duration_days: durationTab === "30-days" ? 30 : durationTab === "12-months" ? 365 : 730,
-    };
-    addPlanToCart(finalPlan as any, simType);
+    // Price and term both come from the selected tab (same rule the server uses).
+    addPlanToCart(
+      simTypePlan as any,
+      simType,
+      durationTab === "30-days" ? "30D" : durationTab === "12-months" ? "12M" : "24M",
+    );
     setSimTypePlan(null);
     router.push("/checkout");
   };
