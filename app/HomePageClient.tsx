@@ -236,13 +236,12 @@ export default function ZoikoMobileHome() {
   // Add Plan to Cart Handler
   const handleConfirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    const durationDays = durationTab === "30-days" ? 30 : durationTab === "12-months" ? 365 : 730;
-    const finalPlan = {
-      ...simTypePlan,
-      final_price: getPlanPrice(simTypePlan),
-      duration_days: durationDays,
-    };
-    addPlanToCart(finalPlan as any, simType);
+    // Price and term both come from the selected tab (same rule the server uses).
+    addPlanToCart(
+      simTypePlan as any,
+      simType,
+      durationTab === "30-days" ? "30D" : durationTab === "12-months" ? "12M" : "24M",
+    );
     setSimTypePlan(null);
     router.push("/checkout");
   };

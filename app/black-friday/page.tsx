@@ -159,7 +159,7 @@ export default function BlackFridayPage() {
 
   const confirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    addPlanToCart(simTypePlan, simType);
+    addPlanToCart(simTypePlan, simType, duration.startsWith("24") ? "24M" : duration.startsWith("12") ? "12M" : "30D");
     setSimTypePlan(null);
     router.push("/checkout");
   };

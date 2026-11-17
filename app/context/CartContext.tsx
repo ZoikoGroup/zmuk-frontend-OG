@@ -49,12 +49,17 @@ export interface CartItem {
 // }
 
 
+// Contract terms. Days are what the server uses to pick the price (730 = price_24, ...).
+export type PlanTerm = "24M" | "12M" | "30D";
+export const PLAN_TERM_DAYS = { "24M": 730, "12M": 365, "30D": 30 } as const;
+export const PLAN_TERM_FIELD = { "24M": "price_24", "12M": "price_12", "30D": "price_30" } as const;
+
 interface CartContextType {
     cart: CartItem[];
 
     addToCart: (item: CartItem) => void;
 
-    addPlanToCart: (plan: any, simType?: "esim" | "psim") => void;
+    addPlanToCart: (plan: any, simType?: "esim" | "psim", term?: PlanTerm) => void;
 
     addProductToCart: (
         product: any,
@@ -74,6 +79,9 @@ interface CartContextType {
     ) => void;
 
     clearCart: () => void;
+
+    /** Apply the server's prices after a 409 PRICE_CHANGED. Keys are cartKeys. */
+    updateLinePrices: (prices: Record<string, number>) => void;
 
     totalItems: number;
 
@@ -184,9 +192,17 @@ export function CartProvider({
         });
     };
 
-    const addPlanToCart = (plan: any, simType: "esim" | "psim" = "psim") => {
+    // The server prices a plan line from the term in days (730 / 365 / 30) using the
+    // same field rule below, so price and duration must always come from the same term.
+    // Callers that don't pass a term keep the old behaviour (final_price + duration_days).
+    const addPlanToCart = (plan: any, simType: "esim" | "psim" = "psim", term?: PlanTerm) => {
+        const duration = term ? PLAN_TERM_DAYS[term] : plan.duration_days;
+        const price = term
+            ? Number(plan[PLAN_TERM_FIELD[term]] ?? plan.price)
+            : Number(plan.final_price ?? plan.price);
+
         const cartItem: CartItem = {
-            cartKey: `plan-${plan.id}-${plan.duration_days}-${simType}`,
+            cartKey: `plan-${plan.id}-${duration}-${simType}`,
 
             id: plan.id,
 
@@ -200,13 +216,13 @@ export function CartProvider({
 
             category: plan.category?.name,
 
-            price: Number(plan.final_price ?? plan.price),
+            price,
 
             quantity: 1,
 
             metadata: {
                 simType: simType,
-                duration: plan.duration_days,
+                duration,
                 dataAllowance: plan.data_allowance,
                 transatelID: plan.transatelID,
                 tier: plan.tier_label,
@@ -288,6 +304,16 @@ export function CartProvider({
         setCart([]);
     };
 
+    const updateLinePrices = (prices: Record<string, number>) => {
+        setCart((prev) =>
+            prev.map((item) =>
+                item.cartKey in prices && Number.isFinite(prices[item.cartKey])
+                    ? { ...item, price: prices[item.cartKey] }
+                    : item
+            )
+        );
+    };
+
     const totalItems = useMemo(() => {
         return cart.reduce(
             (total, item) => total + item.quantity,
@@ -312,6 +338,7 @@ export function CartProvider({
                 removeFromCart,
                 updateQuantity,
                 clearCart,
+                updateLinePrices,
                 totalItems,
                 totalPrice,
                 hydrated,

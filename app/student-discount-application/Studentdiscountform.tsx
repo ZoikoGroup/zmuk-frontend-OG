@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getStudentStatus, StudentApiError } from "../student-deals/studentApi";
+
+const STUDENT_PAGE = "/student-deals";
+const STUDENT_LOGIN = `/login?next=${encodeURIComponent("/student-discount-application")}`;
 
 type FormData = {
     fullName: string;
@@ -235,6 +240,37 @@ export default function StudentDiscountApplication() {
         declarationDate: todayISO(), // sensible default: today
     };
 
+    const router = useRouter();
+
+    // The application needs a logged-in user. Pending or approved students already
+    // have an application (guide: 409 ALREADY_APPLIED), so send them to the student
+    // page, which shows their status. Rejected, expired and none can apply.
+    useEffect(() => {
+        let token: string | null = null;
+        try {
+            token = localStorage.getItem("zoiko_token");
+        } catch {
+            /* storage unavailable: the 401 handler on submit still covers it */
+        }
+        if (!token) {
+            router.replace(STUDENT_LOGIN);
+            return;
+        }
+        let active = true;
+        getStudentStatus()
+            .then((me) => {
+                if (active && (me.status === "pending" || me.status === "approved")) {
+                    router.replace(STUDENT_PAGE);
+                }
+            })
+            .catch((e) => {
+                if (active && e instanceof StudentApiError && e.status === 401) router.replace(STUDENT_LOGIN);
+            });
+        return () => {
+            active = false;
+        };
+    }, [router]);
+
     const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState<Errors>({});
     const [loading, setLoading] = useState(false);
@@ -351,8 +387,16 @@ export default function StudentDiscountApplication() {
                 form.append("student_id_document", formData.studentCard);
             }
 
+            let token: string | null = null;
+            try {
+                token = localStorage.getItem("zoiko_token");
+            } catch {
+                token = null;
+            }
+            // No Content-Type header: the browser sets the multipart boundary.
             const response = await fetch(`${API_URL}/api/student-discount/`, {
                 method: "POST",
+                headers: token ? { Authorization: `Token ${token}` } : undefined,
                 body: form,
             });
 
@@ -364,6 +408,21 @@ export default function StudentDiscountApplication() {
                 data = rawBody ? JSON.parse(rawBody) : null;
             } catch {
                 data = null;
+            }
+
+            if (response.status === 401) {
+                router.push(STUDENT_LOGIN);
+                return;
+            }
+
+            if (response.status === 409) {
+                const msg =
+                    data && typeof data === "object" && "message" in data
+                        ? String((data as { message: unknown }).message)
+                        : "You already have a student application that is pending or approved.";
+                alert(msg);
+                router.push(STUDENT_PAGE);
+                return;
             }
 
             if (!response.ok) {
@@ -402,6 +461,8 @@ export default function StudentDiscountApplication() {
             alert("Your application has been submitted successfully!");
             setFormData(initialFormData);
             setErrors({});
+            // The student page now shows the "pending" state.
+            router.push(STUDENT_PAGE);
         } catch (error) {
             // Never reached the server (server down, DNS, or CORS blocking localhost:3001).
             console.error("Request failed before a response", { error });

@@ -317,7 +317,11 @@ export default function Dataonly() {
   // Same flow as before: pick SIM type -> add to cart -> /checkout.
   const confirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    addPlanToCart(simTypePlan, simType);
+    addPlanToCart(
+      simTypePlan,
+      simType,
+      duration === "24 Month Plan" ? "24M" : duration === "12 Month Plan" ? "12M" : "30D",
+    );
     setSimTypePlan(null);
     router.push("/checkout");
   };

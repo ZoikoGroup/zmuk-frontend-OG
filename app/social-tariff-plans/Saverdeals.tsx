@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCart } from "../context/CartContext";
+import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 import React, { useEffect, useMemo, useState } from "react";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
@@ -201,8 +202,17 @@ function Saverdeals() {
   const { addPlanToCart } = useCart();
   const router = useRouter();
 
+  const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
+
   const handleBuyNow = (plan: Plan) => {
-    addPlanToCart(plan);
+    setSimTypePlan(plan);
+  };
+
+  // Price and term come from the selected tab (12 months or 30 days).
+  const confirmSimType = (simType: "esim" | "psim") => {
+    if (!simTypePlan) return;
+    addPlanToCart(simTypePlan, simType, simDuration === "12 Months" ? "12M" : "30D");
+    setSimTypePlan(null);
     router.push("/checkout");
   };
 
@@ -227,6 +237,13 @@ function Saverdeals() {
 
   return (
     <div className="bg-white dark:bg-gray-900">
+      {simTypePlan && (
+        <ChooseSimTypeModal
+          planName={simTypePlan.name}
+          onConfirm={confirmSimType}
+          onClose={() => setSimTypePlan(null)}
+        />
+      )}
 
       {/* ── Hero ── */}
       <section className="bg-gradient-to-r from-green-600 to-teal-500 px-4 py-14">

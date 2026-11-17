@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "../context/CartContext";
+import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -139,6 +140,7 @@ export default function Buisinessdeal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -162,14 +164,31 @@ export default function Buisinessdeal() {
   const businessPlans = useMemo(() => plans.filter((p) => p.category?.slug === BUSINESS_SLUG), [plans]);
   const durationMeta = DURATIONS.find((d) => d.key === duration)!;
 
-  // Same flow as before: add to cart -> /checkout.
+  // Pick SIM type -> add to cart with the selected term -> /checkout.
   const handleBuyNow = (plan: Plan) => {
-    addPlanToCart(plan);
+    setSimTypePlan(plan);
+  };
+
+  const confirmSimType = (simType: "esim" | "psim") => {
+    if (!simTypePlan) return;
+    addPlanToCart(
+      simTypePlan,
+      simType,
+      duration === "24 Month Plan" ? "24M" : duration === "12 Month Plan" ? "12M" : "30D",
+    );
+    setSimTypePlan(null);
     router.push("/checkout");
   };
 
   return (
     <div className="w-full bg-[#f8f9fa] font-sans text-[#141A45]">
+      {simTypePlan && (
+        <ChooseSimTypeModal
+          planName={simTypePlan.name}
+          onConfirm={confirmSimType}
+          onClose={() => setSimTypePlan(null)}
+        />
+      )}
       {/* ── Section 1: Hero Section ── */}
       <section className="relative overflow-hidden bg-gradient-to-r from-[#f7f8f9] via-[#fafbfc] to-white pt-8 pb-16 sm:pt-12 sm:pb-20 lg:pt-16 lg:pb-24">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-10">

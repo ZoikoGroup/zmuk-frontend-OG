@@ -291,7 +291,7 @@ function AddNewNumberContent() {
       } catch (err: any) {
         if (active) {
           if (err instanceof ApiError && err.status === 401) {
-            router.push(`/login?redirect=${encodeURIComponent("/dashboard/add-new-number")}`);
+            router.push(`/login?next=${encodeURIComponent("/dashboard/add-new-number")}`);
             return;
           }
           setEligibilityError(err.message || "Failed to check line eligibility.");
@@ -633,7 +633,7 @@ function AddNewNumberContent() {
         setCheckoutError("The plan quote was updated. We have refreshed your prices.");
         fetchQuote();
       } else if (err.code === "REAUTH_REQUIRED") {
-        router.push(`/login?redirect=${encodeURIComponent("/dashboard/add-new-number")}`);
+        router.push(`/login?next=${encodeURIComponent("/dashboard/add-new-number")}`);
       } else if (err.code === "OUT_OF_STOCK") {
         setCheckoutError("This SIM type is currently out of stock. Please select another SIM format.");
         setStep(4);
@@ -785,7 +785,7 @@ function AddNewNumberContent() {
                 </div>
               </div>
               <Link
-                href={`/login?redirect=${encodeURIComponent("/dashboard/add-new-number")}`}
+                href={`/login?next=${encodeURIComponent("/dashboard/add-new-number")}`}
                 className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shrink-0 transition"
               >
                 Log In Again
