@@ -3,11 +3,16 @@
 import {
     createContext,
     useContext,
+    useCallback,
     useEffect,
     useMemo,
+    useRef,
     useState,
     ReactNode,
 } from "react";
+import { getPlans as getPublicSectorPlans, getToken as getPsToken } from "../civilservants/publicSectorApi";
+import type { DiscountedPrices } from "../civilservants/publicSectorApi";
+import { getStudentPlans } from "../student-deals/studentApi";
 
 export interface CartItem {
     cartKey: string;
@@ -89,6 +94,29 @@ interface CartContextType {
 
     /** True once the cart has been loaded from localStorage on the client. */
     hydrated: boolean;
+
+    /** True when any plan line carries the public sector discount (coupons can't be combined). */
+    hasPublicSectorDiscount: boolean;
+}
+
+/** Term price field the server uses for a duration in days. */
+function fieldForDuration(days: unknown): "price_24" | "price_12" | "price_30" | null {
+    const d = Number(days);
+    return d === 730 ? "price_24" : d === 365 ? "price_12" : d === 30 ? "price_30" : null;
+}
+
+/** Public sector discounted price for a plan line, or null if the plan has no discount. */
+function discountedUnitPrice(
+    map: Record<number, DiscountedPrices>,
+    planId: number,
+    days: unknown
+): number | null {
+    const d = map[planId];
+    if (!d) return null;
+    const field = fieldForDuration(days);
+    const raw = (field ? d[field] : null) ?? d.price;
+    const n = Number(raw);
+    return raw != null && Number.isFinite(n) ? n : null;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -160,6 +188,70 @@ export function CartProvider({
         }
     }, [cart, hydrated]);
 
+    // Public sector discount map: planId -> discounted prices. Only filled for an approved worker.
+    const [psDiscounts, setPsDiscounts] = useState<Record<number, DiscountedPrices>>({});
+    const psRequest = useRef(0);
+
+    const loadPsDiscounts = useCallback(async () => {
+        const request = ++psRequest.current;
+        if (!getPsToken()) {
+            setPsDiscounts({});
+            return;
+        }
+        try {
+            // Public sector (30%) and student (20%) discounts share one map; a failure in one
+            // programme must not hide the other.
+            const [ps, student] = await Promise.all([
+                getPublicSectorPlans().catch(() => null),
+                getStudentPlans().catch(() => null),
+            ]);
+            if (request !== psRequest.current) return;
+            const map: Record<number, DiscountedPrices> = {};
+            [ps, student].forEach((data) => {
+                if (!data?.discount_applies) return;
+                data.plans.forEach((p) => {
+                    if (p.discounted_prices) map[p.id] = p.discounted_prices;
+                });
+            });
+            setPsDiscounts(map);
+        } catch {
+            if (request === psRequest.current) setPsDiscounts({});
+        }
+    }, []);
+
+    // Load on start, and again when the user logs in or out.
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadPsDiscounts();
+        const onAuth = () => loadPsDiscounts();
+        window.addEventListener("zoiko-auth", onAuth);
+        window.addEventListener("storage", onAuth);
+        return () => {
+            window.removeEventListener("zoiko-auth", onAuth);
+            window.removeEventListener("storage", onAuth);
+        };
+    }, [loadPsDiscounts]);
+
+    // Re-price the plan lines already in the cart whenever the map changes.
+    useEffect(() => {
+        if (!hydrated) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCart((prev) => {
+            let changed = false;
+            const next = prev.map((item) => {
+                const base = item.metadata?.basePrice;
+                if (item.type !== "plan" || typeof base !== "number") return item;
+                const discounted = discountedUnitPrice(psDiscounts, item.id, item.metadata?.duration);
+                const price = discounted ?? base;
+                const flag = discounted !== null;
+                if (price === item.price && flag === !!item.metadata?.publicSectorDiscount) return item;
+                changed = true;
+                return { ...item, price, metadata: { ...item.metadata, publicSectorDiscount: flag } };
+            });
+            return changed ? next : prev;
+        });
+    }, [psDiscounts, hydrated]);
+
     // Keep multiple tabs in sync (the "storage" event only fires in OTHER tabs).
     useEffect(() => {
         const onStorage = (e: StorageEvent) => {
@@ -197,9 +289,12 @@ export function CartProvider({
     // Callers that don't pass a term keep the old behaviour (final_price + duration_days).
     const addPlanToCart = (plan: any, simType: "esim" | "psim" = "psim", term?: PlanTerm) => {
         const duration = term ? PLAN_TERM_DAYS[term] : plan.duration_days;
-        const price = term
+        const basePrice = term
             ? Number(plan[PLAN_TERM_FIELD[term]] ?? plan.price)
             : Number(plan.final_price ?? plan.price);
+        // Verified public sector workers pay 30% less on the offer plans, from any page.
+        const discounted = discountedUnitPrice(psDiscounts, plan.id, duration);
+        const price = discounted ?? basePrice;
 
         const cartItem: CartItem = {
             cartKey: `plan-${plan.id}-${duration}-${simType}`,
@@ -226,6 +321,9 @@ export function CartProvider({
                 dataAllowance: plan.data_allowance,
                 transatelID: plan.transatelID,
                 tier: plan.tier_label,
+                // Normal price, so the line can switch back if the user logs out.
+                basePrice,
+                publicSectorDiscount: discounted !== null,
             },
         };
 
@@ -328,6 +426,11 @@ export function CartProvider({
         );
     }, [cart]);
 
+    const hasPublicSectorDiscount = useMemo(
+        () => cart.some((item) => !!item.metadata?.publicSectorDiscount),
+        [cart]
+    );
+
     return (
         <CartContext.Provider
             value={{
@@ -342,6 +445,7 @@ export function CartProvider({
                 totalItems,
                 totalPrice,
                 hydrated,
+                hasPublicSectorDiscount,
             }}
         >
             {children}

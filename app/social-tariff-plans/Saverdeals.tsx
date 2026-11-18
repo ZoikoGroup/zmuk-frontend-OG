@@ -119,7 +119,7 @@ function SectionHead({ title, sub }: { title: string; sub?: string }) {
 }
 
 // ── Cards ──
-function SimCard({ plan, duration ,onBuyNow }: { plan: Plan; duration: SimDuration; onBuyNow: (plan: Plan) => void }) {
+function SimCard({ plan, duration ,onBuyNow }: { plan: Plan; duration: SimDuration; onBuyNow: (plan: Plan, term: "12M" | "30D") => void }) {
   const price = duration === "12 Months" ? num(plan.price_12, plan.price) : num(plan.price_30, plan.price);
   return (
     <div className={`relative flex h-full flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${plan.is_popular ? "border-2 border-teal-400" : "border border-gray-100 dark:border-gray-700"
@@ -137,12 +137,12 @@ function SimCard({ plan, duration ,onBuyNow }: { plan: Plan; duration: SimDurati
         <div className="text-xs text-gray-400">per month</div>
       </div>
       <FeatureBlock items={lines(plan)} />
-      <Buttons onclick={() => onBuyNow(plan)} />
+      <Buttons onclick={() => onBuyNow(plan, duration === "12 Months" ? "12M" : "30D")} />
     </div>
   );
 }
 
-function BroadbandCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) => void }) {
+function BroadbandCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan, term: "12M" | "30D") => void }) {
   return (
     <div className={`relative flex h-full flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${plan.is_popular ? "border-2 border-teal-400" : "border border-gray-100 dark:border-gray-700"
       }`}>
@@ -155,12 +155,12 @@ function BroadbandCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) 
         <div className="text-xs text-gray-400">per month</div>
       </div>
       <FeatureBlock items={lines(plan)} />
-      <Buttons onclick={() => onBuyNow(plan)} />
+      <Buttons onclick={() => onBuyNow(plan, "12M")} />
     </div>
   );
 }
 
-function PhoneCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) => void }) {
+function PhoneCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan, term: "12M" | "30D") => void }) {
   return (
     <div className="relative flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
       <h3 className="mb-3 text-base font-semibold text-gray-800 dark:text-white">{plan.name}</h3>
@@ -169,12 +169,12 @@ function PhoneCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) => v
         <div className="text-xs text-gray-400">per month</div>
       </div>
       <FeatureBlock items={lines(plan)} />
-      <Buttons onclick={() => onBuyNow(plan)} />
+      <Buttons onclick={() => onBuyNow(plan, "12M")} />
     </div>
   );
 }
 
-function ComboCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) => void }) {
+function ComboCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan, term: "12M" | "30D") => void }) {
   return (
     <div className={`relative flex h-full flex-col rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800 ${plan.is_popular ? "border-2 border-teal-400" : "border border-gray-100 dark:border-gray-700"
       }`}>
@@ -185,7 +185,7 @@ function ComboCard({ plan, onBuyNow }: { plan: Plan; onBuyNow: (plan: Plan) => v
         <div className="text-xs text-gray-400">per month</div>
       </div>
       <FeatureBlock items={lines(plan)} />
-      <Buttons onclick={() => onBuyNow(plan)} />
+      <Buttons onclick={() => onBuyNow(plan, "12M")} />
     </div>
   );
 }
@@ -204,14 +204,19 @@ function Saverdeals() {
 
   const [simTypePlan, setSimTypePlan] = useState<Plan | null>(null);
 
-  const handleBuyNow = (plan: Plan) => {
+  // These cards show the 12-month price, so they are always bought on the 12-month term.
+  // The SIM cards follow the selected tab.
+  const [simTypeTerm, setSimTypeTerm] = useState<"12M" | "30D">("12M");
+
+  const handleBuyNow = (plan: Plan, term: "12M" | "30D") => {
+    setSimTypeTerm(term);
     setSimTypePlan(plan);
   };
 
   // Price and term come from the selected tab (12 months or 30 days).
   const confirmSimType = (simType: "esim" | "psim") => {
     if (!simTypePlan) return;
-    addPlanToCart(simTypePlan, simType, simDuration === "12 Months" ? "12M" : "30D");
+    addPlanToCart(simTypePlan, simType, simTypeTerm);
     setSimTypePlan(null);
     router.push("/checkout");
   };

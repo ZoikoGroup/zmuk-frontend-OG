@@ -34,13 +34,27 @@ export interface PublicSectorPlan {
   is_popular: boolean;
   category: { id: number; name: string; slug: string } | null;
   features: { id: number; title: string }[];
+  /** 30%-off term prices. null unless `discount_applies` (user is approved). */
+  discounted_prices?: {
+    price_24: string | null;
+    price_12: string | null;
+    price_30: string | null;
+    price: string | null;
+  } | null;
 }
 
 export interface PlansResponse {
   status: VerificationStatus;
+  /** The offer %, always sent (e.g. "30.00"). */
+  discount_percent: string;
+  /** true only when the logged-in user is approved and the offer is on. */
+  discount_applies: boolean;
+  /** Same as discount_applies; kept for older builds. Do not use it to hide Buy. */
   can_purchase: boolean;
   plans: PublicSectorPlan[];
 }
+
+export type DiscountedPrices = NonNullable<PublicSectorPlan["discounted_prices"]>;
 
 export interface Nominee {
   id: number;

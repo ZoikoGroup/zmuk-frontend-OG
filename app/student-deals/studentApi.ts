@@ -35,10 +35,22 @@ export interface StudentPlan {
   is_popular: boolean;
   category: { id: number; name: string; slug: string } | null;
   features: { id: number; title: string }[];
+  /** 20%-off term prices. null unless `discount_applies` (student is approved and not expired). */
+  discounted_prices?: {
+    price_24: string | null;
+    price_12: string | null;
+    price_30: string | null;
+    price: string | null;
+  } | null;
 }
 
 export interface StudentPlansResponse {
   status: StudentStatus;
+  /** The offer % (e.g. "20.00"), always sent. */
+  discount_percent: string;
+  /** true only for an approved, non-expired student while the offer is on. */
+  discount_applies: boolean;
+  /** Same as discount_applies; kept for older builds. Do not use it to hide Buy. */
   can_purchase: boolean;
   plans: StudentPlan[];
 }

@@ -33,6 +33,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { recordBoosterPurchase } from "../../utils/dashboardSync";
+import {
+  getMyStatus as getPsStatus,
+  getPlans as getPsPlans,
+  getToken as getVerifyToken,
+} from "../../civilservants/publicSectorApi";
+import type { PlansResponse as PsPlansResponse, MyStatus as PsMyStatus } from "../../civilservants/publicSectorApi";
+import { getStudentStatus, getStudentPlans } from "../../student-deals/studentApi";
+import type { StudentPlansResponse, StudentMyStatus } from "../../student-deals/studentApi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -50,7 +58,8 @@ type OfferCategory =
   | "Add-ons & data"
   | "Roaming & travel"
   | "Refer & earn"
-  | "Account exclusives";
+  | "Account exclusives"
+  | "Verified discounts";
 
 interface OfferItem {
   id: string;
@@ -74,6 +83,37 @@ interface OfferItem {
   numericPrice: number;
   recommendedRank: number;
   backendPlan?: any;
+  /** Verified-discount offers send the customer to the page where the plans are bought. */
+  href?: string;
+  ctaLabel?: string;
+}
+
+type DiscountablePlan = {
+  price: string;
+  price_24: string | null;
+  price_12: string | null;
+  price_30: string | null;
+  discounted_prices?: {
+    price_24: string | null;
+    price_12: string | null;
+    price_30: string | null;
+    price: string | null;
+  } | null;
+};
+
+/** Lowest discounted monthly price across all terms, with the normal price of the same plan and term. */
+function lowestDiscounted(plans: DiscountablePlan[]): { price: number; normal: number } | null {
+  let best: { price: number; normal: number } | null = null;
+  for (const p of plans) {
+    const d = p.discounted_prices;
+    if (!d) continue;
+    for (const f of ["price_24", "price_12", "price_30"] as const) {
+      const price = Number(d[f]);
+      if (d[f] == null || !Number.isFinite(price)) continue;
+      if (!best || price < best.price) best = { price, normal: Number(p[f] ?? p.price) };
+    }
+  }
+  return best;
 }
 
 export default function LatestOffersPage() {
@@ -107,6 +147,32 @@ export default function LatestOffersPage() {
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDropdownOpen, setLineDropdownOpen] = useState(false);
   const [djangoPlans, setDjangoPlans] = useState<any[]>([]);
+
+  // Verification state (public sector 30%, students 20%) drives the "Verified discounts" offers.
+  const [verified, setVerified] = useState<{
+    loggedIn: boolean;
+    ps: { me: PsMyStatus | null; plans: PsPlansResponse | null };
+    student: { me: StudentMyStatus | null; plans: StudentPlansResponse | null };
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loggedIn = !!getVerifyToken();
+    (async () => {
+      const [psMe, psPlans, stMe, stPlans] = await Promise.all([
+        loggedIn ? getPsStatus().catch(() => null) : Promise.resolve(null),
+        getPsPlans().catch(() => null),
+        loggedIn ? getStudentStatus().catch(() => null) : Promise.resolve(null),
+        getStudentPlans().catch(() => null),
+      ]);
+      if (!cancelled) {
+        setVerified({ loggedIn, ps: { me: psMe, plans: psPlans }, student: { me: stMe, plans: stPlans } });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Hero carousel state
   const [activeSlide, setActiveSlide] = useState(0);
@@ -508,9 +574,101 @@ export default function LatestOffersPage() {
   const modalPlanAllowance =
     activePlanToUpgrade?.data_allowance || upgradeAllowance;
 
+  // Offers driven by the customer's verification status. Everything comes from the API.
+  const verifiedOffers: OfferItem[] = useMemo(() => {
+    if (!verified) return [];
+    const make = (
+      kind: "ps" | "student",
+      status: string,
+      plansResp: { discount_applies: boolean; discount_percent: string; plans: DiscountablePlan[] } | null,
+      validUntil: string | null | undefined
+    ): OfferItem | null => {
+      if (!plansResp || plansResp.plans.length === 0) return null;
+      const pct = Math.round(Number(plansResp.discount_percent)) || (kind === "ps" ? 30 : 20);
+      const who = kind === "ps" ? "public sector workers" : "students";
+      const href = kind === "ps" ? "/civilservants" : "/student-deals";
+      const applies = plansResp.discount_applies;
+      const best = applies ? lowestDiscounted(plansResp.plans) : null;
+      const until = validUntil
+        ? new Date(validUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+        : null;
+      const count = plansResp.plans.length;
+
+      const base = {
+        id: `verified-${kind}`,
+        category: "Verified discounts" as OfferCategory,
+        bannerGradient:
+          kind === "ps" ? "from-[#0B4D2F] via-[#0F6B41] to-[#168A55]" : "from-[#1B1738] via-[#271E4A] to-[#34235C]",
+        bannerGraphic: "gift" as const,
+        href,
+      };
+
+      if (applies) {
+        return {
+          ...base,
+          title: `${pct}% off for verified ${who}`,
+          subtitle: "Applied automatically at checkout",
+          badgeText: "Verified",
+          badgeIcon: "star" as const,
+          bullets: [
+            `${pct}% off ${count} selected plan${count === 1 ? "" : "s"}`,
+            "Pick your contract length on the plans page",
+            until ? `Verified until ${until}` : "Stays on while you're verified",
+          ],
+          priceMain: best ? `£${best.price.toFixed(2)}` : `${pct}% off`,
+          priceSub: best ? "a month, from" : undefined,
+          priceStrike: best ? `Usually £${best.normal.toFixed(2)}` : undefined,
+          termsText: "Added at checkout, from any page. Coupons can't be used together with this discount.",
+          reasonText: `You're a verified ${kind === "ps" ? "public sector worker" : "student"}`,
+          numericPrice: best?.price ?? 0,
+          recommendedRank: 0,
+          ctaLabel: "Choose your plan",
+        };
+      }
+
+      const pending = status === "pending";
+      return {
+        ...base,
+        title: pending
+          ? `Your ${kind === "ps" ? "public sector" : "student"} check is in progress`
+          : `${pct}% off for ${who}`,
+        subtitle: pending ? "We'll email you once it's reviewed" : "Verify once to see your price",
+        badgeText: pending ? "In progress" : undefined,
+        bullets: [
+          `${pct}% off ${count} selected plan${count === 1 ? "" : "s"}`,
+          pending ? "Normal prices apply until you're approved" : "You can buy at the normal price any time",
+          status === "expired"
+            ? "Your verification has ended. Verify again to keep student prices."
+            : status === "rejected"
+              ? "Your last application wasn't approved. You can apply again."
+              : "Verification is done securely in your account",
+        ],
+        priceMain: `${pct}% off`,
+        priceSub: "once verified",
+        termsText: pending
+          ? "Verification is being reviewed."
+          : "The discount is applied at checkout after you're approved.",
+        reasonText: !verified.loggedIn ? "Log in to check your eligibility" : "Based on your verification status",
+        numericPrice: 0,
+        recommendedRank: 8,
+        ctaLabel: pending ? "View plans" : "Check eligibility",
+      };
+    };
+
+    const ps = make("ps", verified.ps.me?.status ?? verified.ps.plans?.status ?? "none", verified.ps.plans, null);
+    const st = make(
+      "student",
+      verified.student.me?.status ?? verified.student.plans?.status ?? "none",
+      verified.student.plans,
+      verified.student.me?.application?.valid_until
+    );
+    return [ps, st].filter((o): o is OfferItem => !!o);
+  }, [verified]);
+
   // Build dynamic offers tailored to the selected line
   const allOffers: OfferItem[] = useMemo(() => {
     return [
+      ...verifiedOffers,
       {
         id: "zoiko-unlimited",
         title: upgradeTitle,
@@ -711,6 +869,7 @@ export default function LatestOffersPage() {
     upgradeBullets,
     backendUnlimitedPlan,
     djangoPlans,
+    verifiedOffers,
   ]);
 
   // Dynamic limited-time offers
@@ -806,6 +965,7 @@ export default function LatestOffersPage() {
       { label: "Roaming & travel", count: countFor("Roaming & travel") },
       { label: "Refer & earn", count: countFor("Refer & earn") },
       { label: "Account exclusives", count: countFor("Account exclusives") },
+      { label: "Verified discounts", count: countFor("Verified discounts") },
     ];
   }, [allOffers]);
 
@@ -2312,7 +2472,10 @@ export default function LatestOffersPage() {
                   disabled={isClaiming}
                   onClick={() => {
                     const offer = selectedOfferModal;
-                    if (offer.category === "Account exclusives") {
+                    if (offer.category === "Verified discounts" && offer.href) {
+                      setSelectedOfferModal(null);
+                      router.push(offer.href);
+                    } else if (offer.category === "Account exclusives") {
                       setSelectedOfferModal(null);
                       handleClaimExclusive(offer.id, offer.title);
                     } else if (offer.category === "Refer & earn") {
@@ -2342,6 +2505,8 @@ export default function LatestOffersPage() {
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       <span>Processing...</span>
                     </>
+                  ) : selectedOfferModal.category === "Verified discounts" ? (
+                    selectedOfferModal.ctaLabel || "Choose your plan"
                   ) : selectedOfferModal.category === "Account exclusives" ? (
                     "Claim free booster"
                   ) : selectedOfferModal.category === "Plan upgrades" ? (

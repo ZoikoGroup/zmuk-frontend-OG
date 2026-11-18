@@ -68,6 +68,15 @@ function termPrice(plan: StudentPlan, term: Term): string {
   return Number.isFinite(n) ? n.toFixed(2) : "0.00";
 }
 
+/** 20%-off price for the selected term. Taken from the API, never calculated here. */
+function discountedTermPrice(plan: StudentPlan, term: Term): string | null {
+  const d = plan.discounted_prices;
+  if (!d) return null;
+  const raw = (term === "24-months" ? d.price_24 : term === "12-months" ? d.price_12 : d.price_30) ?? d.price;
+  const n = Number(raw);
+  return raw != null && Number.isFinite(n) ? n.toFixed(2) : null;
+}
+
 function planBullets(plan: StudentPlan): string[] {
   if (plan.features?.length) return plan.features.map((f) => f.title);
   if (plan.short_description) {
@@ -104,7 +113,9 @@ export function Studentdeal() {
   const [simTypePlan, setSimTypePlan] = useState<StudentPlan | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  const canPurchase = !!plansData?.can_purchase && status === "approved";
+  // Anyone can buy these plans. Approved students just pay 20% less (applied again at checkout).
+  const discountApplies = !!plansData?.discount_applies;
+  const discountPercent = Math.round(Number(plansData?.discount_percent ?? 20)) || 20;
   // none, rejected and expired students can (re)apply; pending and approved cannot.
   const canApply = status === "none" || status === "rejected" || status === "expired";
   const verifyHref = loggedIn ? FORM_PATH : LOGIN_HREF;
@@ -148,25 +159,8 @@ export function Studentdeal() {
     load();
   }, [load]);
 
-  const planAction = (plan: StudentPlan) => {
-    if (canPurchase) {
-      setSimTypePlan(plan);
-      return;
-    }
-    if (!loggedIn) {
-      router.push(LOGIN_HREF);
-      return;
-    }
-    if (canApply) router.push(FORM_PATH);
-  };
-
-  const planButton = (): { label: string; disabled: boolean } => {
-    if (canPurchase) return { label: "Choose this plan", disabled: false };
-    if (!loggedIn) return { label: "Log in to verify", disabled: false };
-    if (status === "pending") return { label: "Verification in progress", disabled: true };
-    if (status === "expired") return { label: "Verify again", disabled: false };
-    return { label: "Verify to unlock", disabled: false };
-  };
+  // Buy is always available; verification only changes the price.
+  const planAction = (plan: StudentPlan) => setSimTypePlan(plan);
 
   // Same hand-off as the All Plans page: SIM type popup, cart, checkout.
   const confirmSimType = (simType: "esim" | "psim") => {
@@ -274,9 +268,10 @@ export function Studentdeal() {
           ) : (
             <div className="mt-8 grid gap-5 sm:grid-cols-2">
               {plans.map((plan) => {
-                const btn = planButton();
                 const bullets = planBullets(plan);
                 const t = TERMS.find((x) => x.key === term)!;
+                const normal = termPrice(plan, term);
+                const discounted = discountApplies ? discountedTermPrice(plan, term) : null;
                 return (
                   <div key={plan.id} className="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
                     <div className="flex items-center justify-between text-xs font-bold text-[#D6075A]">
@@ -285,15 +280,25 @@ export function Studentdeal() {
                     </div>
                     <p className="mt-4 text-center text-3xl font-extrabold text-[#0B4D2F]">{plan.data_allowance || plan.name}</p>
                     <p className="mt-1 text-center text-3xl font-extrabold text-[#D6075A]">
-                      £{termPrice(plan, term)}
+                      {discounted && (
+                        <span className="mr-2 text-lg font-semibold text-gray-400 line-through">£{normal}</span>
+                      )}
+                      £{discounted ?? normal}
                       <span className="text-sm font-semibold text-gray-500">/month</span>
                     </p>
                     <p className="mt-1 text-center text-[11px] text-gray-500">
-                      {canPurchase ? "Your student price" : "Standard price"} · incl. VAT · {t.short}
+                      {discounted ? `Your student price (${discountPercent}% off)` : "Standard price"} · incl. VAT · {t.short}
                     </p>
-                    {!canPurchase && (
+                    {!discounted && (
                       <p className="mx-auto mt-3 flex items-center gap-1 rounded-full bg-[#FFF1F5] px-3 py-1 text-[11px] font-semibold text-[#D6075A]">
-                        <Lock size={11} /> Check eligibility to see your student price
+                        <Lock size={11} />{" "}
+                        {!loggedIn
+                          ? "Log in and verify to see your price"
+                          : status === "pending"
+                            ? "Verification in progress"
+                            : status === "expired"
+                              ? "Verify again to keep student prices"
+                              : "Verify your status to see your price"}
                       </p>
                     )}
                     {bullets.length > 0 && (
@@ -308,11 +313,10 @@ export function Studentdeal() {
                     )}
                     <button
                       type="button"
-                      disabled={btn.disabled}
                       onClick={() => planAction(plan)}
-                      className="mt-5 flex items-center justify-center gap-1 rounded-full bg-[#D6075A] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B80650] disabled:cursor-not-allowed disabled:bg-gray-300"
+                      className="mt-5 flex items-center justify-center gap-1 rounded-full bg-[#D6075A] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B80650]"
                     >
-                      {btn.label} {!btn.disabled && <ChevronRight size={14} />}
+                      Choose this plan <ChevronRight size={14} />
                     </button>
                   </div>
                 );
@@ -463,7 +467,7 @@ function StatusBanner({
 }) {
   let tone = "bg-[#EEF1FB] ring-[#DCE2F5]";
   let title = "Check your eligibility to see any student price.";
-  let body = "Standard prices are shown until you've confirmed your student status in your account.";
+  let body = "You can buy these plans now at the standard price. Verify to get 20% off at checkout.";
   let cta = "Check eligibility";
 
   if (!loggedIn) {
@@ -476,8 +480,8 @@ function StatusBanner({
     tone = "bg-green-50 ring-green-100";
     title = "You're verified.";
     body = application?.valid_until
-      ? `Your student status is verified until ${fmtDate(application.valid_until)}. Choose a plan below.`
-      : "Your student plans are unlocked. Choose a plan below.";
+      ? `Your student status is verified until ${fmtDate(application.valid_until)}. You get 20% off, applied at checkout.`
+      : "You get 20% off these plans, applied at checkout.";
   } else if (status === "rejected") {
     tone = "bg-red-50 ring-red-100";
     title = "We couldn't verify your student status.";
