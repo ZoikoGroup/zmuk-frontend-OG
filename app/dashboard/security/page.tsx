@@ -544,12 +544,12 @@ export default function SecurityPage() {
     showToast("Signed out of all other sessions.");
   };
 
-  const toggleSmsBackup = () => {
-    const next = !smsBackupEnabled;
-    setSmsBackupEnabled(next);
-    persist("zoiko_sms_backup", String(next));
-    showToast(next ? "Text message codes added as a backup." : "Text message codes removed.");
-  };
+  // const toggleSmsBackup = () => {
+  //   const next = !smsBackupEnabled;
+  //   setSmsBackupEnabled(next);
+  //   persist("zoiko_sms_backup", String(next));
+  //   showToast(next ? "Text message codes added as a backup." : "Text message codes removed.");
+  // };
 
   const submitReport = async () => {
     const note = reportNote.trim();
@@ -783,7 +783,7 @@ export default function SecurityPage() {
                 </button>
               </div>
               */}
-              <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
+              {/* <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
                   <MessageSquare className="w-5 h-5 text-[#E01C5B]" />
                 </div>
@@ -801,7 +801,7 @@ export default function SecurityPage() {
                 >
                   {smsBackupEnabled ? "Remove" : "Add"}
                 </button>
-              </div>
+              </div> */}
               <div className="pt-2">
                 <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
                   <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
@@ -983,7 +983,7 @@ export default function SecurityPage() {
                       }}
                     />
                   </label>
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
+                  {/* <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
                     Text
                     <Toggle
                       label="Offer texts"
@@ -994,7 +994,7 @@ export default function SecurityPage() {
                         persist("zmuk_offers_marketing_text", String(next));
                       }}
                     />
-                  </label>
+                  </label> */}
                 </div>
                 <div className="pl-11 text-xs font-semibold text-[#54617E]">App · not available</div>
               </div>
@@ -1010,7 +1010,7 @@ export default function SecurityPage() {
                 subtitle="How we use your information"
                 onClick={() => router.push("/privacy-policy")}
               />
-              <Row icon={Cookie} title="Cookie choices" subtitle={cookieChoice} onClick={() => setModal("cookies")} />
+              {/* <Row icon={Cookie} title="Cookie choices" subtitle={cookieChoice} onClick={() => setModal("cookies")} /> */}
               <Row
                 icon={Download}
                 title="Get a copy of your data"
@@ -1071,12 +1071,12 @@ export default function SecurityPage() {
                     sub: "Replace, swap or suspend",
                     href: "/dashboard/sim-and-esim",
                   },
-                  {
-                    icon: Gauge,
-                    title: "Mobile bill limit",
-                    sub: billLimit !== null ? `Currently £${billLimit.toFixed(2)}` : "No limit set",
-                    href: "/dashboard/bills-and-payments",
-                  },
+                  // {
+                  //   icon: Gauge,
+                  //   title: "Mobile bill limit",
+                  //   sub: billLimit !== null ? `Currently £${billLimit.toFixed(2)}` : "No limit set",
+                  //   href: "/dashboard/bills-and-payments",
+                  // },
                   {
                     icon: Smartphone,
                     title: "Change my number",
@@ -1133,7 +1133,7 @@ export default function SecurityPage() {
       </div>
 
       {/* ── Modals ── */}
-      {modal === "backup" && (
+      {/* {modal === "backup" && (
         <Modal title="Your backup codes" onClose={() => setModal(null)}>
           <p className="text-xs text-[#54617E] mb-3">
             Each code works once. Save them somewhere safe — they’re shown only now.
@@ -1165,7 +1165,7 @@ export default function SecurityPage() {
             </button>
           </div>
         </Modal>
-      )}
+      )} */}
 
       {/* 2FA - Two-step verification modal (Temporarily commented out)
       {modal === "twofa" && (
