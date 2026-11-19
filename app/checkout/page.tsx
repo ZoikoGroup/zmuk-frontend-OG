@@ -301,6 +301,7 @@ export default function CheckoutPage() {
     updateQuantity,
     clearCart,
     updateLinePrices,
+    hasPublicSectorDiscount,
   } = useCart();
   // Snapshot of the paid order. The cart is cleared once payment is confirmed,
   // but the page (and the thank-you modal) must keep showing what was bought.
@@ -320,6 +321,8 @@ export default function CheckoutPage() {
   const [checkoutIssue, setCheckoutIssue] = useState<CheckoutIssue | null>(null);
   // Discount confirmed by the customer after the server recalculated it (409 PRICE_CHANGED).
   const [serverDiscount, setServerDiscount] = useState<number | null>(null);
+  // How much the public sector discount saved on this order (from create-intent totals).
+  const [psSaving, setPsSaving] = useState(0);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   const [loginPromptReason, setLoginPromptReason] = useState<"coupon" | "order">("order");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -575,12 +578,15 @@ export default function CheckoutPage() {
     return acc + (item.price || 0) * item.quantity;
   }, 0);
 
-  const computedDiscount = discountData
+  // A coupon can't be combined with the public sector discount, so it is ignored while any line has it.
+  const couponActive = !!discountData && !hasPublicSectorDiscount;
+
+  const computedDiscount = discountData && couponActive
     ? discountData.type === "percentage"
       ? (subtotal * Number(discountData.discount)) / 100
       : Number(discountData.discount)
     : 0;
-  const discountAmount = discountData && serverDiscount !== null ? serverDiscount : computedDiscount;
+  const discountAmount = couponActive && serverDiscount !== null ? serverDiscount : computedDiscount;
 
   const total = Math.max(subtotal - (discountAmount || 0), 0);
 
@@ -588,7 +594,7 @@ export default function CheckoutPage() {
 
   // The server prices the cart itself and refuses a total that differs from the one
   // the customer sees (409 PRICE_CHANGED). Prices are never retried automatically.
-  const appliedCoupon = discountData ? coupon.trim() : "";
+  const appliedCoupon = couponActive ? coupon.trim() : "";
 
   useEffect(() => {
     if (!(total > 0 && cart.length > 0)) return;
@@ -618,6 +624,9 @@ export default function CheckoutPage() {
         if (body.clientSecret) {
           setClientSecret(body.clientSecret);
           setOrderRef(body.order_ref || "");
+          setPsSaving(
+            (Number(body.totals?.public_sector_discount) || 0) + (Number(body.totals?.student_discount) || 0),
+          );
           setCheckoutIssue(null);
           return;
         }
@@ -632,7 +641,7 @@ export default function CheckoutPage() {
           setLoginPromptReason("order");
           setShowLoginPopup(true);
           setCheckoutIssue({ code: "LOGIN_REQUIRED", message: "Please log in to continue with this order." });
-        } else if (code === "COUPON_INVALID") {
+        } else if (code === "COUPON_INVALID" || code === "COUPON_NOT_COMBINABLE") {
           setCouponMessage(message);
           setDiscountData(null);
           setServerDiscount(null);
@@ -678,8 +687,6 @@ export default function CheckoutPage() {
     setCheckoutIssue(null);
   };
 
-  const verifyLink = (message: string) =>
-    /student/i.test(message) ? "/student-deals" : "/civilservants";
 
   // ── field validators ──────────────────────────────
   const validateZip = (zip: string) => {
@@ -1046,7 +1053,15 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Coupon */}
+            {/* Coupon (not available with the public sector discount) */}
+            {hasPublicSectorDiscount ? (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="font-bold text-gray-900 dark:text-white mb-2">Your verified discount is applied</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Coupons can&apos;t be used together with your public sector / student discount.
+                </p>
+              </div>
+            ) : (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="font-bold text-gray-900 dark:text-white mb-4">Have a Coupon?</h2>
               <div className="flex flex-col md:flex-row gap-2">
@@ -1086,6 +1101,7 @@ export default function CheckoutPage() {
                 </p>
               )}
             </div>
+            )}
 
             {/* Billing Address */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -1159,7 +1175,16 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {discountData && (
+              {hasPublicSectorDiscount && (
+                <div className="flex justify-between text-sm mt-2">
+                  <span className="text-gray-500">Verified discount (included in prices above)</span>
+                  {psSaving > 0 && (
+                    <span className="font-medium text-green-600">You save £{psSaving.toFixed(2)}</span>
+                  )}
+                </div>
+              )}
+
+              {couponActive && discountData && (
                 <div className="flex justify-between text-sm mt-2">
                   <span className="text-gray-500">
                     Discount (
@@ -1200,26 +1225,6 @@ export default function CheckoutPage() {
                     >
                       Update my order and continue
                     </button>
-                  </div>
-                )}
-
-                {checkoutIssue.code === "PLAN_NOT_ELIGIBLE" && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <a
-                      href={verifyLink(checkoutIssue.message)}
-                      className="rounded-lg bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-600"
-                    >
-                      Verify my eligibility
-                    </a>
-                    {checkoutIssue.item && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(checkoutIssue.item!)}
-                        className="rounded-lg border border-amber-400 px-4 py-2 text-xs font-semibold"
-                      >
-                        Remove this plan
-                      </button>
-                    )}
                   </div>
                 )}
 

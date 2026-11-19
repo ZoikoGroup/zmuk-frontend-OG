@@ -158,7 +158,7 @@ const HELP_ARTICLES: HelpArticle[] = [
     content: [
       "• Step 1: Raise your complaint directly via the 'Make a complaint' form. We acknowledge all complaints within 24 hours.",
       "• Step 2: An independent case handler investigates the dispute and issues a formal written outcome within 14 calendar days.",
-      "• Step 3: If your complaint remains unresolved after 8 weeks or reaches deadlock, you are entitled to free independent Alternative Dispute Resolution (ADR) via Ombudsman Services: Communications.",
+      "• Step 3: If your complaint remains unresolved after 6 weeks or reaches deadlock, you are entitled to free independent Alternative Dispute Resolution (ADR) via Ombudsman Services: Communications.",
     ],
   },
 ];
