@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 
 // Sale window (UK is on GMT in November, so UTC == UK time)
-const SALE_START = Date.UTC(2026, 10, 27, 0, 0, 0); // 27 Nov 2026 00:00
+const SALE_START = Date.UTC(2026, 10, 20, 0, 0, 0); // 20 Nov 2026 00:00
 const SALE_END = Date.UTC(2026, 10, 30, 23, 59, 59); // 30 Nov 2026 23:59:59
 
 const OPEN_DELAY_MS = 0;
@@ -221,7 +221,7 @@ export default function BlackFridayPopup() {
                   <span className="block text-lg font-black leading-tight text-[#FF64A0] drop-shadow-[0_0_8px_#FF64A0]">
                     SALE
                   </span>
-                  <span className="block text-[8px] font-extrabold tracking-wider text-pink-200">NOV 27 – 30</span>
+                  <span className="block text-[8px] font-extrabold tracking-wider text-pink-200">NOV 20 – 30</span>
                 </div>
               </div>
             </div>
@@ -292,7 +292,7 @@ export default function BlackFridayPopup() {
             </div>
 
             <p className="text-[10px] leading-normal text-[#D8C2DC]/80">
-              Selected SIM-only plans, eligible new lines only. Offer runs 27–30 Nov 2026. Standard monthly price applies
+              Selected SIM-only plans, eligible new lines only. Offer runs 20–30 Nov 2026. Standard monthly price applies
               after the first three months. Prices include VAT.
             </p>
           </div>
