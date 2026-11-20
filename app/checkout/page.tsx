@@ -6,6 +6,7 @@ import StripePaymentForm, { StripePaymentFormRef } from "../components/StripePay
 import type { StripeElementsOptions } from "@stripe/stripe-js";
 import { isLoggedIn as checkIsLoggedIn, getUser, getToken } from "../utils/auth";
 import { useCart } from "../context/CartContext";
+import { getActivePromotion, type Promotion } from "../config/promotions";
 import { ShieldCheck } from "lucide-react";
 
 
@@ -318,6 +319,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [discountData, setDiscountData] = useState<DiscountData | null>(null);
   const [couponMessage, setCouponMessage] = useState("");
+  // Live site-wide promotion whose code was pre-filled into the coupon box.
+  const [prefilledPromo, setPrefilledPromo] = useState<Promotion | null>(null);
+  const promoPrefillDone = useRef(false);
   const [checkoutIssue, setCheckoutIssue] = useState<CheckoutIssue | null>(null);
   // Discount confirmed by the customer after the server recalculated it (409 PRICE_CHANGED).
   const [serverDiscount, setServerDiscount] = useState<number | null>(null);
@@ -520,6 +524,28 @@ export default function CheckoutPage() {
   };
 
   // ── Coupon ────────────────────────────────────────────────────────────────
+
+  // Pre-fill the live promotion's code (e.g. BLACKFRI30) once per visit. The
+  // date check runs in the browser, so it never depends on when the page was
+  // built. Waits for the cart so public sector / student orders (which can't
+  // take coupons) are skipped, and never overwrites or re-adds a code after
+  // the customer edits or removes it.
+  useEffect(() => {
+    if (!cartHydrated || promoPrefillDone.current) return;
+    promoPrefillDone.current = true;
+    if (hasPublicSectorDiscount) return;
+    const promo = getActivePromotion();
+    if (!promo) return;
+    setCoupon((current) => (current.trim() ? current : promo.code));
+    setPrefilledPromo(promo);
+  }, [cartHydrated, hasPublicSectorDiscount]);
+
+  // Hint stays visible only while the promo code sits in the box, not yet applied.
+  const showPromoHint =
+    !!prefilledPromo &&
+    !discountData &&
+    !couponMessage &&
+    coupon.trim().toUpperCase() === prefilledPromo.code;
 
   const handleApplyCoupon = async () => {
     const user = JSON.parse(localStorage.getItem("zoiko_user") ?? "null");
@@ -1064,10 +1090,21 @@ export default function CheckoutPage() {
             ) : (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="font-bold text-gray-900 dark:text-white mb-4">Have a Coupon?</h2>
+              {showPromoHint && prefilledPromo && (
+                <div
+                  role="status"
+                  className="mb-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200"
+                >
+                  <span aria-hidden="true">🎉</span>
+                  <span>{prefilledPromo.hint}</span>
+                </div>
+              )}
               <div className="flex flex-col md:flex-row gap-2">
                 <input
                   type="text"
-                  className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-300"
+                  className={`flex-1 rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-300 ${
+                    showPromoHint ? "border-green-400 font-semibold tracking-wide" : "border-gray-200"
+                  }`}
                   placeholder="Enter coupon code"
                   value={coupon}
                   onChange={(e) => setCoupon(e.target.value)}
