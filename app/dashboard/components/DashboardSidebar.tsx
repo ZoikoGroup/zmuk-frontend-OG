@@ -94,6 +94,7 @@ export default function DashboardSidebar({
     label: string;
     icon: any;
     href: string;
+    badge?: string;
     action?: () => void;
   }[] = [
     {
@@ -120,6 +121,7 @@ export default function DashboardSidebar({
       id: "refer",
       label: "Refer & earn",
       icon: Gift,
+      badge: "Upcoming",
       href: "/dashboard/refer-and-earn",
     },
     {
@@ -358,6 +360,17 @@ export default function DashboardSidebar({
                             }`}
                           />
                           <span className="flex-1 truncate">{item.label}</span>
+                          {item.badge !== undefined && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                isActive
+                                  ? "bg-white/20 text-white"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
                         </Link>
                       );
                     })}
@@ -562,6 +575,17 @@ export default function DashboardSidebar({
                       />
                       {!collapsed && (
                         <span className="flex-1 truncate">{item.label}</span>
+                      )}
+                      {!collapsed && item.badge !== undefined && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
                       )}
                     </Link>
                   );

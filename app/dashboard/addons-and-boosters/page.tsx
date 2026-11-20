@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { validateUkMobile } from "../../utils/validators";
+import { getLines } from "../add-new-number/addLineApi";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
 import beQuick from "../../utils/dasdbeQuickApi";
-import {
-  getFallbackUserLine,
-  getBoosterSummary,
-  recordBoosterPurchase,
-} from "../../utils/dashboardSync";
+import { recordBoosterPurchase } from "../../utils/dashboardSync";
 import {
   Smartphone,
   ChevronDown,
@@ -274,6 +273,7 @@ function CountryFlagBadge({ code }: { code: string }) {
 }
 
 export default function AddonsAndBoostersPage() {
+  const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("addons");
   const [loading, setLoading] = useState(true);
@@ -325,6 +325,9 @@ export default function AddonsAndBoostersPage() {
 
   const [orderHistoryModalOpen, setOrderHistoryModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Checking that the customer has a mobile number before sending them to the recharge page
+  const [checkingNumber, setCheckingNumber] = useState(false);
+  const [noNumberFound, setNoNumberFound] = useState(false);
 
   // Refs for smooth scrolling from Quick add-ons
   const boostersRef = useRef<HTMLDivElement | null>(null);
@@ -619,33 +622,7 @@ export default function AddonsAndBoostersPage() {
         });
       }
 
-      if (assembledLines.length === 0) {
-        const fallback = getFallbackUserLine();
-        if (fallback) {
-          const boosterInfo = getBoosterSummary(fallback.id);
-          const nextMonth = new Date();
-          nextMonth.setMonth(nextMonth.getMonth() + 1);
-          const renewStr = nextMonth.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          });
-          assembledLines.push({
-            id: fallback.id,
-            number: fallback.number,
-            label: "Primary",
-            planName: fallback.planName,
-            status: "Active",
-            dataRemainingGb: Number(
-              Math.max(0, fallback.planGb - 14.2 + boosterInfo.totalGb).toFixed(1)
-            ),
-            dataTotalGb: Number((fallback.planGb + boosterInfo.totalGb).toFixed(1)),
-            callsLabel: "Unlimited",
-            textsLabel: "Unlimited",
-            renewDate: renewStr,
-            accountSuffix: String(fallback.id || "").slice(-4),
-          });
-        }
-      }
+      // No demo line is built from the profile phone. With no real line the page shows "No active mobile numbers found".
 
       setLines(assembledLines);
       if (assembledLines.length > 0) {
@@ -697,6 +674,53 @@ export default function AddonsAndBoostersPage() {
     ? billLimitByLine[currentLine.id] ?? 25
     : 25;
 
+  // A customer with a real mobile number never sees this page: they go straight to the recharge page.
+  // (Without a number the page shows "No active mobile numbers found".)
+  const rechargeNumberCheck = currentLine ? validateUkMobile(currentLine.number) : null;
+  const redirectToRecharge = !loading && !!rechargeNumberCheck?.isValid;
+  useEffect(() => {
+    if (redirectToRecharge && rechargeNumberCheck?.formatted) {
+      router.replace(`/recharge?number=${encodeURIComponent(rechargeNumberCheck.formatted.replace(/\s/g, ""))}`);
+    }
+  }, [redirectToRecharge, rechargeNumberCheck?.formatted, router]);
+
+  // Data boosters: straight to the recharge page with the customer's number (the page only shows lines for
+  // customers who really have a number, otherwise it shows "No active mobile numbers found").
+  const goToRecharge = () => {
+    const check = validateUkMobile(currentLine?.number || "");
+    const q = check.isValid && check.formatted ? `?number=${encodeURIComponent(check.formatted.replace(/\s/g, ""))}` : "";
+    router.push(`/recharge${q}`);
+  };
+
+  // Booster purchases now go through the recharge page. First we check, live, that the customer has a
+  // real mobile number: the one on the selected line, otherwise any number on their lines (Django lines API).
+  const handleContinueToRecharge = async () => {
+    if (!pendingPurchase) return;
+    setCheckingNumber(true);
+    setNoNumberFound(false);
+    try {
+      let check = validateUkMobile(currentLine?.number || "");
+      if (!check.isValid) {
+        try {
+          const lr = await getLines();
+          const found = (lr?.lines || []).find((l) => l.msisdn && validateUkMobile(l.msisdn).isValid);
+          if (found?.msisdn) check = validateUkMobile(found.msisdn);
+        } catch {
+          // fall through: no number found
+        }
+      }
+      if (!check.isValid || !check.formatted) {
+        setNoNumberFound(true);
+        return;
+      }
+      setPendingPurchase(null);
+      router.push(`/recharge?number=${encodeURIComponent(check.formatted.replace(/\s/g, ""))}`);
+    } finally {
+      setCheckingNumber(false);
+    }
+  };
+
+  // Old behaviour (saved the booster in the browser and showed a success message), kept for reference.
   const handleConfirmPurchase = () => {
     if (!pendingPurchase || !currentLine) return;
 
@@ -899,7 +923,7 @@ export default function AddonsAndBoostersPage() {
             </div>
           )}
 
-          {loading ? (
+          {loading || redirectToRecharge ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="h-64 rounded-3xl bg-white/70 animate-pulse" />
               <div className="h-64 rounded-3xl bg-white/70 animate-pulse" />
@@ -1264,23 +1288,7 @@ export default function AddonsAndBoostersPage() {
 
                           <button
                             type="button"
-                            onClick={() =>
-                              setPendingPurchase({
-                                title: `${opt.size} Data Booster`,
-                                subtitle: `${
-                                  boosterTab === "one-off"
-                                    ? "One-off UK data booster"
-                                    : "Monthly recurring UK data booster"
-                                } for ${currentLine.number}`,
-                                price: opt.price,
-                                billingType:
-                                  boosterTab === "one-off"
-                                    ? "one-off"
-                                    : "monthly",
-                                category: "booster",
-                                renewsOrEndsText: opt.desc,
-                              })
-                            }
+                            onClick={goToRecharge}
                             className="w-full py-2 px-3 bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold rounded-xl transition cursor-pointer text-center"
                           >
                             Select booster
@@ -1864,7 +1872,10 @@ export default function AddonsAndBoostersPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setPendingPurchase(null)}
+                onClick={() => {
+                  setPendingPurchase(null);
+                  setNoNumberFound(false);
+                }}
                 className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1905,21 +1916,38 @@ export default function AddonsAndBoostersPage() {
                 </span>
               </div>
             </div>
+            {noNumberFound && (
+              <div className="p-3 rounded-xl bg-[#FFF1F3] border border-[#FECDD6] text-xs text-[#B42318] flex flex-col gap-2">
+                <span>
+                  We couldn&apos;t find a mobile number on your account, so we can&apos;t take you to recharge yet.
+                </span>
+                <Link
+                  href="/dashboard/add-new-number"
+                  className="self-start font-semibold underline text-[#B42318]"
+                >
+                  Add a number
+                </Link>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2.5 pt-1">
               <button
                 type="button"
-                onClick={() => setPendingPurchase(null)}
+                onClick={() => {
+                  setPendingPurchase(null);
+                  setNoNumberFound(false);
+                }}
                 className="px-4 py-2 rounded-xl border border-[#121B34]/15 text-xs font-semibold text-[#0D1935] hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleConfirmPurchase}
-                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold cursor-pointer"
+                onClick={handleContinueToRecharge}
+                disabled={checkingNumber}
+                className="px-4 py-2 rounded-xl bg-[#E01C5B] hover:bg-[#c8164f] disabled:opacity-60 text-white text-xs font-semibold cursor-pointer"
               >
-                Confirm &amp; add (£{pendingPurchase.price.toFixed(2)})
+                {checkingNumber ? "Checking your number…" : "Continue to recharge"}
               </button>
             </div>
           </div>

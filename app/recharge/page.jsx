@@ -42,6 +42,32 @@ const FAQS = [
   },
 ];
 
+// Display-only helper for the plan cards. Everything comes from the plan the API returns.
+function describePlan(plan) {
+  const desc = plan.short_description || "";
+  const unlimited = !!plan.attributes?.unlimited || /^unlimited data/i.test(desc);
+  const fromDesc = desc.match(/^(.+?)\s+data\b/i);
+  const gb = plan.attributes?.data_gb;
+  const dataLabel = unlimited
+    ? "Unlimited data"
+    : fromDesc
+      ? fromDesc[1]
+      : gb
+        ? `${gb}GB`
+        : plan.name;
+  // "Zoiko Standard 10GB" -> "Zoiko Standard" (small title) + "10GB" (big headline)
+  let prefix = unlimited ? plan.name : plan.name.replace(dataLabel, "").replace(/\bdata\b/i, "").trim();
+  if (!prefix) prefix = plan.name;
+  return {
+    dataLabel,
+    prefix,
+    calls: /calls|minutes/i.test(desc) ? "Included" : "—",
+    texts: /texts|sms/i.test(desc) ? "Included" : "—",
+    validity: plan.attributes?.validity_days,
+    desc,
+  };
+}
+
 export default function RechargePage() {
   // ── Phone + SIM state ───────────────────────────────────────────────
   const [phone, setPhone] = useState("");
@@ -70,6 +96,7 @@ export default function RechargePage() {
   const [plansLoading, setPlansLoading] = useState(false);
   const [plansError, setPlansError] = useState("");
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [detailsOpenId, setDetailsOpenId] = useState(null);
 
   // ── Payment state ────────────────────────────────────────────────────
   const [paying, setPaying] = useState(false);
@@ -78,15 +105,20 @@ export default function RechargePage() {
   // ── Handlers: phone validation ───────────────────────────────────────
   async function handleValidate(e) {
     e.preventDefault();
+    await runValidate(phone);
+  }
+
+  // Same check as the form, but for a given number (used when we arrive with ?number=...).
+  async function runValidate(value) {
     setPhoneTouched(true);
-    if (!phone.trim() || !phoneCheck.isValid) return;
+    if (!value.trim() || !validateUkMobile(value).isValid) return;
 
     setValidating(true);
     setValidateError("");
     setSim(null);
 
     try {
-      const data = await validatePhone(phone.trim());
+      const data = await validatePhone(value.trim());
       if (data.success) {
         setSim(data.sim);
       } else {
@@ -102,6 +134,21 @@ export default function RechargePage() {
       setValidating(false);
     }
   }
+
+  // Arriving from the dashboard (Add-ons & boosters) with ?number=07...: fill it in and check it straight away.
+  useEffect(() => {
+    try {
+      const n = new URLSearchParams(window.location.search).get("number");
+      if (n) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPhone(n);
+        runValidate(n);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleChangeNumber() {
     setSim(null);
@@ -415,9 +462,19 @@ export default function RechargePage() {
 
       {modalOpen && (
         <div className={styles.overlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`${styles.modal} ${modalStep === STEP_PLANS ? styles.modalWide : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.mHead}>
-              <h3 className={styles.mTitle}>Select Recharge Plan</h3>
+              {modalStep === STEP_PLANS ? (
+                <div>
+                  <h3 className={styles.mTitle}>Choose your top-up bundle</h3>
+                  <p className={styles.mSub}>Compare data, UK calls and texts in one place.</p>
+                </div>
+              ) : (
+                <h3 className={styles.mTitle}>Select Recharge Plan</h3>
+              )}
               <button className={styles.mClose} onClick={closeModal}>
                 ✕
               </button>
@@ -454,6 +511,8 @@ export default function RechargePage() {
                   </div>
                 )}
                 {!plansLoading && !plansError && (
+                  <>
+                    {/* Old plan cards (data only), kept for reference:
                   <div className={styles.planGrid}>
                     {plans.map((plan) => (
                       <div
@@ -476,6 +535,76 @@ export default function RechargePage() {
                       </div>
                     ))}
                   </div>
+                    */}
+                    <div className={styles.bundleGrid}>
+                      {plans.map((plan) => {
+                        const d = describePlan(plan);
+                        const isSelected = selectedPlan?.id === plan.id;
+                        const open = detailsOpenId === plan.id;
+                        return (
+                          <div
+                            key={plan.id}
+                            className={`${styles.bundleCard} ${isSelected ? styles.bundleSelected : ""}`}
+                            onClick={() => handleSelectPlan(plan)}
+                          >
+                            <div className={styles.bundleTop}>
+                              <div>
+                                <p className={styles.bundleName}>{d.prefix}</p>
+                                <p className={styles.bundleHeadline}>{d.dataLabel}</p>
+                              </div>
+                              {isSelected && <span className={styles.bundleTag}>✓ Selected</span>}
+                            </div>
+                            <ul className={styles.bundleRows}>
+                              <li>
+                                <span>Data</span>
+                                <strong>{d.dataLabel}</strong>
+                              </li>
+                              <li>
+                                <span>UK minutes</span>
+                                <strong>
+                                  {d.calls}
+                                  {d.calls === "Included" && <sup>†</sup>}
+                                </strong>
+                              </li>
+                              <li>
+                                <span>UK texts</span>
+                                <strong>
+                                  {d.texts}
+                                  {d.texts === "Included" && <sup>†</sup>}
+                                </strong>
+                              </li>
+                            </ul>
+                            <div className={styles.bundleBuy}>
+                              <span className={styles.bundlePrice}>{plan.formatted_price}</span>
+                              <button type="button" className={styles.bundleBtn}>
+                                Choose plan
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              className={styles.bundleDetailsBtn}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailsOpenId(open ? null : plan.id);
+                              }}
+                              aria-expanded={open}
+                            >
+                              {open ? "Hide plan details" : "View plan details"} {open ? "⌃" : "›"}
+                            </button>
+                            {open && (
+                              <p className={styles.bundleDetails} onClick={(e) => e.stopPropagation()}>
+                                {d.desc}
+                                {d.validity ? ` Valid for ${d.validity} days.` : ""}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className={styles.bundleNote}>
+                      † Exact UK minutes and text allowances are shown from the approved tariff before purchase.
+                    </p>
+                  </>
                 )}
               </>
             )}

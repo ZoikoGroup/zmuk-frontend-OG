@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
+import { getLines } from "../add-new-number/addLineApi";
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
@@ -59,12 +60,14 @@ const CONTACT_LABELS: Record<string, string> = {
   post: "Post",
 };
 
-const CONTACT_OPTIONS: { key: string; label: string }[] = [
-  { key: "email", label: "Email" },
-  { key: "sms", label: "SMS" },
-  { key: "phone", label: "Phone call" },
-  { key: "post", label: "Post" },
-];
+// Only email is supported for now. Old list kept for reference:
+// const CONTACT_OPTIONS = [
+//   { key: "email", label: "Email" },
+//   { key: "sms", label: "SMS" },
+//   { key: "phone", label: "Phone call" },
+//   { key: "post", label: "Post" },
+// ];
+const CONTACT_OPTIONS: { key: string; label: string }[] = [{ key: "email", label: "Email" }];
 
 interface NumberItem {
   id: string;
@@ -196,15 +199,18 @@ function deriveAccountNumber(user: any, email: string): string {
   if (user?.id) return String(user.id).padStart(4, "0").slice(-4);
   if (user?.subscriber_id) return String(user.subscriber_id).slice(-4);
   if (user?.bq_enrollment_id) return String(user.bq_enrollment_id).slice(-4);
-  if (email) {
-    let hash = 0;
-    for (let i = 0; i < email.length; i++) {
-      hash = (hash << 5) - hash + email.charCodeAt(i);
-      hash |= 0;
-    }
-    return String(Math.abs(hash) % 9000 + 1000);
-  }
-  return "0001";
+  // Old behaviour (made up a number from the email) kept for reference:
+  // if (email) {
+  //   let hash = 0;
+  //   for (let i = 0; i < email.length; i++) {
+  //     hash = (hash << 5) - hash + email.charCodeAt(i);
+  //     hash |= 0;
+  //   }
+  //   return String(Math.abs(hash) % 9000 + 1000);
+  // }
+  // return "0001";
+  void email;
+  return "";
 }
 
 function deriveCustomerSince(user: any): string {
@@ -241,14 +247,15 @@ export default function EditProfilePage() {
   const [dob, setDob] = useState("Not on file");
   const [isDobVerified, setIsDobVerified] = useState(false);
   const [isIdentityVerified, setIsIdentityVerified] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [accountNumber, setAccountNumber] = useState("—");
   const [customerSince, setCustomerSince] = useState("Active member");
   const [planName, setPlanName] = useState("No active plan");
 
   // Dynamic Billing & Account details
   const [nextCollectionAmount, setNextCollectionAmount] = useState("0.00");
-  const [collectionDate, setCollectionDate] = useState("Monthly rolling");
-  const [paymentMethodSummary, setPaymentMethodSummary] = useState("Direct Debit");
+  const [collectionDate, setCollectionDate] = useState("—");
+  const [paymentMethodSummary, setPaymentMethodSummary] = useState("");
   const [contactPreference, setContactPreference] = useState("Email");
   const [marketingMessages, setMarketingMessages] = useState("Off");
   const [billingAddress, setBillingAddress] = useState("No billing address on file");
@@ -258,7 +265,7 @@ export default function EditProfilePage() {
   const [supportNeeds, setSupportNeeds] = useState("None recorded");
   const [authorisedPeople, setAuthorisedPeople] = useState<string[]>([]);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
-  const [passwordChangedAt, setPasswordChangedAt] = useState("Recently");
+  const [passwordChangedAt, setPasswordChangedAt] = useState("");
   const [activeSessionsCount, setActiveSessionsCount] = useState(1);
   const [numbersList, setNumbersList] = useState<NumberItem[]>([]);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
@@ -429,6 +436,7 @@ export default function EditProfilePage() {
       // Identity verification status from backend or active account status
       const isIdDone = Boolean(user?.identity_verified || user?.is_verified || user?.verified);
       setIsIdentityVerified(isIdDone);
+      setEmailVerified(user?.email_verified === true);
 
       // Payment method details from backend user profile if present
       if (user?.payment_details?.last4) {
@@ -440,7 +448,7 @@ export default function EditProfilePage() {
       }
 
       // Account number from user ID / subscriber ID
-      setAccountNumber(deriveAccountNumber(user, userEmail));
+      setAccountNumber(deriveAccountNumber(user, userEmail) || "—");
 
       // Customer since date from user registration
       setCustomerSince(deriveCustomerSince(user));
@@ -459,10 +467,11 @@ export default function EditProfilePage() {
         if (found) setSelectedColor(found);
       }
 
-      try {
-        const savedAuth = JSON.parse(localStorage.getItem("zoiko_authorised_people") || "[]");
-        if (Array.isArray(savedAuth)) setAuthorisedPeople(savedAuth);
-      } catch {}
+      // Authorised people removed. Old behaviour kept for reference:
+      // try {
+      //   const savedAuth = JSON.parse(localStorage.getItem("zoiko_authorised_people") || "[]");
+      //   if (Array.isArray(savedAuth)) setAuthorisedPeople(savedAuth);
+      // } catch {}
 
       // Marketing messages status from security preferences
       const hasEmailMarketing = localStorage.getItem("zmuk_offers_marketing_email") === "true";
@@ -508,7 +517,7 @@ export default function EditProfilePage() {
       setTwoFAEnabled(is2FA);
 
       // Password changed timestamp
-      const pChange = localStorage.getItem("zoiko_password_changed_at") || "Recently";
+      const pChange = localStorage.getItem("zoiko_password_changed_at") || "";
       setPasswordChangedAt(pChange);
 
       // Active sessions count
@@ -524,7 +533,26 @@ export default function EditProfilePage() {
       let calculatedNext = 0;
 
       if (userEmail) {
+        // Real lines from the Django lines API (the same source as My mobile numbers)
         try {
+          const lr = await getLines();
+          (lr?.lines || []).forEach((l, i) => {
+            if (!l.msisdn) return;
+            fetchedNumbers.push({
+              id: l.id,
+              msisdn: formatUkNumber(l.msisdn),
+              plan: l.plan?.name || "Plan not available",
+              simType: l.sim?.type === "esim" ? "eSIM" : "SIM card",
+              label: i === 0 ? `${pref}'s number` : `Line ${i + 1}`,
+              status: l.status === "active" ? "Active" : "Pending",
+            });
+          });
+        } catch (err) {
+          console.warn("Could not load lines:", err);
+        }
+        const haveRealLines = fetchedNumbers.length > 0;
+
+        if (!haveRealLines) try {
           const res = await fetch(`${API_BASE}/api/v1/bqorders/by-user/`, {
             method: "POST",
             headers: {
@@ -584,7 +612,7 @@ export default function EditProfilePage() {
         }
 
         // Query SIM orders
-        try {
+        if (!haveRealLines) try {
           const simRes = await fetch(`${API_BASE}/api/v1/sims/orders/by-user/`, {
             method: "POST",
             headers: {
@@ -625,7 +653,7 @@ export default function EditProfilePage() {
             const subRes = (await beQuick.getSubscriberByEmail(userEmail)) as any;
             if (subRes && subRes.subscriber_id) subId = subRes.subscriber_id;
           }
-          if (subId && beQuick?.getUserLines) {
+          if (!haveRealLines && subId && beQuick?.getUserLines) {
             const bqLines = await beQuick.getUserLines(subId);
             if (Array.isArray(bqLines)) {
               for (const line of bqLines) {
@@ -673,16 +701,18 @@ export default function EditProfilePage() {
           setNextCollectionAmount(calculatedNext > 0 ? calculatedNext.toFixed(2) : "0.00");
         } else if (phone) {
           // If user has a verified phone on their account, show 1 active primary line
-          setNumbersList([
-            {
-              id: "primary-1",
-              msisdn: formatUkNumber(phone),
-              plan: planName || "Zoiko SIM Plan",
-              simType: "eSIM",
-              label: `${pref}'s number`,
-              status: "Active",
-            },
-          ]);
+          // Old behaviour (showed an invented "Zoiko SIM Plan" eSIM line) kept for reference:
+          // setNumbersList([
+          //   {
+          //     id: "primary-1",
+          //     msisdn: formatUkNumber(phone),
+          //     plan: planName || "Zoiko SIM Plan",
+          //     simType: "eSIM",
+          //     label: `${pref}'s number`,
+          //     status: "Active",
+          //   },
+          // ]);
+          setNumbersList([]);
           setNextCollectionAmount(calculatedNext > 0 ? calculatedNext.toFixed(2) : "0.00");
         } else {
           // No lines found for this user yet
@@ -1039,6 +1069,8 @@ export default function EditProfilePage() {
     }
     localStorage.removeItem("zoiko_token");
     localStorage.removeItem("driverx_token");
+    localStorage.removeItem("zoiko_user");
+    localStorage.removeItem("driverx_user");
     showToast("Signed out from this browser.");
     setTimeout(() => {
       router.push("/login");
@@ -1060,6 +1092,8 @@ export default function EditProfilePage() {
     localStorage.removeItem("zoiko_token");
     localStorage.removeItem("driverx_token");
     localStorage.removeItem("zoiko_other_sessions");
+    localStorage.removeItem("zoiko_user");
+    localStorage.removeItem("driverx_user");
     showToast("Signed out of all devices and active sessions.");
     setTimeout(() => {
       router.push("/login");
@@ -1070,7 +1104,7 @@ export default function EditProfilePage() {
     <div className="min-h-screen bg-[#EDEEF2] text-[#0D1935] font-sans p-3 sm:p-5">
       {/* Toast Alert */}
       {toast && (
-        <div className="fixed bottom-5 right-5 left-5 sm:left-auto z-50 bg-[#0D1935] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-medium border border-white/10 animate-fade-in">
+        <div className="fixed bottom-5 right-5 left-5 sm:left-auto z-[100] bg-[#0D1935] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-medium border border-white/10 animate-fade-in">
           <CheckCircle2 className="w-4 h-4 text-[#E6007E] shrink-0" />
           <span>{toast}</span>
         </div>
@@ -1186,10 +1220,10 @@ export default function EditProfilePage() {
 
               <div className="flex-1 sm:w-28 px-4 py-3 bg-white text-[#0D1935] rounded-2xl shadow-xs flex flex-col justify-center">
                 <div className="text-xl sm:text-2xl font-extrabold leading-tight">
-                  £{nextCollectionAmount}
+                  —
                 </div>
                 <div className="text-xs text-[#54617E] font-medium mt-0.5 truncate">
-                  Next collection
+                  Next collection: see Bills
                 </div>
               </div>
 
@@ -1288,16 +1322,16 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Identity check</div>
                     <div className="text-sm font-semibold text-[#0D1935]">
-                      {isIdentityVerified || numbersList.length > 0
-                        ? `Completed · ${customerSince}`
-                        : "Standard account"}
+                      {isIdentityVerified ? `Completed · ${customerSince}` : "Not checked yet"}
                     </div>
                     <div className="text-[11px] text-[#54617E]">For your mobile account</div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1 shrink-0">
-                    <Check className="w-3 h-3" />
-                    <span>Done</span>
-                  </span>
+                  {isIdentityVerified && (
+                    <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1 shrink-0">
+                      <Check className="w-3 h-3" />
+                      <span>Done</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1320,7 +1354,7 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Email</div>
                     <div className="text-sm font-semibold text-[#0D1935] truncate">{maskEmail(email)}</div>
-                    <div className="text-[11px] text-[#54617E]">Verified</div>
+                    {emailVerified && <div className="text-[11px] text-[#54617E]">Verified</div>}
                   </div>
                   <button
                     type="button"
@@ -1330,10 +1364,12 @@ export default function EditProfilePage() {
                     }}
                     className="flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
-                    <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      <span>Verified</span>
-                    </span>
+                    {emailVerified && (
+                      <span className="px-2.5 py-1 rounded-full bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] text-[11px] font-semibold flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        <span>Verified</span>
+                      </span>
+                    )}
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </div>
@@ -1568,11 +1604,13 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Billing account</div>
                     <div className="text-sm font-semibold text-[#0D1935] group-hover:text-[#E6007E] transition truncate">
-                      ••{accountNumber} · {paymentMethodSummary}
+                      {[accountNumber && accountNumber !== "—" ? `••${accountNumber}` : "", paymentMethodSummary]
+                        .filter(Boolean)
+                        .join(" · ") || "Bills & payments"}
                       {/* PREVIOUS CODE: ••{accountNumber} · Direct Debit ••42 */}
                     </div>
                     <div className="text-[11px] text-[#54617E]">
-                      Next collection £{nextCollectionAmount} on {collectionDate}
+                      See your next payment in Bills &amp; payments
                     </div>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0D1935] transition shrink-0" />
@@ -1598,13 +1636,14 @@ export default function EditProfilePage() {
                 )}
 
                 {/* Authorised People */}
+{/* Authorised people row (removed) (kept for reference)
                 <div className="py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Authorised people</div>
                     <div className="text-sm font-semibold text-[#0D1935] truncate">
                       {authorisedPeople.length > 0 ? authorisedPeople.join(", ") : "None"}
                     </div>
-                    <div className="text-[11px] text-[#54617E]">People who can speak to us for you</div>
+                    <div className="text-[11px] text-[#54617E]">People who can speak to us for you. Saved on this device only.</div>
                   </div>
                   <button
                     type="button"
@@ -1615,6 +1654,7 @@ export default function EditProfilePage() {
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </div>
+                */}
 
                 {/* Customer Since */}
                 <div className="py-2.5 flex items-center justify-between gap-3">
@@ -1757,7 +1797,7 @@ export default function EditProfilePage() {
                   <div className="min-w-0">
                     <div className="text-xs text-[#54617E]">Password</div>
                     <div className="text-sm font-semibold text-[#0D1935] group-hover:text-[#E6007E] transition truncate">
-                      Last changed {passwordChangedAt}
+                      {passwordChangedAt ? `Last changed ${passwordChangedAt}` : "You can change it any time"}
                     </div>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0D1935] transition shrink-0" />
@@ -2131,7 +2171,8 @@ export default function EditProfilePage() {
             </div>
             <div className="pt-4 space-y-3">
               <p className="text-xs text-[#54617E]">
-                Choose how you want to receive network updates, allowance notifications, and account alerts.
+                We contact you by email for network updates, allowance notifications and account alerts. Other
+                options are not available yet.
               </p>
               {CONTACT_OPTIONS.map(({ key, label }) => (
                 <button
@@ -2410,6 +2451,7 @@ export default function EditProfilePage() {
       {/* ========================================================================= */}
       {/* MODAL: Authorised People */}
       {/* ========================================================================= */}
+      {/* Authorised people popup (removed) (kept for reference)
       {modal === "auth_people" && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl">
@@ -2468,6 +2510,7 @@ export default function EditProfilePage() {
           </div>
         </div>
       )}
+      */}
 
       {/* ========================================================================= */}
       {/* MODAL: Change Password */}
@@ -2602,9 +2645,26 @@ export default function EditProfilePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setModal(null);
-                    showToast("DSAR request logged. We will securely deliver your data archive within 30 days.");
+                  onClick={async () => {
+                    const tk =
+                      token ||
+                      (typeof window !== "undefined" ? localStorage.getItem("zoiko_token") || "" : "");
+                    try {
+                      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Token ${tk}` },
+                        body: JSON.stringify({
+                          category: "general",
+                          subject: "Data access request (DSAR)",
+                          message: `The customer asked for a copy of their personal data. Delivery email: ${email}.`,
+                        }),
+                      });
+                      if (!res.ok) throw new Error(String(res.status));
+                      setModal(null);
+                      showToast("Request sent. We will reply about your data copy within 30 days.");
+                    } catch {
+                      showToast("We couldn't send your request. Please try again or contact support.");
+                    }
                   }}
                   className="px-4 py-2 bg-[#E6007E] hover:bg-[#D80070] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
                 >

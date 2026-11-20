@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { getLines } from "../add-new-number/addLineApi";
 import { useRouter } from "next/navigation";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardTopNav from "../components/DashboardTopNav";
@@ -116,6 +117,94 @@ function lowestDiscounted(plans: DiscountablePlan[]): { price: number; normal: n
   return best;
 }
 
+// Only offers the backend can honour are shown. The older demo offers (boosters, account exclusives,
+// plan-upgrade cards and the plan comparison) stay in the code but are hidden until the backend delivers them.
+const SHOW_DEMO_OFFERS = false;
+
+// Limited-time offers come from the backend offers list. Change this path if the backend uses another URL.
+const OFFERS_API_PATH = "/api/v1/offers/";
+
+type PromoOffer = {
+  id: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  bullets: string[];
+  termsText: string;
+  discountLabel: string;
+  couponCode: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  /** serverTime - browser time, so the card appears and disappears on the server's clock */
+  clockOffsetMs: number;
+  combinable: boolean;
+  ctaLabel: string;
+  ctaHref: string;
+  priority: number;
+};
+
+function normalisePromos(body: any): PromoOffer[] {
+  const list: any[] = Array.isArray(body)
+    ? body
+    : Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray(body?.data?.results)
+        ? body.data.results
+        : Array.isArray(body?.offers)
+          ? body.offers
+          : Array.isArray(body?.results)
+            ? body.results
+            : [];
+  const topServerTime = body?.server_time || body?.data?.server_time || null;
+  const toDate = (v: any) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  return list
+    .filter((o) => o && typeof o === "object")
+    .map((o, i) => {
+      const server = toDate(o.server_time || topServerTime);
+      const type = String(o.discount_type || "").toLowerCase();
+      const val = Number(o.discount_value);
+      const discountLabel =
+        Number.isFinite(val) && val > 0
+          ? type === "flat" || type === "fixed"
+            ? `£${val % 1 === 0 ? val.toFixed(0) : val.toFixed(2)} off`
+            : `${val % 1 === 0 ? val.toFixed(0) : val}% off`
+          : "";
+      return {
+        id: String(o.id ?? o.slug ?? i),
+        title: String(o.title || o.name || "Offer"),
+        subtitle: String(o.subtitle || o.description || ""),
+        badge: String(o.badge || o.badge_text || "Limited time"),
+        bullets: Array.isArray(o.bullets) ? o.bullets.map((b: any) => String(b)).filter(Boolean) : [],
+        termsText: String(o.terms_text || o.terms || ""),
+        discountLabel,
+        couponCode: String(o.coupon_code || o.code || ""),
+        startsAt: toDate(o.starts_at || o.valid_from),
+        endsAt: toDate(o.ends_at || o.valid_till),
+        clockOffsetMs: server ? server.getTime() - Date.now() : 0,
+        combinable: o.combinable === true,
+        ctaLabel: String(o.cta_label || ""),
+        ctaHref: String(o.cta_href || ""),
+        priority: Number.isFinite(Number(o.priority)) ? Number(o.priority) : 100 + i,
+      } as PromoOffer;
+    });
+}
+
+/** "9 days left", "5 h 20 min left", "Ended" */
+function promoTimeLeft(endsAt: Date | null, nowMs: number): string {
+  if (!endsAt) return "";
+  const diff = endsAt.getTime() - nowMs;
+  if (diff <= 0) return "Ended";
+  const mins = Math.floor(diff / 60000);
+  const days = Math.floor(mins / 1440);
+  if (days >= 1) return `${days} day${days === 1 ? "" : "s"} left`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} h ${mins % 60} min left`;
+}
+
 export default function LatestOffersPage() {
   const router = useRouter();
 
@@ -148,6 +237,33 @@ export default function LatestOffersPage() {
   const [lineDropdownOpen, setLineDropdownOpen] = useState(false);
   const [djangoPlans, setDjangoPlans] = useState<any[]>([]);
 
+  // Limited-time offers from the backend (null = still loading)
+  const [promos, setPromos] = useState<PromoOffer[] | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const loadPromos = useCallback(async () => {
+    try {
+      const tk = getVerifyToken();
+      const res = await fetch(`${API_BASE}${OFFERS_API_PATH}`, {
+        headers: tk ? { Authorization: `Token ${tk}` } : {},
+      });
+      if (!res.ok) {
+        setPromos([]);
+        return;
+      }
+      const body = await res.json().catch(() => null);
+      setPromos(normalisePromos(body));
+    } catch {
+      setPromos([]);
+    }
+  }, []);
+  useEffect(() => {
+    loadPromos();
+  }, [loadPromos]);
+
   // Verification state (public sector 30%, students 20%) drives the "Verified discounts" offers.
   const [verified, setVerified] = useState<{
     loggedIn: boolean;
@@ -155,24 +271,19 @@ export default function LatestOffersPage() {
     student: { me: StudentMyStatus | null; plans: StudentPlansResponse | null };
   } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadVerified = useCallback(async () => {
     const loggedIn = !!getVerifyToken();
-    (async () => {
-      const [psMe, psPlans, stMe, stPlans] = await Promise.all([
-        loggedIn ? getPsStatus().catch(() => null) : Promise.resolve(null),
-        getPsPlans().catch(() => null),
-        loggedIn ? getStudentStatus().catch(() => null) : Promise.resolve(null),
-        getStudentPlans().catch(() => null),
-      ]);
-      if (!cancelled) {
-        setVerified({ loggedIn, ps: { me: psMe, plans: psPlans }, student: { me: stMe, plans: stPlans } });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const [psMe, psPlans, stMe, stPlans] = await Promise.all([
+      loggedIn ? getPsStatus().catch(() => null) : Promise.resolve(null),
+      getPsPlans().catch(() => null),
+      loggedIn ? getStudentStatus().catch(() => null) : Promise.resolve(null),
+      getStudentPlans().catch(() => null),
+    ]);
+    setVerified({ loggedIn, ps: { me: psMe, plans: psPlans }, student: { me: stMe, plans: stPlans } });
   }, []);
+  useEffect(() => {
+    loadVerified();
+  }, [loadVerified]);
 
   // Hero carousel state
   const [activeSlide, setActiveSlide] = useState(0);
@@ -299,111 +410,29 @@ export default function LatestOffersPage() {
         // Non-fatal
       }
 
-      // 2. Fetch user's lines from Django & BeQuick
+      // 2. The customer's real lines (Django lines API). Only active lines with a number count.
       const discoveredLines: LineOption[] = [];
-
-      if (email && token) {
+      if (token) {
         try {
-          const ordersRes = await fetch(
-            `${API_BASE}/api/v1/bqorders/by-user/`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Token ${token}`,
-              },
-              body: JSON.stringify({ logged_user: email }),
-            }
-          );
-
-          if (ordersRes.ok) {
-            const orderJson = await ordersRes.json();
-            const ordersList = Array.isArray(orderJson)
-              ? orderJson
-              : orderJson?.data || orderJson?.orders || [];
-
-            ordersList.forEach((order: any, idx: number) => {
-              const rawMsisdn =
-                order?.msisdn ||
-                order?.phone_number ||
-                order?.mobile_number ||
-                order?.line_number ||
-                "";
-              const formattedNum = rawMsisdn
-                ? formatMsisdn(rawMsisdn)
-                : `Line #${idx + 1}`;
-              const pName =
-                order?.plan_name ||
-                order?.product_name ||
-                order?.bundle_name ||
-                "Zoiko Max 30GB";
-              const pPrice = parseFloat(
-                order?.price || order?.amount || order?.total || "19.99"
-              );
-              const pData = order?.data_allowance || "30 GB";
-              const lineRenewDate = computeRenewalDate(
-                order?.renew_date || order?.renewal_date || order?.created_at
-              );
-
-              discoveredLines.push({
-                id: String(order?.id || idx + 1),
-                number: formattedNum,
-                planName: pName,
-                dataAllowance: pData,
-                price: !isNaN(pPrice) && pPrice > 0 ? pPrice : 19.99,
-                renewDate: lineRenewDate,
-              });
+          const lr = await getLines();
+          (lr?.lines || []).forEach((l, idx) => {
+            if (l.status !== "active" || !l.msisdn) return;
+            discoveredLines.push({
+              id: String(l.id || idx + 1),
+              number: formatMsisdn(l.msisdn),
+              planName: l.plan?.name || "Your plan",
+              dataAllowance: l.plan?.data_allowance || "",
+              price: Number(l.plan?.price) || 0,
+              renewDate: computeRenewalDate(l.activated_at || l.created_at),
             });
-          }
+          });
         } catch {
-          // Continue to BeQuick check
+          // no lines found
         }
-      }
-
-      if (email && discoveredLines.length === 0) {
-        try {
-          const subCheck: any = await beQuick.getSubscriberByEmail(email);
-          const subId =
-            subCheck?.subscriber_id || subCheck?.data?.subscriber_id;
-          if (subId) {
-            const subDetails: any = await beQuick.getSubscriberDetails(subId);
-            const linesArr =
-              subDetails?.lines || subDetails?.data?.lines || [];
-            linesArr.forEach((l: any, idx: number) => {
-              const msisdn = l?.msisdn || l?.mdn || l?.phone_number || "";
-              const lineRenewDate = computeRenewalDate(
-                l?.renew_date || l?.renewal_date || l?.created_at
-              );
-              discoveredLines.push({
-                id: String(l?.id || idx + 1),
-                number: msisdn ? formatMsisdn(msisdn) : `Line #${idx + 1}`,
-                planName: l?.plan_name || "Zoiko Max 30GB",
-                dataAllowance: l?.data_allowance || "30 GB",
-                price: parseFloat(l?.price || "19.99") || 19.99,
-                renewDate: lineRenewDate,
-              });
-            });
-          }
-        } catch {
-          // Non-fatal
-        }
-      }
-
-      if (discoveredLines.length === 0) {
-        discoveredLines.push({
-          id: "line-primary",
-          number: parsedUser?.phone
-            ? formatMsisdn(parsedUser.phone)
-            : "Active SIM Line",
-          planName: "Zoiko Max 30GB",
-          dataAllowance: "30 GB",
-          price: 19.99,
-          renewDate: computeRenewalDate(),
-        });
       }
 
       setLines(discoveredLines);
-      setSelectedLineId((prev) => prev || discoveredLines[0].id);
+      setSelectedLineId((prev) => prev || discoveredLines[0]?.id || "");
       setFreshnessTime(getFormattedFreshness());
     } finally {
       setLoading(false);
@@ -419,11 +448,11 @@ export default function LatestOffersPage() {
     return (
       lines.find((l) => l.id === selectedLineId) ||
       lines[0] || {
-        id: "line-primary",
-        number: "Active SIM Line",
-        planName: "Zoiko Max 30GB",
-        dataAllowance: "30 GB",
-        price: 19.99,
+        id: "",
+        number: "No active SIM",
+        planName: "Add a number to get offers for it",
+        dataAllowance: "",
+        price: 0,
         renewDate: computeRenewalDate(),
       }
     );
@@ -583,16 +612,18 @@ export default function LatestOffersPage() {
       plansResp: { discount_applies: boolean; discount_percent: string; plans: DiscountablePlan[] } | null,
       validUntil: string | null | undefined
     ): OfferItem | null => {
-      if (!plansResp || plansResp.plans.length === 0) return null;
-      const pct = Math.round(Number(plansResp.discount_percent)) || (kind === "ps" ? 30 : 20);
+      const plansList = plansResp?.plans ?? [];
+      const pctNum = Math.round(Number(plansResp?.discount_percent)) || 0;
+      const pct = pctNum > 0 ? `${pctNum}%` : "Discount";
       const who = kind === "ps" ? "public sector workers" : "students";
       const href = kind === "ps" ? "/civilservants" : "/student-deals";
-      const applies = plansResp.discount_applies;
-      const best = applies ? lowestDiscounted(plansResp.plans) : null;
+      const applies = !!plansResp?.discount_applies;
+      const best = applies ? lowestDiscounted(plansList) : null;
       const until = validUntil
         ? new Date(validUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
         : null;
-      const count = plansResp.plans.length;
+      const count = plansList.length;
+      const planText = count > 0 ? `${count} selected plan${count === 1 ? "" : "s"}` : "selected plans";
 
       const base = {
         id: `verified-${kind}`,
@@ -606,16 +637,16 @@ export default function LatestOffersPage() {
       if (applies) {
         return {
           ...base,
-          title: `${pct}% off for verified ${who}`,
+          title: `${pct} off for verified ${who}`,
           subtitle: "Applied automatically at checkout",
           badgeText: "Verified",
           badgeIcon: "star" as const,
           bullets: [
-            `${pct}% off ${count} selected plan${count === 1 ? "" : "s"}`,
+            `${pct} off ${planText}`,
             "Pick your contract length on the plans page",
             until ? `Verified until ${until}` : "Stays on while you're verified",
           ],
-          priceMain: best ? `£${best.price.toFixed(2)}` : `${pct}% off`,
+          priceMain: best ? `£${best.price.toFixed(2)}` : `${pct} off`,
           priceSub: best ? "a month, from" : undefined,
           priceStrike: best ? `Usually £${best.normal.toFixed(2)}` : undefined,
           termsText: "Added at checkout, from any page. Coupons can't be used together with this discount.",
@@ -631,11 +662,11 @@ export default function LatestOffersPage() {
         ...base,
         title: pending
           ? `Your ${kind === "ps" ? "public sector" : "student"} check is in progress`
-          : `${pct}% off for ${who}`,
+          : `${pct} off for ${who}`,
         subtitle: pending ? "We'll email you once it's reviewed" : "Verify once to see your price",
         badgeText: pending ? "In progress" : undefined,
         bullets: [
-          `${pct}% off ${count} selected plan${count === 1 ? "" : "s"}`,
+          `${pct} off ${planText}`,
           pending ? "Normal prices apply until you're approved" : "You can buy at the normal price any time",
           status === "expired"
             ? "Your verification has ended. Verify again to keep student prices."
@@ -643,7 +674,7 @@ export default function LatestOffersPage() {
               ? "Your last application wasn't approved. You can apply again."
               : "Verification is done securely in your account",
         ],
-        priceMain: `${pct}% off`,
+        priceMain: `${pct} off`,
         priceSub: "once verified",
         termsText: pending
           ? "Verification is being reviewed."
@@ -666,7 +697,7 @@ export default function LatestOffersPage() {
   }, [verified]);
 
   // Build dynamic offers tailored to the selected line
-  const allOffers: OfferItem[] = useMemo(() => {
+  const legacyOffers: OfferItem[] = useMemo(() => {
     return [
       ...verifiedOffers,
       {
@@ -871,6 +902,10 @@ export default function LatestOffersPage() {
     djangoPlans,
     verifiedOffers,
   ]);
+  void legacyOffers; // kept for later, see SHOW_DEMO_OFFERS
+
+  // What the page shows: the public sector and student offers (always), plus backend promotions below.
+  const allOffers: OfferItem[] = verifiedOffers;
 
   // Dynamic limited-time offers
   const limitedOffers = useMemo(() => {
@@ -903,7 +938,7 @@ export default function LatestOffersPage() {
   );
 
   // Dynamic Hero carousel slides matching original latest offers page
-  const heroSlides = useMemo(
+  const legacyHeroSlides = useMemo(
     () => [
       {
         id: "zoiko-unlimited",
@@ -945,6 +980,91 @@ export default function LatestOffersPage() {
     ]
   );
 
+  void legacyHeroSlides; // kept for later, see SHOW_DEMO_OFFERS
+
+  // Does the customer already have a verified discount? (public sector or student)
+  const isVerifiedCustomer = !!(verified?.ps.plans?.discount_applies || verified?.student.plans?.discount_applies);
+
+  // Backend promotions that are live right now (server clock), most important first.
+  const activePromos = useMemo(() => {
+    return (promos ?? [])
+      .filter((o) => {
+        const now = nowTick + o.clockOffsetMs;
+        if (o.startsAt && now < o.startsAt.getTime()) return false;
+        if (o.endsAt && now >= o.endsAt.getTime()) return false;
+        return true;
+      })
+      .sort((a, b) => a.priority - b.priority);
+  }, [promos, nowTick]);
+
+  // Hero slides: live promotions (unless the customer can't use them), then public sector and student.
+  const heroSlides = useMemo(() => {
+    const promoSlides = activePromos
+      .filter((o) => o.combinable || !isVerifiedCustomer)
+      .map((o) => ({
+        id: `promo-${o.id}`,
+        badge: o.badge,
+        title: o.title,
+        description: [o.subtitle, o.couponCode ? `Use code ${o.couponCode} at the cart.` : ""].filter(Boolean).join(" "),
+        offerId: "",
+        graphic: o.discountLabel ? o.discountLabel.replace(" off", "") : "%",
+        href: o.ctaHref || "/plans",
+        ctaLabel: o.ctaLabel || "Choose a plan",
+      }));
+    const verifiedSlides = verifiedOffers.map((o) => {
+      const pct = `${o.title} ${o.priceMain}`.match(/(\d+)%/);
+      return {
+        id: o.id,
+        badge: o.badgeText || o.category,
+        title: o.title,
+        description: `${[o.subtitle, ...o.bullets.slice(0, 2)].filter(Boolean).join(". ")}.`,
+        offerId: o.id,
+        graphic: pct ? `${pct[1]}%` : "%",
+        href: "",
+        ctaLabel: "",
+      };
+    });
+    const slides = [...promoSlides, ...verifiedSlides];
+    if (slides.length > 0) return slides;
+    return [
+      {
+        id: "none",
+        badge: "Offers",
+        title: "Your offers",
+        description: "Offers for public sector workers and students appear here.",
+        offerId: "",
+        graphic: "%",
+        href: "",
+        ctaLabel: "",
+      },
+    ];
+  }, [activePromos, isVerifiedCustomer, verifiedOffers]);
+
+  // "At a glance": the customer's verification status for each programme.
+  const glance = useMemo(() => {
+    const line = (
+      who: string,
+      me: { status?: string } | null | undefined,
+      plansResp: { status?: string; discount_percent?: string } | null | undefined
+    ) => {
+      const status = me?.status ?? plansResp?.status ?? "none";
+      const pct = Math.round(Number(plansResp?.discount_percent)) || 0;
+      const off = pct ? `${pct}% off` : "a discount";
+      if (status === "approved") return { title: `${who}: verified`, sub: `${off} applied at checkout` };
+      if (status === "pending") return { title: `${who}: in progress`, sub: "We'll email you once it's reviewed" };
+      if (status === "rejected") return { title: `${who}: not approved`, sub: "You can apply again" };
+      if (status === "expired") return { title: `${who}: expired`, sub: "Verify again to keep your discount" };
+      return {
+        title: `${who}: not verified`,
+        sub: verified?.loggedIn ? `Verify to get ${off}` : "Log in to check your eligibility",
+      };
+    };
+    return {
+      ps: line("Public sector", verified?.ps.me, verified?.ps.plans),
+      student: line("Student", verified?.student.me, verified?.student.plans),
+    };
+  }, [verified]);
+
   // Auto-advance carousel when playing
   useEffect(() => {
     if (!isPlaying) return;
@@ -966,7 +1086,7 @@ export default function LatestOffersPage() {
       { label: "Refer & earn", count: countFor("Refer & earn") },
       { label: "Account exclusives", count: countFor("Account exclusives") },
       { label: "Verified discounts", count: countFor("Verified discounts") },
-    ];
+    ].filter((t) => t.label === "All offers" || t.count > 0);
   }, [allOffers]);
 
   // Filtered & sorted offers
@@ -1339,8 +1459,8 @@ export default function LatestOffersPage() {
             numbersCount={lines.length}
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
-            planName={currentLine.planName}
-            renewDate={currentLine.renewDate}
+            planName={hasActiveLine ? currentLine.planName : ""}
+            renewDate={hasActiveLine ? currentLine.renewDate : ""}
           />
         </div>
 
@@ -1364,7 +1484,11 @@ export default function LatestOffersPage() {
               <span>Offers checked {freshnessTime} · catalogue {schedule.catalogueCode}</span>
               <button
                 type="button"
-                onClick={() => fetchOffersData(true)}
+                onClick={() => {
+                  fetchOffersData(true);
+                  loadPromos();
+                  loadVerified();
+                }}
                 title="Refresh offers"
                 className="w-7 h-7 rounded-lg hover:bg-white/80 flex items-center justify-center text-[#1D2433] transition-colors cursor-pointer"
               >
@@ -1380,7 +1504,7 @@ export default function LatestOffersPage() {
             <div className="relative w-full sm:w-auto sm:min-w-[360px]">
               <button
                 type="button"
-                onClick={() => setLineDropdownOpen((prev) => !prev)}
+                onClick={() => hasActiveLine && setLineDropdownOpen((prev) => !prev)}
                 className="w-full px-3.5 py-2 bg-white rounded-2xl border border-[#E4E7EC] shadow-[0px_1px_2px_0px_rgba(16,24,40,0.03)] flex items-center justify-between gap-3 hover:border-[#D0D5DD] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2.5 text-left min-w-0">
@@ -1392,7 +1516,7 @@ export default function LatestOffersPage() {
                       Offers for
                     </div>
                     <div className="text-xs font-bold text-[#101828] leading-4 truncate">
-                      {currentLine.number} · {currentLine.planName}
+                      {hasActiveLine ? `${currentLine.number} · ${currentLine.planName}` : "No active SIM"}
                     </div>
                   </div>
                 </div>
@@ -1447,11 +1571,7 @@ export default function LatestOffersPage() {
               <div className="hidden sm:flex right-14 -top-3 absolute pointer-events-none">
                 <div className="w-28 h-40 rounded-b-[22px] border-[2.25px] border-t-0 border-white/85 flex flex-col items-center justify-start pt-5">
                   <span className="text-white text-3xl font-light tracking-tighter leading-none">
-                    {activeSlide === 0
-                      ? "∞"
-                      : activeSlide === 1
-                      ? "10G"
-                      : "5G"}
+                    {heroSlides[activeSlide]?.graphic ?? ""}
                   </span>
                 </div>
               </div>
@@ -1471,7 +1591,16 @@ export default function LatestOffersPage() {
                 <div className="pt-1.5">
                   <button
                     type="button"
+                    style={
+                      heroSlides[activeSlide].href || allOffers.some((o) => o.id === heroSlides[activeSlide].offerId)
+                        ? undefined
+                        : { display: "none" }
+                    }
                     onClick={() => {
+                      if (heroSlides[activeSlide].href) {
+                        router.push(heroSlides[activeSlide].href);
+                        return;
+                      }
                       const found = allOffers.find(
                         (o) => o.id === heroSlides[activeSlide].offerId
                       );
@@ -1479,7 +1608,7 @@ export default function LatestOffersPage() {
                     }}
                     className="px-4 py-2 bg-white hover:bg-white/95 text-[#101828] rounded-full inline-flex items-center gap-1.5 text-xs font-bold shadow-xs transition-all cursor-pointer"
                   >
-                    <span>View offer</span>
+                    <span>{heroSlides[activeSlide].ctaLabel || "View offer"}</span>
                     <ArrowRight className="w-3.5 h-3.5 text-[#101828]" />
                   </button>
                 </div>
@@ -1558,7 +1687,7 @@ export default function LatestOffersPage() {
                       At a glance
                     </h3>
                     <p className="text-[11px] text-[#667085] leading-4">
-                      For {currentLine.number}
+                      Your account
                     </p>
                   </div>
                 </div>
@@ -1574,7 +1703,7 @@ export default function LatestOffersPage() {
                         {allOffers.length} offers you can view
                       </div>
                       <div className="text-[11px] text-[#667085] leading-4 mt-0.5">
-                        Only offers that apply to this number
+                        Discounts you can get
                       </div>
                     </div>
                   </div>
@@ -1586,12 +1715,10 @@ export default function LatestOffersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-[#101828] leading-4">
-                        {endingSoonOffers.length} ending within a week
+                        {glance.ps.title}
                       </div>
                       <div className="text-[11px] text-[#667085] leading-4 mt-0.5">
-                        {earliestEndingOffer
-                          ? `First ${earliestEndingOffer.endsText}`
-                          : "All active offers ongoing"}
+                        {glance.ps.sub}
                       </div>
                     </div>
                   </div>
@@ -1603,12 +1730,10 @@ export default function LatestOffersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-[#101828] leading-4">
-                        {exclusivesCount} account exclusive{exclusivesCount === 1 ? "" : "s"}
+                        {glance.student.title}
                       </div>
                       <div className="text-[11px] text-[#667085] leading-4 mt-0.5">
-                        {claimedExclusives.length > 0
-                          ? `${claimedExclusives.length} claimed on your account`
-                          : "Granted to your account"}
+                        {glance.student.sub}
                       </div>
                     </div>
                   </div>
@@ -1742,7 +1867,8 @@ export default function LatestOffersPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
             {/* Left 8 cols: Recommended for you */}
             <div className="lg:col-span-8 p-5 bg-white rounded-[22px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-slate-100 flex flex-col gap-4">
-              {/* Header */}
+              {SHOW_DEMO_OFFERS && (
+                <>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-[#FDF2F6] flex items-center justify-center text-[#E01C5B] shrink-0">
@@ -1773,6 +1899,9 @@ export default function LatestOffersPage() {
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+                </>
+              )}
 
               {/* 2x2 Offer Cards Grid */}
               {displayedOffers.length === 0 ? (
@@ -1938,7 +2067,8 @@ export default function LatestOffersPage() {
                 </div>
 
                 <div className="flex flex-col gap-2.5">
-                  {/* Exclusive 1: White bordered card */}
+                  {SHOW_DEMO_OFFERS && (
+                    <>
                   <div className="p-3 bg-white rounded-2xl border border-[#EAECF0] flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-xl bg-[#FDF2F6] flex items-center justify-center text-[#E01C5B] shrink-0">
@@ -1974,6 +2104,9 @@ export default function LatestOffersPage() {
                     </button>
                   </div>
 
+                    </>
+                  )}
+
                   {/* Exclusive 2: White bordered card */}
                   <div className="p-3 bg-white rounded-2xl border border-[#EAECF0] flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -1985,7 +2118,7 @@ export default function LatestOffersPage() {
                           Refer a friend
                         </div>
                         <div className="text-[11px] text-[#667085] leading-3.5 mt-0.5">
-                          Earn up to £10.00 bill credit
+                          Coming soon
                         </div>
                       </div>
                     </div>
@@ -2099,7 +2232,168 @@ export default function LatestOffersPage() {
             </div>
           </div>
 
-          {/* ROW 4: Limited-time offers (7 cols) + Plan upgrade (5 cols) */}
+          {/* ROW 4: Limited-time offers (live from the backend offers list) */}
+          <div className="p-5 sm:p-6 bg-white rounded-[22px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-slate-100 flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#FDF2F6] flex items-center justify-center text-[#E01C5B] shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#101828] leading-5">Limited-time offers</h3>
+                  <p className="text-xs text-[#667085] leading-4 mt-0.5">
+                    Live from our offers list. End times are shown in UK time.
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F8F9FB] border border-[#EAECF0] text-[11px] font-semibold text-[#475467]">
+                <Info className="w-3.5 h-3.5 text-[#98A2B3] shrink-0" />
+                Not available if you already have a verified public sector or student discount
+              </span>
+            </div>
+
+            {promos === null ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-56 rounded-2xl bg-[#F2F4F7] animate-pulse" />
+                ))}
+              </div>
+            ) : activePromos.length === 0 ? (
+              <div className="py-10 px-6 rounded-2xl bg-gradient-to-br from-[#FDF2F6] to-[#F8F9FB] border border-[#F9C6D7]/60 flex flex-col items-center text-center gap-2">
+                <div className="w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-[#E01C5B]">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-bold text-[#101828]">No limited-time offers right now</p>
+                <p className="text-xs text-[#667085] max-w-sm">
+                  When we run a sale it appears here with its code and end date. Your public sector and student
+                  discounts are always available above.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {activePromos.map((o) => {
+                  const blocked = !o.combinable && isVerifiedCustomer;
+                  const nowMs = nowTick + o.clockOffsetMs;
+                  const endsText = o.endsAt
+                    ? `Ends ${o.endsAt.toLocaleString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "Europe/London",
+                      })}`
+                    : "";
+                  return (
+                    <div
+                      key={o.id}
+                      className={`rounded-2xl overflow-hidden border flex flex-col bg-white ${
+                        blocked ? "border-[#EAECF0]" : "border-[#F9C6D7] shadow-[0px_8px_24px_-12px_rgba(224,28,91,0.35)]"
+                      }`}
+                    >
+                      <div
+                        className={`relative px-5 pt-5 pb-5 text-white ${
+                          blocked
+                            ? "bg-gradient-to-br from-[#667085] to-[#475467]"
+                            : "bg-gradient-to-br from-[#D91B5C] via-[#B4144B] to-[#820E36]"
+                        }`}
+                      >
+                        <div className="absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10 pointer-events-none" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-bold">
+                          <Clock className="w-3 h-3" />
+                          {o.badge}
+                        </span>
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="min-w-0">
+                            <h4 className="text-base font-extrabold leading-snug">{o.title}</h4>
+                            {o.subtitle && <p className="text-xs text-white/85 mt-1 leading-relaxed">{o.subtitle}</p>}
+                          </div>
+                          {o.discountLabel && (
+                            <div className="shrink-0 text-right text-3xl font-black leading-none tracking-tight">
+                              {o.discountLabel.replace(" off", "")}
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-white/80 mt-1">off</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-5 flex flex-col gap-3.5 flex-1">
+                        {o.bullets.length > 0 && (
+                          <ul className="flex flex-col gap-1.5">
+                            {o.bullets.slice(0, 4).map((b, i) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-[#344054]">
+                                <Check className="w-3.5 h-3.5 text-[#12B76A] shrink-0 mt-0.5" />
+                                <span>{b}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {o.couponCode && !blocked && (
+                          <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[#E01C5B]/50 bg-[#FDF2F6] px-3.5 py-2.5">
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-[#667085]">Coupon code</div>
+                              <div className="font-mono text-sm font-extrabold text-[#BA1248] truncate">{o.couponCode}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  navigator.clipboard?.writeText(o.couponCode);
+                                } catch {
+                                  // ignore
+                                }
+                                showToast("Code copied");
+                              }}
+                              className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-[#F9C6D7] text-[11px] font-bold text-[#E01C5B] hover:bg-[#FFF5F8] transition cursor-pointer"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-[#B54708]">
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {promoTimeLeft(o.endsAt, nowMs)}
+                          </span>
+                          {endsText && <span className="text-[#667085] font-medium">{endsText}</span>}
+                        </div>
+
+                        {o.termsText && <p className="text-[11px] text-[#667085] leading-relaxed">{o.termsText}</p>}
+
+                        {!o.combinable && (
+                          <p className="flex items-start gap-1.5 text-[11px] text-[#667085]">
+                            <Info className="w-3.5 h-3.5 text-[#98A2B3] shrink-0 mt-0.5" />
+                            Can&apos;t be combined with a verified public sector or student discount.
+                          </p>
+                        )}
+
+                        <div className="mt-auto pt-1">
+                          {blocked ? (
+                            <div className="rounded-xl bg-[#F8F9FB] border border-[#EAECF0] px-3.5 py-2.5 text-xs font-semibold text-[#475467]">
+                              Not applicable: you already have a verified discount.
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => router.push(o.ctaHref || "/plans")}
+                              className="w-full px-4 py-2.5 rounded-xl bg-[#E01C5B] hover:bg-[#C81650] text-white text-xs font-bold transition cursor-pointer inline-flex items-center justify-center gap-1.5"
+                            >
+                              <span>{o.ctaLabel || "Choose a plan"}</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Old row (Limited-time offers demo + Plan upgrade comparison), kept behind SHOW_DEMO_OFFERS */}
+          {SHOW_DEMO_OFFERS && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Left 7 cols: Limited-time offers */}
             <div className="lg:col-span-7 p-5 bg-white rounded-[22px] shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] border border-slate-100 flex flex-col gap-3.5">
@@ -2378,6 +2672,7 @@ export default function LatestOffersPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 
