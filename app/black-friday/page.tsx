@@ -94,8 +94,8 @@ const FAQS = [
   },
   {
     q: "When does the sale run?",
-    tag: "27–30 NOV",
-    a: "Our Black Friday promotions run from Friday 27 November through Cyber Monday 30 November 2026."
+    tag: "20–30 NOV",
+    a: "Our Black Friday promotions run from Friday 20 November through Cyber Monday 30 November 2026."
   },
   {
     q: "Can I keep my number when switching?",
@@ -379,7 +379,7 @@ export default function BlackFridayPage() {
                     BLACK FRIDAY OFFER
                   </span>
                   <span className="text-xs font-black tracking-widest text-[#FF8CC6]">
-                    27 – 30 NOV
+                    20 – 30 NOV
                   </span>
                 </div>
 
@@ -463,7 +463,7 @@ export default function BlackFridayPage() {
                       SALE
                     </span>
                     <span className="block text-[8px] font-extrabold tracking-wider text-pink-200 uppercase mt-0.5">
-                      NOV 27 – 30
+                      NOV 20 – 30
                     </span>
                   </div>
                 </div>
@@ -481,7 +481,7 @@ export default function BlackFridayPage() {
           {[...Array(4)].map((_, idx) => (
             <React.Fragment key={idx}>
               <span className="flex items-center gap-2 text-[#FFD60A]">
-                ★ BLACK FRIDAY · 27 NOV 2026
+                ★ BLACK FRIDAY · 20–30 NOV 2026
               </span>
               <span className="text-white/80">UNLIMITED MINUTES &amp; TEXTS</span>
               <span className="flex items-center gap-2 text-[#FF8CC6]">
@@ -765,7 +765,7 @@ export default function BlackFridayPage() {
             <div className="inline-flex items-center gap-1.5 rounded-full bg-[#120417] px-4 py-1.5 shadow-sm">
               <span className="text-[#FF8CC6] text-xs">★</span>
               <span className="text-[#FFD60A] text-xs font-black tracking-widest uppercase">
-                BLACK FRIDAY · 27–30 NOV
+                BLACK FRIDAY · 20–30 NOV
               </span>
             </div>
 
