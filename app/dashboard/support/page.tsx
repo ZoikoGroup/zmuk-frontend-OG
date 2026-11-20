@@ -1663,7 +1663,7 @@ ${newRequestMessage.trim()}`,
                   <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#0D1935] group-hover:translate-x-0.5 transition shrink-0" />
                 </button>
 
-                <Link
+                {/* <Link
                   href="/forgot-password"
                   className="w-full text-left py-2.5 flex items-center justify-between gap-3 group"
                 >
@@ -1677,7 +1677,7 @@ ${newRequestMessage.trim()}`,
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#0D1935] group-hover:translate-x-0.5 transition shrink-0" />
-                </Link>
+                </Link> */}
 
                 <button
                   type="button"

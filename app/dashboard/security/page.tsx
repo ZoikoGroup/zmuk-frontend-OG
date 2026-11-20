@@ -662,471 +662,472 @@ export default function SecurityPage() {
           */}
 
           {/* Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-            {/* Account security */}
-            <div className={CARD}>
-              <CardHeader icon={ShieldCheck} title="Account security" subtitle="Checked by our security service" />
-              {/* 2FA - Two-step verification (Temporarily commented out)
-              <Row
-                first
-                icon={Key}
-                title="Two-step verification"
-                subtitle={twoFAStatus ? "Required every time you sign in" : "Not turned on"}
-                right={
-                  twoFAStatus ? (
-                    <Pill tone="green">
-                      <Check className="w-3 h-3" /> On
-                    </Pill>
-                  ) : (
-                    <Pill tone="amber">
-                      <AlertTriangle className="w-3 h-3" /> Off
-                    </Pill>
-                  )
-                }
-                onClick={() => setModal("twofa")}
-              />
-              */}
-              <Row
-                first
-                icon={Lock}
-                title="Password"
-                subtitle={
-                  passwordChangedAt
-                    ? `Last changed ${formatDate(new Date(passwordChangedAt))}`
-                    : "Change it regularly to stay safe"
-                }
-                right={<span className="text-xs font-semibold text-[#0D1935]">Change</span>}
-                onClick={() => router.push("/dashboard/edit-profile")}
-              />
-              <Row
-                icon={FileText}
-                title="Backup codes"
-                subtitle={hasBackup ? `${backupCodes.length} codes saved` : "Not set up"}
-                right={
-                  hasBackup ? (
-                    <Pill tone="green">
-                      <Check className="w-3 h-3" /> Saved
-                    </Pill>
-                  ) : (
-                    <Pill tone="amber">
-                      <AlertTriangle className="w-3 h-3" /> Set up
-                    </Pill>
-                  )
-                }
-                onClick={startBackupCodes}
-              />
-              <Row
-                icon={Mail}
-                title="Recovery contacts"
-                subtitle={contactLine || "Not added"}
-                right={
-                  email ? (
-                    <Pill tone="green">
-                      <Check className="w-3 h-3" /> Verified
-                    </Pill>
-                  ) : (
-                    <Pill tone="amber">Add</Pill>
-                  )
-                }
-                onClick={() => router.push("/dashboard/edit-profile")}
-              />
-              <Row
-                icon={Monitor}
-                title="Where you’re signed in"
-                subtitle={`${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
-                right={<span className="text-xs font-semibold text-[#0D1935]">Review</span>}
-                onClick={() =>
-                  document.getElementById("signed-in")?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-              />
-            </div>
-
-            {/* Sign-in methods */}
-            <div className={CARD}>
-              <CardHeader icon={Fingerprint} title="Sign-in methods" subtitle="How you prove it’s you" />
-              {/* 2FA - Authenticator app (Temporarily commented out)
-              <div
-                className={`p-3 rounded-2xl border flex items-center gap-3 ${
-                  twoFAStatus ? "bg-[#FDF2F6] border-[#F8C9D9]" : "border-[#E6E8EE]"
-                }`}
-              >
-                <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
-                  <Smartphone className="w-5 h-5 text-[#E01C5B]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-[#0D1935] leading-5">Authenticator app</div>
-                  <div className="text-xs text-[#54617E] leading-4">
-                    {twoFAStatus ? "Used for every sign-in" : "Not set up yet"}
-                  </div>
-                </div>
-                {twoFAStatus ? (
-                  <Pill tone="green">
-                    <Check className="w-3 h-3" /> Main method
-                  </Pill>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setModal("twofa")}
-                    className="h-9 px-3.5 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold cursor-pointer"
-                  >
-                    Set up
-                  </button>
-                )}
-              </div>
-              <div className="flex justify-end pt-1 pb-0.5">
-                <button
-                  type="button"
-                  onClick={() => setModal("twofa")}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#BA1248] hover:underline cursor-pointer"
-                >
-                  Manage authenticator <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-              */}
-              {/* <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-5 h-5 text-[#E01C5B]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-[#0D1935] leading-5">Text message codes</div>
-                  <div className="text-xs text-[#54617E] leading-4">
-                    {phone ? `${maskPhone(phone)} · ` : ""}
-                    {smsBackupEnabled ? "backup only, not for big changes" : "Not in use"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleSmsBackup}
-                  className="h-9 px-3.5 rounded-[10px] bg-[#F6F7FA] hover:bg-slate-200 text-xs font-semibold text-[#0D1935] transition cursor-pointer shrink-0"
-                >
-                  {smsBackupEnabled ? "Remove" : "Add"}
-                </button>
-              </div> */}
-              <div className="pt-2">
-                <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
-                    <Fingerprint className="w-5 h-5 text-[#E01C5B]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-[#0D1935] leading-5">Passkeys</div>
-                    <div className="text-xs text-[#54617E] leading-4">Not available yet</div>
-                  </div>
-                  <Pill tone="grey">Coming later</Pill>
-                </div>
-              </div>
-              <div className="pt-2.5 flex items-start gap-1.5 text-xs text-[#54617E]">
-                <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                <span>Face ID and fingerprint unlock passkeys on your own device. We never receive your biometrics.</span>
-              </div>
-            </div>
-
-            {/* Account settings */}
-            <div className={CARD}>
-              <CardHeader icon={User} title="Account settings" subtitle="Your details and preferences" />
-              <Row
-                first
-                icon={User}
-                title="Personal details"
-                subtitle={`${userName} · email${phone ? " and mobile" : ""}`}
-                onClick={() => router.push("/dashboard/edit-profile")}
-              />
-              <Row
-                icon={Home}
-                title="Billing address"
-                subtitle="Managed in Bills & payments"
-                onClick={() => router.push("/dashboard/bills-and-payments")}
-              />
-              <Row
-                icon={Mail}
-                title="Marketing choices"
-                subtitle={
-                  offerEmail || offerText
-                    ? `Marketing by ${[offerEmail && "email", offerText && "text"].filter(Boolean).join(" and ")}`
-                    : "No marketing messages"
-                }
-                onClick={() =>
-                  document.getElementById("notifications")?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-              />
-              <Row icon={Globe} title="Language and region" subtitle="English (UK) · United Kingdom" />
-              <Row icon={Accessibility} title="Accessibility" subtitle="Default display" />
-            </div>
-          </div>
-
-          {/* Row 2 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-            {/* Where you're signed in */}
-            <div id="signed-in" className={CARD}>
-              <CardHeader
-                icon={Monitor}
-                title="Where you’re signed in"
-                subtitle="Sign-ins to your account, not your phones or SIMs"
-              />
-              {sessions.map((s, idx) => (
-                <div
-                  key={s.id}
-                  className={`py-2.5 flex items-center gap-3 ${idx === 0 ? "" : "border-t border-[#EEF0F4]"}`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-[#F6F7FA] flex items-center justify-center shrink-0">
-                    {s.kind === "mobile" ? (
-                      <Smartphone className="w-5 h-5 text-[#1E2D4D]" />
+          {/* Cards sit in three independent columns, so a short card never leaves a big gap under it */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+            <div className="flex flex-col gap-4 min-w-0">
+              {/* Account security */}
+              <div className={CARD}>
+                <CardHeader icon={ShieldCheck} title="Account security" subtitle="Checked by our security service" />
+                {/* 2FA - Two-step verification (Temporarily commented out)
+                <Row
+                  first
+                  icon={Key}
+                  title="Two-step verification"
+                  subtitle={twoFAStatus ? "Required every time you sign in" : "Not turned on"}
+                  right={
+                    twoFAStatus ? (
+                      <Pill tone="green">
+                        <Check className="w-3 h-3" /> On
+                      </Pill>
                     ) : (
-                      <Monitor className="w-5 h-5 text-[#1E2D4D]" />
+                      <Pill tone="amber">
+                        <AlertTriangle className="w-3 h-3" /> Off
+                      </Pill>
+                    )
+                  }
+                  onClick={() => setModal("twofa")}
+                />
+                */}
+                <Row
+                  first
+                  icon={Lock}
+                  title="Password"
+                  subtitle={
+                    passwordChangedAt
+                      ? `Last changed ${formatDate(new Date(passwordChangedAt))}`
+                      : "Change it regularly to stay safe"
+                  }
+                  right={<span className="text-xs font-semibold text-[#0D1935]">Change</span>}
+                  onClick={() => router.push("/dashboard/edit-profile")}
+                />
+                <Row
+                  icon={FileText}
+                  title="Backup codes"
+                  subtitle={hasBackup ? `${backupCodes.length} codes saved` : "Not set up"}
+                  right={
+                    hasBackup ? (
+                      <Pill tone="green">
+                        <Check className="w-3 h-3" /> Saved
+                      </Pill>
+                    ) : (
+                      <Pill tone="amber">
+                        <AlertTriangle className="w-3 h-3" /> Set up
+                      </Pill>
+                    )
+                  }
+                  onClick={startBackupCodes}
+                />
+                <Row
+                  icon={Mail}
+                  title="Recovery contacts"
+                  subtitle={contactLine || "Not added"}
+                  right={
+                    email ? (
+                      <Pill tone="green">
+                        <Check className="w-3 h-3" /> Verified
+                      </Pill>
+                    ) : (
+                      <Pill tone="amber">Add</Pill>
+                    )
+                  }
+                  onClick={() => router.push("/dashboard/edit-profile")}
+                />
+                <Row
+                  icon={Monitor}
+                  title="Where you’re signed in"
+                  subtitle={`${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
+                  right={<span className="text-xs font-semibold text-[#0D1935]">Review</span>}
+                  onClick={() =>
+                    document.getElementById("signed-in")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                />
+              </div>
+
+              {/* Where you're signed in */}
+              <div id="signed-in" className={CARD}>
+                <CardHeader
+                  icon={Monitor}
+                  title="Where you’re signed in"
+                  subtitle="Sign-ins to your account, not your phones or SIMs"
+                />
+                {sessions.map((s, idx) => (
+                  <div
+                    key={s.id}
+                    className={`py-2.5 flex items-center gap-3 ${idx === 0 ? "" : "border-t border-[#EEF0F4]"}`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-[#F6F7FA] flex items-center justify-center shrink-0">
+                      {s.kind === "mobile" ? (
+                        <Smartphone className="w-5 h-5 text-[#1E2D4D]" />
+                      ) : (
+                        <Monitor className="w-5 h-5 text-[#1E2D4D]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-[#0D1935] leading-5">
+                        {s.label}
+                        {s.current ? " · this browser" : ""}
+                      </div>
+                      <div className="text-xs text-[#54617E] leading-4">
+                        {s.location} · {s.lastActive}
+                      </div>
+                      <div className="text-xs text-[#54617E] leading-4">Signed in {s.signedIn}</div>
+                    </div>
+                    {s.current ? (
+                      <Pill tone="green">This browser</Pill>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => signOutSession(s.id)}
+                        className="h-9 px-3.5 rounded-[10px] bg-white border border-[#F8C9D9] text-xs font-semibold text-[#BA1248] hover:bg-[#FDF2F6] cursor-pointer shrink-0"
+                      >
+                        Sign out
+                      </button>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-[#0D1935] leading-5">
-                      {s.label}
-                      {s.current ? " · this browser" : ""}
-                    </div>
-                    <div className="text-xs text-[#54617E] leading-4">
-                      {s.location} · {s.lastActive}
-                    </div>
-                    <div className="text-xs text-[#54617E] leading-4">Signed in {s.signedIn}</div>
+                ))}
+                <div className="pt-3.5 flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={signOutEverywhereElse}
+                    disabled={otherSessionsCount === 0}
+                    className="h-9 px-3.5 rounded-[10px] bg-[#F6F7FA] hover:bg-slate-200 text-xs font-semibold text-[#0D1935] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Sign out everywhere else
+                  </button>
+                  <Link
+                    href="/dashboard/sim-and-esim"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#BA1248] hover:underline"
+                  >
+                    SIMs and eSIMs <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="pt-2 flex items-start gap-1.5 text-xs text-[#54617E]">
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>Locations are estimates. Signing out ends the session; it doesn’t lock a phone.</span>
+                </div>
+              </div>
+
+              {/* Connected sign-ins */}
+              <div className={CARD}>
+                <CardHeader icon={Link2} title="Connected sign-ins" subtitle="Other accounts you can sign in with" />
+                <div className="py-1.5 flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#FDF2F6] flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-5 h-5 text-[#E01C5B]" />
                   </div>
-                  {s.current ? (
-                    <Pill tone="green">This browser</Pill>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-[#0D1935] leading-5">Not available</div>
+                    <div className="text-xs text-[#54617E] leading-5">
+                      Signing in with Apple, Google or Microsoft isn’t offered. You sign in with your Zoiko email,
+                      password{twoFAStatus ? " and authenticator app" : ""}.
+                    </div>
+                  </div>
+                </div>
+                <Row icon={Link2} title="Apps with access to your account" subtitle="None" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 min-w-0">
+              {/* Sign-in methods */}
+              <div className={CARD}>
+                <CardHeader icon={Fingerprint} title="Sign-in methods" subtitle="How you prove it’s you" />
+                {/* 2FA - Authenticator app (Temporarily commented out)
+                <div
+                  className={`p-3 rounded-2xl border flex items-center gap-3 ${
+                    twoFAStatus ? "bg-[#FDF2F6] border-[#F8C9D9]" : "border-[#E6E8EE]"
+                  }`}
+                >
+                  <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
+                    <Smartphone className="w-5 h-5 text-[#E01C5B]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[#0D1935] leading-5">Authenticator app</div>
+                    <div className="text-xs text-[#54617E] leading-4">
+                      {twoFAStatus ? "Used for every sign-in" : "Not set up yet"}
+                    </div>
+                  </div>
+                  {twoFAStatus ? (
+                    <Pill tone="green">
+                      <Check className="w-3 h-3" /> Main method
+                    </Pill>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => signOutSession(s.id)}
-                      className="h-9 px-3.5 rounded-[10px] bg-white border border-[#F8C9D9] text-xs font-semibold text-[#BA1248] hover:bg-[#FDF2F6] cursor-pointer shrink-0"
+                      onClick={() => setModal("twofa")}
+                      className="h-9 px-3.5 rounded-[10px] bg-[#E01C5B] text-white text-xs font-semibold cursor-pointer"
                     >
-                      Sign out
+                      Set up
                     </button>
                   )}
                 </div>
-              ))}
-              <div className="pt-3.5 flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={signOutEverywhereElse}
-                  disabled={otherSessionsCount === 0}
-                  className="h-9 px-3.5 rounded-[10px] bg-[#F6F7FA] hover:bg-slate-200 text-xs font-semibold text-[#0D1935] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Sign out everywhere else
-                </button>
-                <Link
-                  href="/dashboard/sim-and-esim"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#BA1248] hover:underline"
-                >
-                  SIMs and eSIMs <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="pt-2 flex items-start gap-1.5 text-xs text-[#54617E]">
-                <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                <span>Locations are estimates. Signing out ends the session; it doesn’t lock a phone.</span>
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <div id="notifications" className={CARD}>
-              <CardHeader icon={Bell} title="Notifications" subtitle="Essential messages stay on" />
-              <Row
-                first
-                icon={ShieldCheck}
-                title="Security alerts"
-                subtitle="New sign-ins, password and method changes · email and text"
-                right={
-                  <Pill tone="grey">
-                    <Lock className="w-3 h-3" /> Always on
-                  </Pill>
-                }
-              />
-              <Row
-                icon={CreditCard}
-                title="Bills and service"
-                subtitle="Bills, payments and network notices · email"
-                right={
-                  <Pill tone="grey">
-                    <Lock className="w-3 h-3" /> Always on
-                  </Pill>
-                }
-              />
-              <Row
-                icon={BarChart2}
-                title="Usage alerts"
-                subtitle="At 80% of your data · optional"
-                right={
-                  <Toggle
-                    label="Usage alerts"
-                    on={usageAlerts}
-                    onChange={() => {
-                      const next = !usageAlerts;
-                      setUsageAlerts(next);
-                      persist("zoiko_usage_alerts", String(next));
-                      showToast(next ? "Usage alerts on." : "Usage alerts off.");
-                    }}
-                  />
-                }
-              />
-              <div className="pt-2 pb-1 border-t border-[#EEF0F4] flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#F6F7FA] flex items-center justify-center shrink-0">
-                    <Tag className="w-4 h-4 text-[#1E2D4D]" />
+                <div className="flex justify-end pt-1 pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setModal("twofa")}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#BA1248] hover:underline cursor-pointer"
+                  >
+                    Manage authenticator <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                */}
+                {/* <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-5 h-5 text-[#E01C5B]" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[#0D1935] leading-5">Offers and promotions</div>
-                    <div className="text-xs text-[#54617E] leading-4">Marketing · only if you choose</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-[#0D1935] leading-5">Text message codes</div>
+                    <div className="text-xs text-[#54617E] leading-4">
+                      {phone ? `${maskPhone(phone)} · ` : ""}
+                      {smsBackupEnabled ? "backup only, not for big changes" : "Not in use"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleSmsBackup}
+                    className="h-9 px-3.5 rounded-[10px] bg-[#F6F7FA] hover:bg-slate-200 text-xs font-semibold text-[#0D1935] transition cursor-pointer shrink-0"
+                  >
+                    {smsBackupEnabled ? "Remove" : "Add"}
+                  </button>
+                </div> */}
+                <div className="pt-2">
+                  <div className="p-3 rounded-2xl border border-[#E6E8EE] flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white rounded-xl border border-[#E6E8EE] flex items-center justify-center shrink-0">
+                      <Fingerprint className="w-5 h-5 text-[#E01C5B]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-[#0D1935] leading-5">Passkeys</div>
+                      <div className="text-xs text-[#54617E] leading-4">Not available yet</div>
+                    </div>
+                    <Pill tone="grey">Coming later</Pill>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pl-11">
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
-                    Email
+                <div className="pt-2.5 flex items-start gap-1.5 text-xs text-[#54617E]">
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>Face ID and fingerprint unlock passkeys on your own device. We never receive your biometrics.</span>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <div id="notifications" className={CARD}>
+                <CardHeader icon={Bell} title="Notifications" subtitle="Essential messages stay on" />
+                <Row
+                  first
+                  icon={ShieldCheck}
+                  title="Security alerts"
+                  subtitle="New sign-ins, password and method changes · email and text"
+                  right={
+                    <Pill tone="grey">
+                      <Lock className="w-3 h-3" /> Always on
+                    </Pill>
+                  }
+                />
+                <Row
+                  icon={CreditCard}
+                  title="Bills and service"
+                  subtitle="Bills, payments and network notices · email"
+                  right={
+                    <Pill tone="grey">
+                      <Lock className="w-3 h-3" /> Always on
+                    </Pill>
+                  }
+                />
+                <Row
+                  icon={BarChart2}
+                  title="Usage alerts"
+                  subtitle="At 80% of your data · optional"
+                  right={
                     <Toggle
-                      label="Offer emails"
-                      on={offerEmail}
+                      label="Usage alerts"
+                      on={usageAlerts}
                       onChange={() => {
-                        const next = !offerEmail;
-                        setOfferEmail(next);
-                        persist("zmuk_offers_marketing_email", String(next));
+                        const next = !usageAlerts;
+                        setUsageAlerts(next);
+                        persist("zoiko_usage_alerts", String(next));
+                        showToast(next ? "Usage alerts on." : "Usage alerts off.");
                       }}
                     />
-                  </label>
-                  {/* <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
-                    Text
-                    <Toggle
-                      label="Offer texts"
-                      on={offerText}
-                      onChange={() => {
-                        const next = !offerText;
-                        setOfferText(next);
-                        persist("zmuk_offers_marketing_text", String(next));
-                      }}
-                    />
-                  </label> */}
-                </div>
-                <div className="pl-11 text-xs font-semibold text-[#54617E]">App · not available</div>
-              </div>
-            </div>
-
-            {/* Privacy */}
-            <div className={CARD}>
-              <CardHeader icon={Eye} title="Privacy and your data" subtitle="Your rights and choices" />
-              <Row
-                first
-                icon={FileText}
-                title="Privacy notice"
-                subtitle="How we use your information"
-                onClick={() => router.push("/privacy-policy")}
-              />
-              {/* <Row icon={Cookie} title="Cookie choices" subtitle={cookieChoice} onClick={() => setModal("cookies")} /> */}
-              <Row
-                icon={Download}
-                title="Get a copy of your data"
-                subtitle="We’ll open a request and reply within a month"
-                onClick={() => setModal("data")}
-              />
-              <Row
-                icon={ArrowLeftRight}
-                title="Correct or object"
-                subtitle="Fix your details or object to a use"
-                onClick={() => router.push("/dashboard/support")}
-              />
-              {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
-              <Row
-                icon={Trash2}
-                title="Close your account"
-                subtitle="Options for your service, login and data"
-                onClick={() => setModal("close")}
-              />
-              */}
-            </div>
-          </div>
-
-          {/* Row 3 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-            {/* Connected sign-ins */}
-            <div className={CARD}>
-              <CardHeader icon={Link2} title="Connected sign-ins" subtitle="Other accounts you can sign in with" />
-              <div className="py-1.5 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#FDF2F6] flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-5 h-5 text-[#E01C5B]" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-bold text-[#0D1935] leading-5">Not available</div>
-                  <div className="text-xs text-[#54617E] leading-5">
-                    Signing in with Apple, Google or Microsoft isn’t offered. You sign in with your Zoiko email,
-                    password{twoFAStatus ? " and authenticator app" : ""}.
+                  }
+                />
+                <div className="pt-2 pb-1 border-t border-[#EEF0F4] flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#F6F7FA] flex items-center justify-center shrink-0">
+                      <Tag className="w-4 h-4 text-[#1E2D4D]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-[#0D1935] leading-5">Offers and promotions</div>
+                      <div className="text-xs text-[#54617E] leading-4">Marketing · only if you choose</div>
+                    </div>
                   </div>
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pl-11">
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
+                      Email
+                      <Toggle
+                        label="Offer emails"
+                        on={offerEmail}
+                        onChange={() => {
+                          const next = !offerEmail;
+                          setOfferEmail(next);
+                          persist("zmuk_offers_marketing_email", String(next));
+                        }}
+                      />
+                    </label>
+                    {/* <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#3B4866]">
+                      Text
+                      <Toggle
+                        label="Offer texts"
+                        on={offerText}
+                        onChange={() => {
+                          const next = !offerText;
+                          setOfferText(next);
+                          persist("zmuk_offers_marketing_text", String(next));
+                        }}
+                      />
+                    </label> */}
+                  </div>
+                  <div className="pl-11 text-xs font-semibold text-[#54617E]">App · not available</div>
                 </div>
               </div>
-              <Row icon={Link2} title="Apps with access to your account" subtitle="None" />
-            </div>
 
-            {/* Account tools */}
-            <div className={CARD}>
-              <CardHeader icon={Settings} title="Account tools" subtitle="These open their own secure steps" />
-              <div className="flex flex-col gap-2">
-                {[
-                  {
-                    icon: ArrowLeftRight,
-                    title: "Leave Zoiko (PAC or STAC)",
-                    sub: "Keep or end your number",
-                    href: "/dashboard/support",
-                  },
-                  {
-                    icon: Cpu,
-                    title: "Manage SIM or eSIM",
-                    sub: "Replace, swap or suspend",
-                    href: "/dashboard/sim-and-esim",
-                  },
-                  // {
-                  //   icon: Gauge,
-                  //   title: "Mobile bill limit",
-                  //   sub: billLimit !== null ? `Currently £${billLimit.toFixed(2)}` : "No limit set",
-                  //   href: "/dashboard/bills-and-payments",
-                  // },
-                  {
-                    icon: Smartphone,
-                    title: "Change my number",
-                    sub: "Through support",
-                    href: "/dashboard/support",
-                  },
-                ].map((t) => {
-                  const Icon = t.icon;
-                  return (
-                    <Link
-                      key={t.title}
-                      href={t.href}
-                      className="p-3 bg-[#FDF2F6] hover:bg-[#FBE5EE] rounded-xl flex items-center gap-2.5 transition"
-                    >
-                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0">
-                        <Icon className="w-4 h-4 text-[#E01C5B]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-[#0D1935] leading-5">{t.title}</div>
-                        <div className="text-xs font-medium text-[#54617E] leading-4">{t.sub}</div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#8A94A6] shrink-0" />
-                    </Link>
-                  );
-                })}
+              {/* Account tools */}
+              <div className={CARD}>
+                <CardHeader icon={Settings} title="Account tools" subtitle="These open their own secure steps" />
+                <div className="flex flex-col gap-2">
+                  {[
+                    {
+                      icon: ArrowLeftRight,
+                      title: "Leave Zoiko (PAC or STAC)",
+                      sub: "Keep or end your number",
+                      href: "/dashboard/support",
+                    },
+                    {
+                      icon: Cpu,
+                      title: "Manage SIM or eSIM",
+                      sub: "Replace, swap or suspend",
+                      href: "/dashboard/sim-and-esim",
+                    },
+                    // {
+                    //   icon: Gauge,
+                    //   title: "Mobile bill limit",
+                    //   sub: billLimit !== null ? `Currently £${billLimit.toFixed(2)}` : "No limit set",
+                    //   href: "/dashboard/bills-and-payments",
+                    // },
+                    {
+                      icon: Smartphone,
+                      title: "Change my number",
+                      sub: "Through support",
+                      href: "/dashboard/support",
+                    },
+                  ].map((t) => {
+                    const Icon = t.icon;
+                    return (
+                      <Link
+                        key={t.title}
+                        href={t.href}
+                        className="p-3 bg-[#FDF2F6] hover:bg-[#FBE5EE] rounded-xl flex items-center gap-2.5 transition"
+                      >
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-[#E01C5B]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-[#0D1935] leading-5">{t.title}</div>
+                          <div className="text-xs font-medium text-[#54617E] leading-4">{t.sub}</div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-[#8A94A6] shrink-0" />
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Help */}
-            <div className={CARD}>
-              <CardHeader icon={HelpCircle} title="Help with security" subtitle="Guides and urgent support" />
-              <Row
-                first
-                icon={MessageCircle}
-                title="Security guides"
-                subtitle="Spotting scams and SIM-swap warning signs"
-                onClick={() => router.push("/dashboard/support")}
-              />
-              <Row
-                icon={AlertTriangle}
-                title="Report suspicious activity"
-                subtitle="We treat these as urgent"
-                onClick={() => setModal("report")}
-              />
-              <Row
-                icon={Headphones}
-                title="Contact support"
-                subtitle="We’ll never ask for your password or codes"
-                onClick={() => router.push("/dashboard/support")}
-              />
+            <div className="flex flex-col gap-4 min-w-0">
+              {/* Account settings */}
+              <div className={CARD}>
+                <CardHeader icon={User} title="Account settings" subtitle="Your details and preferences" />
+                <Row
+                  first
+                  icon={User}
+                  title="Personal details"
+                  subtitle={`${userName} · email${phone ? " and mobile" : ""}`}
+                  onClick={() => router.push("/dashboard/edit-profile")}
+                />
+                <Row
+                  icon={Home}
+                  title="Billing address"
+                  subtitle="Managed in Bills & payments"
+                  onClick={() => router.push("/dashboard/bills-and-payments")}
+                />
+                <Row
+                  icon={Mail}
+                  title="Marketing choices"
+                  subtitle={
+                    offerEmail || offerText
+                      ? `Marketing by ${[offerEmail && "email", offerText && "text"].filter(Boolean).join(" and ")}`
+                      : "No marketing messages"
+                  }
+                  onClick={() =>
+                    document.getElementById("notifications")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                />
+                <Row icon={Globe} title="Language and region" subtitle="English (UK) · United Kingdom" />
+                <Row icon={Accessibility} title="Accessibility" subtitle="Default display" />
+              </div>
+
+              {/* Privacy */}
+              <div className={CARD}>
+                <CardHeader icon={Eye} title="Privacy and your data" subtitle="Your rights and choices" />
+                <Row
+                  first
+                  icon={FileText}
+                  title="Privacy notice"
+                  subtitle="How we use your information"
+                  onClick={() => router.push("/privacy-policy")}
+                />
+                {/* <Row icon={Cookie} title="Cookie choices" subtitle={cookieChoice} onClick={() => setModal("cookies")} /> */}
+                <Row
+                  icon={Download}
+                  title="Get a copy of your data"
+                  subtitle="We’ll open a request and reply within a month"
+                  onClick={() => setModal("data")}
+                />
+                <Row
+                  icon={ArrowLeftRight}
+                  title="Correct or object"
+                  subtitle="Fix your details or object to a use"
+                  onClick={() => router.push("/dashboard/support")}
+                />
+                {/* PREVIOUS CODE (PRESERVED AS COMMENTS):
+                <Row
+                  icon={Trash2}
+                  title="Close your account"
+                  subtitle="Options for your service, login and data"
+                  onClick={() => setModal("close")}
+                />
+                */}
+              </div>
+
+              {/* Help */}
+              <div className={CARD}>
+                <CardHeader icon={HelpCircle} title="Help with security" subtitle="Guides and urgent support" />
+                <Row
+                  first
+                  icon={MessageCircle}
+                  title="Security guides"
+                  subtitle="Spotting scams and SIM-swap warning signs"
+                  onClick={() => router.push("/dashboard/support")}
+                />
+                <Row
+                  icon={AlertTriangle}
+                  title="Report suspicious activity"
+                  subtitle="We treat these as urgent"
+                  onClick={() => setModal("report")}
+                />
+                <Row
+                  icon={Headphones}
+                  title="Contact support"
+                  subtitle="We’ll never ask for your password or codes"
+                  onClick={() => router.push("/dashboard/support")}
+                />
+              </div>
             </div>
           </div>
         </div>
