@@ -914,30 +914,36 @@ inp.addEventListener('input', function(){
 })
 
 /* ══════════════════════════════════════════════════════
-   TTS — UK Female voice (respects mute state)
+   TTS — UK English (en-GB) female voices only, any browser/platform.
+   Web Speech has no gender property, so a voice is accepted ONLY
+   when its language is UK English AND its name is known-female.
+   Male, non-UK and unknown voices are rejected — Zovie stays silent.
 ══════════════════════════════════════════════════════ */
+const FEMALE_VOICE = /\b(Google UK English Female|female|Serena|Kate|Samantha|Victoria|Allison|Karen|Moira|Fiona|Tessa|Susan|Shelley|Ava|Zira|Aria|Jenny|Ana|Sonia|Libby|Lili|Hazel|Nancy|Emma|Michelle|Lucy|Sophie|Isabella|Olivia|Emily|Grace|Chloe|Millie)\b/i
+const MALE_VOICE = /\b(male|Daniel|Alex|Fred|Rishi|Rocko|Bruce|Tom|Dylan|David|Mark|George|Ryan|Guy|Oliver|James|William|Richard|Robert|Thomas|Michael|Steven|Paul|Andrew|Joshua|Evan|Matthew|Ethan|Lucas|Henry|Jack|Leo|Noah|Sam|Ben|Adam|Julian)\b/i
+const UK_FEMALE_VOICE = /\b(Google UK English Female|Serena|Kate|Sonia|Libby|Hazel|Fiona)\b/i
+const UK_LANG = v => v.lang === 'en-GB' || /UK|United Kingdom|British/i.test(v.name)
+
 function loadVoice() {
-  const voices = speechSynthesis.getVoices()
-  const prefs = [
-    v=>v.name==='Serena',
-    v=>v.name==='Kate',
-    v=>v.name.includes('Google UK English Female'),
-    v=>v.lang==='en-GB'&&/female/i.test(v.name),
-    v=>v.lang==='en-GB',
-    v=>v.lang.startsWith('en')
-  ]
-  for (const fn of prefs) { const f = voices.find(fn); if(f){ukV=f;break} }
+  // Only UK English + known-female voices are allowed — never male or non-UK.
+  const ukFemaleVoices = speechSynthesis.getVoices().filter(v =>
+    UK_LANG(v) && FEMALE_VOICE.test(v.name) && !MALE_VOICE.test(v.name)
+  )
+  // Prefer an explicitly named UK female voice, otherwise any en-GB female voice.
+  ukV = ukFemaleVoices.find(v => UK_FEMALE_VOICE.test(v.name))
+        || ukFemaleVoices[0]
+        || null
 }
 if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoice
 loadVoice()
 
 function speak(text) {
-  if (isMuted) return
+  if (isMuted || !ukV) return // no UK female voice available → silent, never male or non-UK
   speechSynthesis.cancel()
   const clean = text.replace(/<[^>]+>/g,' ').replace(/https?:\/\/\S+/g,' ').replace(/[^\w\s',.!?£\-]/g,' ').replace(/\s{2,}/g,' ').trim()
   if (!clean) return
   const u = new SpeechSynthesisUtterance(clean)
-  if (ukV) u.voice = ukV; u.lang = 'en-GB'; u.rate = 0.9; u.pitch = 1.06
+  u.voice = ukV; u.lang = 'en-GB'; u.rate = 0.9; u.pitch = 1.06
   speechSynthesis.speak(u)
 }
 
