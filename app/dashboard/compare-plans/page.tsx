@@ -37,6 +37,7 @@ import DashboardTopNav from "../components/DashboardTopNav";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../../utils/dasdbeQuickApi";
 import { getLines } from "../add-new-number/addLineApi";
+import ChangePlanFlow, { type FlowLine, type FlowPlan, type FlowTerm } from "./ChangePlanFlow";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -63,6 +64,10 @@ interface PlanItem {
   hasMonthly: boolean;
   has12: boolean;
   has24: boolean;
+  /** real term prices from the backend (null = not sold on that term) */
+  price30: number | null;
+  price12: number | null;
+  price24: number | null;
 }
 
 interface UserLine {
@@ -73,6 +78,10 @@ interface UserLine {
   renewDate: string;
   simType: string;
   status: string;
+  /** "30D" | "12M" | "24M" or "" when unknown */
+  term: string;
+  /** what the line pays now, when the backend says */
+  price: number | null;
 }
 
 // Only shown when the backend sends an offer end date (no invented dates).
@@ -175,6 +184,9 @@ function mapApiPlanToItem(p: any): PlanItem {
     hasMonthly: p.price_30 != null,
     has12: p.price_12 != null,
     has24: p.price_24 != null,
+    price30: p.price_30 != null ? Number(p.price_30) : null,
+    price12: p.price_12 != null ? Number(p.price_12) : null,
+    price24: p.price_24 != null ? Number(p.price_24) : null,
   };
 }
 
@@ -298,6 +310,8 @@ export default function ComparePlansPage() {
   // Plans & Lines
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
+  const [lines, setLines] = useState<UserLine[]>([]);
+  /* Old initial line (made up from the saved phone number), kept for reference:
   const [lines, setLines] = useState<UserLine[]>(() => {
     if (typeof window === "undefined") return [];
     const savedPlanName = localStorage.getItem("zoiko_active_plan") || "";
@@ -322,7 +336,8 @@ export default function ComparePlansPage() {
       },
     ];
   });
-  const [selectedLineId, setSelectedLineId] = useState<string>("line-1");
+  */
+  const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDropdownOpen, setLineDropdownOpen] = useState(false);
 
   // Filters
@@ -472,6 +487,8 @@ export default function ComparePlansPage() {
               simType: l.sim?.type === "esim" ? "eSIM" : "SIM card",
               status:
                 l.status === "active" ? "Active" : l.status === "pending_activation" ? "Pending" : "Suspended",
+              term: l.term || "",
+              price: l.plan?.price != null ? Number(l.plan.price) : null,
             }));
         } catch (err) {
           console.warn("Could not load /api/v1/lines/:", err);
@@ -524,6 +541,8 @@ export default function ComparePlansPage() {
                 renewDate: computeDynamicRenewalDate(entry.created_at || entry.order_date || entry.date),
                 simType: isEsim ? "eSIM" : "SIM card",
                 status: "Active",
+                term: "",
+                price: null,
               });
               idx++;
             }
@@ -560,6 +579,8 @@ export default function ComparePlansPage() {
                   renewDate: computeDynamicRenewalDate(entry.created_at || entry.order_date),
                   simType: isEsim ? "eSIM" : "SIM card",
                   status: "Pending",
+                  term: "",
+                  price: null,
                 });
               }
             }
@@ -567,6 +588,8 @@ export default function ComparePlansPage() {
         } catch {}
       }
 
+      // No lines found: leave the list empty. We no longer make up a line from the saved phone number.
+      /* Old fallback (made up a line), kept for reference:
       // If no orders found, provide sensible primary line for the active user
       if (fetchedLines.length === 0) {
         const savedPlanName = localStorage.getItem("zoiko_active_plan") || "";
@@ -582,6 +605,8 @@ export default function ComparePlansPage() {
           },
         ];
       }
+
+      */
 
       setLines(fetchedLines);
       if (fetchedLines[0]) {
@@ -604,13 +629,15 @@ export default function ComparePlansPage() {
   // Current selected line object
   const currentLine = useMemo(() => {
     return lines.find((l) => l.id === selectedLineId) || lines[0] || {
-      id: "line-1",
-      number: "No number on file",
+      id: "",
+      number: "No active number",
       planId: "",
       planName: "",
-      renewDate: computeDynamicRenewalDate(),
-      simType: "eSIM",
-      status: "Active",
+      renewDate: "—",
+      simType: "—",
+      status: "None",
+      term: "",
+      price: null,
     };
   }, [lines, selectedLineId, plans]);
 
@@ -636,6 +663,9 @@ export default function ComparePlansPage() {
         hasMonthly: false,
         has12: false,
         has24: false,
+        price30: null,
+        price12: null,
+        price24: null,
       };
     }
     let found = plans.find(
@@ -762,6 +792,50 @@ export default function ComparePlansPage() {
     return [currentPlan, ...additional];
   }, [plans, currentPlan, selectedCompareIds]);
 
+  // Change or upgrade plan journey (4 steps)
+  const [flow, setFlow] = useState<null | { step: 1 | 2 | 3; planId?: string }>(null);
+  const openFlow = (step: 1 | 2 | 3, planId?: string) => {
+    // close any open pop-up (for example the compare table) so only the journey page shows
+    setModal(null);
+    setTargetPlanForSwitch(null);
+    // without a real line the journey must start at "Choose line"
+    setFlow({ step: currentLine.id ? step : 1, planId });
+  };
+
+  const submitPlanChange = async (
+    line: FlowLine,
+    target: FlowPlan,
+    term: FlowTerm,
+    price: number
+  ): Promise<{ ok: boolean; reference?: string; error?: string }> => {
+    try {
+      const authToken = localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || token;
+      if (!authToken) return { ok: false, error: "Please log in again to change your plan." };
+      const termWords = term === "30D" ? "30-day rolling" : term === "12M" ? "12-month" : "24-month";
+      const res = await fetch(`${API_BASE}/api/support/tickets/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Token ${authToken}` },
+        body: JSON.stringify({
+          category: "plan_change",
+          subject: `Plan change to ${target.name} for ${line.number}`,
+          message:
+            `Customer requested a plan change from ${line.planName || "current plan"} to ${target.name} ` +
+            `(Plan ID: ${target.id}, ${termWords}, £${price.toFixed(2)}/month), planned from next renewal ${line.renewDate}.\n` +
+            `Line: ${line.number} (ID: ${line.id}).`,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, error: (typeof err?.detail === "string" && err.detail) || "We could not send your request. Please try again." };
+      }
+      const body = await res.json().catch(() => null);
+      const id = body?.ticket?.id;
+      return { ok: true, reference: id != null ? `#${id}` : undefined };
+    } catch {
+      return { ok: false, error: "Network error. Your plan has not been changed." };
+    }
+  };
+
   // Handle plan switch confirmation
   const handleConfirmSwitch = async () => {
     if (!targetPlanForSwitch || switchLoading) return;
@@ -819,6 +893,22 @@ export default function ComparePlansPage() {
 
   return (
     <div className="min-h-screen bg-[#EDEEF2] text-[#0D1935] font-sans p-3 sm:p-5">
+      {flow && (
+        <ChangePlanFlow
+          userName={userName}
+          lines={lines}
+          plans={plans}
+          initialLineId={currentLine.id}
+          initialPlanId={flow.planId}
+          initialStep={flow.step}
+          onClose={() => setFlow(null)}
+          onSubmit={submitPlanChange}
+          onContactSupport={() => {
+            setFlow(null);
+            router.push("/dashboard/support");
+          }}
+        />
+      )}
       {/* Toast Alert */}
       {toast && (
         <div className="fixed bottom-5 right-5 left-5 sm:left-auto z-50 bg-[#0D1935] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-medium border border-white/10 animate-fade-in">
@@ -1421,8 +1511,7 @@ export default function ComparePlansPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setTargetPlanForSwitch(plan);
-                        setModal("review_switch");
+                        openFlow(3, plan.id);
                       }}
                       className="px-3.5 py-2 bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
@@ -1667,8 +1756,7 @@ export default function ComparePlansPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setTargetPlanForSwitch(p);
-                              setModal("review_switch");
+                              openFlow(3, p.id);
                             }}
                             className="px-3.5 py-1.5 bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
                           >
@@ -1907,8 +1995,7 @@ export default function ComparePlansPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setTargetPlanForSwitch(recommendedPlan);
-                      setModal("review_switch");
+                      openFlow(3, recommendedPlan.id);
                     }}
                     className="w-full py-2.5 bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                   >

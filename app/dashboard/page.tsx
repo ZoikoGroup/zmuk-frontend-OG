@@ -29,6 +29,7 @@ import {
 // Real BeQuick API Helper
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../utils/dasdbeQuickApi";
+import { getLines } from "./add-new-number/addLineApi";
 import {
   getFallbackUserLine,
   getBoosterSummary,
@@ -519,7 +520,45 @@ export default function DashboardPage() {
         }
       }
 
-      // If no BeQuick telecom lines were returned yet, check if dynamic primary line exists
+      // If BeQuick returned no lines, use the customer's real lines from our own backend (GET /api/v1/lines/).
+      // Only real lines are shown. There is no made-up fallback line or usage any more.
+      if (token) {
+        try {
+          const ld = await getLines();
+          const mapped: LineOption[] = (ld?.lines || []).map((l, idx) => {
+            const raw = l.msisdn || "";
+            const local = raw.startsWith("44") ? "0" + raw.slice(2) : raw;
+            return {
+              id: l.id,
+              number: raw
+                ? local.length === 11 && local.startsWith("0")
+                  ? `${local.slice(0, 5)} ${local.slice(5)}`
+                  : local
+                : "Number on its way",
+              planName: l.plan?.name || "Zoiko SIM Plan",
+              status:
+                l.status === "pending_activation"
+                  ? "Setting up"
+                  : l.status === "active"
+                    ? "Active"
+                    : l.status === "suspended"
+                      ? "Suspended"
+                      : "Closed",
+              simType: l.sim?.type === "esim" ? "eSIM" : "Physical SIM",
+              renewDate: l.term ? `${l.term} plan` : "—",
+              isPrimary: idx === 0,
+            };
+          });
+          if (mapped.length > 0) {
+            setLines((current) => (current.length > 0 ? current : mapped));
+            setActiveLineId((prev) => prev || mapped[0].id);
+          }
+        } catch {
+          // no lines from the backend
+        }
+      }
+
+      /* Old fallback (made up a line and usage from the saved phone number), kept for reference:
       setLines((current) => {
         if (current.length === 0) {
           const fallback = getFallbackUserLine(userData);
@@ -572,6 +611,8 @@ export default function DashboardPage() {
 
         return current;
       });
+
+      */
 
       // Dynamically resolve payment method without any hardcoded card or bank numbers
       let pmType = "No payment method";

@@ -891,7 +891,7 @@ export default function RoamingAndTravelPage() {
 
                 <div className="flex flex-col divide-y divide-[#ECEFF5]">
                   <Link
-                    href="/dashboard/rates-and-charges?tab=calls"
+                    href="/roaming-and-coverage"
                     className="py-2.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/80 rounded-xl px-1 transition"
                   >
                     <div className="flex items-center gap-3">

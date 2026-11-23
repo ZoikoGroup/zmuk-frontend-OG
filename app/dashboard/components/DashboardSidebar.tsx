@@ -434,8 +434,8 @@ export default function DashboardSidebar({
                   type="button"
                   onClick={() => {
                     setMobileDrawerOpen(false);
-                    if (onOpenComparePlans) onOpenComparePlans();
-                    else window.location.assign("/dashboard/compare-plans");
+                    // Compare plans opens its own page (the modal is no longer used from here)
+                    window.location.assign("/dashboard/compare-plans");
                   }}
                   className="w-full mt-2 py-2 px-3 bg-[#E01C5B] hover:bg-[#c9144e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
@@ -661,9 +661,7 @@ export default function DashboardSidebar({
 
               <button
                 type="button"
-                onClick={
-                  onOpenComparePlans || (() => window.location.assign("/dashboard/compare-plans"))
-                }
+                onClick={() => window.location.assign("/dashboard/compare-plans")}
                 className="w-full mt-2.5 py-2 px-3 bg-[#E01C5B] hover:bg-[#c9144e] active:scale-[0.98] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
               >
                 <span>Compare plans</span>
