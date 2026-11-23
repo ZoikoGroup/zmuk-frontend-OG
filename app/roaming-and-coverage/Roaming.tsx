@@ -3,6 +3,16 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Globe, Phone, MessageSquare, Database, Check, ShieldCheck } from "lucide-react";
+import {
+  searchDestinations,
+  getPublicRates,
+  formatRateDisplay,
+  getVatBasisLabel,
+  formatDisplayDate,
+  RATE_TILE_LABELS,
+  type Destination,
+  type PublicQuote,
+} from "../services/roamingApi";
 
 // ─── DATA & ZONE RATES ────────────────────────────────────────────────────────
 
@@ -159,6 +169,66 @@ export default function Roaming() {
   }, [searchParams]);
   const [selectedZone, setSelectedZone] = useState<string>("Zone 2");
 
+  // Live destinations and rates from the backend (apps/roaming). When the backend has no data for the
+  // search, the published zone table below is still shown, exactly as before.
+  const [liveDest, setLiveDest] = useState<Destination[]>([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveCode, setLiveCode] = useState<string | null>(null);
+  const [liveQuote, setLiveQuote] = useState<PublicQuote | null>(null);
+  const [liveQuoteLoading, setLiveQuoteLoading] = useState(false);
+  const [liveQuoteError, setLiveQuoteError] = useState("");
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      setLiveLoading(true);
+      try {
+        const list = await searchDestinations(q, ctrl.signal);
+        setLiveDest(list);
+        // pick the first match so its rates show straight away
+        setLiveCode((prev) => (prev && list.some((d) => d.code === prev) ? prev : list[0]?.code ?? null));
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") {
+          setLiveDest([]);
+          setLiveCode(null);
+        }
+      } finally {
+        if (!ctrl.signal.aborted) setLiveLoading(false);
+      }
+    }, 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!liveCode) return;
+    const ctrl = new AbortController();
+    const kickoff = setTimeout(() => {
+      setLiveQuoteLoading(true);
+      setLiveQuoteError("");
+    }, 0);
+    getPublicRates(liveCode, undefined, ctrl.signal)
+      .then((q) => setLiveQuote(q))
+      .catch((e) => {
+        if ((e as Error)?.name === "AbortError") return;
+        setLiveQuote(null);
+        setLiveQuoteError("We couldn't load the rates for this destination right now.");
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLiveQuoteLoading(false);
+      });
+    return () => {
+      clearTimeout(kickoff);
+      ctrl.abort();
+    };
+  }, [liveCode]);
+
+  const hasLive = searchQuery.trim() !== "" && liveDest.length > 0;
+
   // Search filter across countries and zones
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -250,12 +320,86 @@ export default function Roaming() {
                 <span>Search Results for &ldquo;{searchQuery}&rdquo;</span>
               </h2>
               <span className="text-xs text-gray-500">
-                Found {searchResults.countries.length + searchResults.zones.length} matching entries
+                {liveLoading
+                  ? "Searching…"
+                  : hasLive
+                    ? `Found ${liveDest.length} destination${liveDest.length === 1 ? "" : "s"}`
+                    : `Found ${searchResults.countries.length + searchResults.zones.length} matching entries`}
               </span>
             </div>
 
+            {/* Live rates from the backend */}
+            {hasLive && (
+              <div className="mb-5">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {liveDest.slice(0, 12).map((d) => (
+                    <button
+                      key={d.code}
+                      type="button"
+                      onClick={() => setLiveCode(d.code)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                        liveCode === d.code
+                          ? "bg-[#0e8f74] text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200"
+                      }`}
+                    >
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+
+                {liveQuoteLoading && <div className="text-xs text-gray-500">Loading rates…</div>}
+                {liveQuoteError && (
+                  <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs">{liveQuoteError}</div>
+                )}
+                {liveQuote && liveQuote.destination.code === liveCode && !liveQuoteLoading && (
+                  <div className="rounded-xl border border-emerald-100 dark:border-gray-700 p-4">
+                    <div className="text-sm font-bold text-gray-900 dark:text-white">{liveQuote.destination.name}</div>
+                    {liveQuote.message && (
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{liveQuote.message}</p>
+                    )}
+                    {liveQuote.rates ? (
+                      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {RATE_TILE_LABELS.map(({ key, label }) => {
+                          const v = formatRateDisplay(liveQuote.rates ? liveQuote.rates[key] : null);
+                          if (!v) return null;
+                          return (
+                            <div key={key} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
+                              <div className="text-[11px] text-gray-400">{label}</div>
+                              <div className="text-sm font-bold text-[#0e8f74]">{v}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <a
+                        href={liveQuote.action?.kind === "contact_support" ? "/contact-us" : "#"}
+                        className="mt-3 inline-block px-4 py-2 rounded-xl bg-[#0D1935] text-white text-xs font-semibold"
+                      >
+                        {liveQuote.action?.label || "Contact support"}
+                      </a>
+                    )}
+                    {(getVatBasisLabel(liveQuote.charging?.vat_basis) ||
+                      liveQuote.commercial_basis?.effective_from) && (
+                      <p className="mt-3 text-[11px] text-gray-500">
+                        {getVatBasisLabel(liveQuote.charging?.vat_basis)}
+                        {liveQuote.commercial_basis?.effective_from
+                          ? ` · Effective from ${formatDisplayDate(liveQuote.commercial_basis.effective_from)}`
+                          : ""}
+                      </p>
+                    )}
+                    {liveQuote.warnings?.map((w) => (
+                      <p key={w.code} className="mt-2 text-[11px] text-amber-700">
+                        {w.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Matched Countries Cards */}
-            {searchResults.countries.length > 0 && (
+            {!hasLive && searchResults.countries.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                 {searchResults.countries.map((c) => {
                   const zData = ZONES_DATA.find((z) => z.zone === c.zone) || ZONES_DATA[1];
@@ -295,7 +439,7 @@ export default function Roaming() {
             )}
 
             {/* Matched Zones */}
-            {searchResults.zones.length > 0 && (
+            {!hasLive && searchResults.zones.length > 0 && (
               <div className="space-y-2">
                 <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Matching Zones</div>
                 {searchResults.zones.map((z) => (

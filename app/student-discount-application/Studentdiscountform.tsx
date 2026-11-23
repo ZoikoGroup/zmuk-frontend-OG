@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStudentStatus, StudentApiError } from "../student-deals/studentApi";
+import { getStudentStatus, getStudentPlans, StudentApiError, type StudentPlan } from "../student-deals/studentApi";
 
 const STUDENT_PAGE = "/student-deals";
 const STUDENT_LOGIN = `/login?next=${encodeURIComponent("/student-discount-application")}`;
@@ -241,6 +241,26 @@ export default function StudentDiscountApplication() {
     };
 
     const router = useRouter();
+
+    // Plans the student discount applies to, straight from the backend.
+    const [plans, setPlans] = useState<StudentPlan[]>([]);
+    const [plansLoading, setPlansLoading] = useState(true);
+    useEffect(() => {
+        let active = true;
+        getStudentPlans()
+            .then((r) => {
+                if (active) setPlans(r.plans || []);
+            })
+            .catch(() => {
+                /* leave the list empty; the select shows a message */
+            })
+            .finally(() => {
+                if (active) setPlansLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
 
     // The application needs a logged-in user. Pending or approved students already
     // have an application (guide: 409 ALREADY_APPLIED), so send them to the student
@@ -684,11 +704,21 @@ export default function StudentDiscountApplication() {
                                                 aria-describedby="err-plan"
                                                 className={inputClass("plan")}
                                             >
-                                                <option value="">Select Plan</option>
+                                                <option value="">
+                                                    {plansLoading ? "Loading plans…" : plans.length ? "Select Plan" : "No plans available right now"}
+                                                </option>
+                                                {plans.map((p) => (
+                                                    <option key={p.id} value={p.name}>
+                                                        {p.name}
+                                                        {p.data_allowance ? ` (${p.data_allowance})` : ""}
+                                                    </option>
+                                                ))}
+                                                {/* Old fixed list, kept for reference:
                                                 <option value="1GB">Essence 1GB</option>
                                                 <option value="3GB">Everyday+ 3GB</option>
                                                 <option value="10GB">Freestyle 10GB</option>
                                                 <option value="Business Booster">Business Booster</option>
+                                                */}
                                             </select>
                                             <ErrorText id="err-plan" msg={errors.plan} />
                                         </div>

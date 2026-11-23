@@ -141,6 +141,8 @@ type PromoOffer = {
   ctaLabel: string;
   ctaHref: string;
   priority: number;
+  /** "coupon" has a code and a discount; "info" is text only */
+  mechanism: "coupon" | "info";
 };
 
 function normalisePromos(body: any): PromoOffer[] {
@@ -189,6 +191,7 @@ function normalisePromos(body: any): PromoOffer[] {
         ctaLabel: String(o.cta_label || ""),
         ctaHref: String(o.cta_href || ""),
         priority: Number.isFinite(Number(o.priority)) ? Number(o.priority) : 100 + i,
+        mechanism: o.mechanism === "info" ? "info" : "coupon",
       } as PromoOffer;
     });
 }
@@ -262,6 +265,14 @@ export default function LatestOffersPage() {
   }, []);
   useEffect(() => {
     loadPromos();
+  }, [loadPromos]);
+  // Refetch when the customer comes back to this tab, so new offers appear
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadPromos();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadPromos]);
 
   // Verification state (public sector 30%, students 20%) drives the "Verified discounts" offers.
@@ -1000,14 +1011,14 @@ export default function LatestOffersPage() {
   // Hero slides: live promotions (unless the customer can't use them), then public sector and student.
   const heroSlides = useMemo(() => {
     const promoSlides = activePromos
-      .filter((o) => o.combinable || !isVerifiedCustomer)
+      .filter((o) => o.mechanism !== "coupon" || o.combinable || !isVerifiedCustomer)
       .map((o) => ({
         id: `promo-${o.id}`,
         badge: o.badge,
         title: o.title,
         description: [o.subtitle, o.couponCode ? `Use code ${o.couponCode} at the cart.` : ""].filter(Boolean).join(" "),
         offerId: "",
-        graphic: o.discountLabel ? o.discountLabel.replace(" off", "") : "%",
+        graphic: o.discountLabel ? o.discountLabel.replace(" off", "") : o.mechanism === "info" ? "✦" : "%",
         href: o.ctaHref || "/plans",
         ctaLabel: o.ctaLabel || "Choose a plan",
       }));
@@ -2248,7 +2259,7 @@ export default function LatestOffersPage() {
               </div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F8F9FB] border border-[#EAECF0] text-[11px] font-semibold text-[#475467]">
                 <Info className="w-3.5 h-3.5 text-[#98A2B3] shrink-0" />
-                Not available if you already have a verified public sector or student discount
+                Coupon codes can&apos;t be used with a verified public sector or student discount
               </span>
             </div>
 
@@ -2272,7 +2283,7 @@ export default function LatestOffersPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {activePromos.map((o) => {
-                  const blocked = !o.combinable && isVerifiedCustomer;
+                  const blocked = o.mechanism === "coupon" && !o.combinable && isVerifiedCustomer;
                   const nowMs = nowTick + o.clockOffsetMs;
                   const endsText = o.endsAt
                     ? `Ends ${o.endsAt.toLocaleString("en-GB", {
@@ -2332,7 +2343,7 @@ export default function LatestOffersPage() {
                           <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[#E01C5B]/50 bg-[#FDF2F6] px-3.5 py-2.5">
                             <div className="min-w-0">
                               <div className="text-[10px] font-bold uppercase tracking-wider text-[#667085]">Coupon code</div>
-                              <div className="font-mono text-sm font-extrabold text-[#BA1248] truncate">{o.couponCode}</div>
+                              <div className="font-mono text-sm font-extrabold text-[#BA1248] truncate">{o.couponCode.toUpperCase()}</div>
                             </div>
                             <button
                               type="button"
@@ -2359,9 +2370,9 @@ export default function LatestOffersPage() {
                           {endsText && <span className="text-[#667085] font-medium">{endsText}</span>}
                         </div>
 
-                        {o.termsText && <p className="text-[11px] text-[#667085] leading-relaxed">{o.termsText}</p>}
+                        {o.termsText && <p className="text-[11px] text-[#667085] leading-relaxed whitespace-pre-line">{o.termsText}</p>}
 
-                        {!o.combinable && (
+                        {o.mechanism === "coupon" && !o.combinable && (
                           <p className="flex items-start gap-1.5 text-[11px] text-[#667085]">
                             <Info className="w-3.5 h-3.5 text-[#98A2B3] shrink-0 mt-0.5" />
                             Can&apos;t be combined with a verified public sector or student discount.

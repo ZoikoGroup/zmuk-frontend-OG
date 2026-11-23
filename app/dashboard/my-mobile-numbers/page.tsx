@@ -869,7 +869,12 @@ export default function MyMobileNumbersPage() {
           return combined;
         }
 
-        // If no lines found from backend, use fallback user line
+        // No lines from the backend: show the empty state. We no longer make up a line or its usage.
+        setActiveLineId("");
+        setUnreadNotifications(0);
+        return [];
+
+        /* Old fallback (made up a line, price and usage from the saved phone number), kept for reference:
         const fallback = getFallbackUserLine(userData);
         if (!fallback) {
           setActiveLineId("");
@@ -923,6 +928,7 @@ export default function MyMobileNumbersPage() {
         });
         setUnreadNotifications(1);
         return [primaryLine];
+        */
       });
     } catch (err: any) {
       console.error("My mobile numbers dynamic load error:", err);
