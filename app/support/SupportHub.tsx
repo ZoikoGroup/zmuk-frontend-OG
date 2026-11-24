@@ -1,192 +1,948 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import {
+  Search,
+  ShieldCheck,
+  Zap,
+  Users,
+  Award,
+  User,
+  Check,
+  ChevronRight,
+  Smartphone,
+  CreditCard,
+  Radio,
+  Globe,
+  RefreshCw,
+  Cpu,
+  Layers,
+  Package,
+  AlertTriangle,
+  Lock,
+  FileWarning,
+  MessageSquare,
+  Phone,
+  Mail,
+  Wrench,
+  Headphones,
+  X,
+} from "lucide-react";
+
 import { openChat } from "../components/ChatbotWidget";
+import { isLoggedIn as checkIsLoggedIn } from "../utils/auth";
 
-// ─── ICONS ─────────────────────────────────────────────────────────────────
-
-const Arrow = () => (
-  <svg className="h-4 w-4 flex-shrink-0 text-[#0e8f74] transition-transform group-hover:translate-x-0.5 dark:text-[#34d39e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-  </svg>
-);
-
-const SearchIcon = () => (
-  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4-4" /></svg>
-);
-
-// ─── DATA ────────────────────────────────────────────────────────────────────
-//
-// Each card's `href` is left empty ("") for you to fill with the real route;
-// it falls back to "#" until then.
-
-type Card = { title: string; desc: string; href: string };
-
-const customerSupport: Card[] = [
-  { title: "Help & Support", desc: "Browse our comprehensive help center with answers to common questions", href: "/help-support" },
-  { title: "Reasons to Love Zoiko", desc: "Discover what makes Zoiko Mobile special and why customers choose us", href: "/reasons-to-love-zoiko" },
-  { title: "Check Network Coverage", desc: "Find out about network coverage in your area with our coverage checker", href: "https://ee.co.uk/help/mobile-coverage-checker" },
-  { title: "FAQs", desc: "Quick answers to the most frequently asked questions", href: "/faqs" },
-  { title: "How to Activate SIM Cards", desc: "Step-by-step guide to activate your new Zoiko Mobile SIM card", href: "/how-to-activate-sim-cards" },
-];
-
-const getStarted: Card[] = [
-  { title: "Switch & Save", desc: "Make the switch to Zoiko Mobile and start saving on your mobile bills", href: "/switch-and-save" },
-  { title: "Join Zoiko Family", desc: "Bring your family together with our family plans and shared benefits", href: "/login" },
-  { title: "Free Delivery", desc: "Get your SIM card and devices delivered to your door at no extra cost", href: "/free-delivery" },
-  { title: "Refurbished Smartphones", desc: "Explore our range of quality refurbished smartphones at great prices", href: "/devices" },
-  { title: "Return Policy", desc: "Learn about our hassle-free return policy and process", href: "/return-policy" },
-];
-
-const tariffs: Card[] = [
-  { title: "Roaming Charges", desc: "Find out about charges for using your phone when traveling abroad", href: "/roaming-and-coverage" },
-  { title: "Bundled Offers", desc: "Discover our money-saving bundle deals for calls, texts, and data", href: "/bundled-offers" },
-  { title: "Free International Calls", desc: "Learn about destinations included in your free international calling", href: "/international-calling" },
-  { title: "Out-of-Bundle Rates", desc: "Standard charges for calls, texts, and data outside your plan", href: "/out-of-bundle-rates" },
-  { title: "Public Sector Lifetime Deals", desc: "Special pricing and offers for public sector employees", href: "/civilservants" },
-];
-
-const whatsIncluded: Card[] = [
-  { title: "5G Speed", desc: "Experience lightning-fast 5G speeds across our network coverage", href: "/superfast-5g-data" },
-  // { title: "Wi-Fi Calling", desc: "Make calls and send texts over Wi-Fi when mobile signal is weak", href: "/wifi-calling" },
-  { title: "EU Roaming", desc: "Use your UK allowances when traveling in the European Union", href: "/roaming-and-coverage" },
-  { title: "International Calls", desc: "Stay connected with friends and family around the world", href: "/international-calling" },
-  { title: "eSIM", desc: "Get connected instantly with our digital eSIM technology", href: "/activate-your-sim" },
-];
-
-const contactCards = [
-  { title: "Phone Support", lines: ["333 (from Zoiko mobile)", "0333 004 0333 (other networks)"], badge: "24/7 Available", href: "tel:03330040333" },
-  { title: "Live Chat", lines: ["Chat with Zovie, our mobile assistant"], badge: "Available now", action: "chat" as const },
-  { title: "Email Support", lines: ["help@zoikomobile.co.uk"], badge: "Response within 24 hours", href: "mailto:help@zoikomobile.co.uk" },
-];
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-
-function LinkCard({ title, desc, href }: Card) {
-  return (
-    <Link
-      href={href || "#"}
-      className="group flex flex-col rounded-xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-bold text-gray-800 dark:text-white">{title}</h3>
-        <Arrow />
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{desc}</p>
-    </Link>
-  );
+interface SupportTopicItem {
+  title: string;
+  description: string;
+  href: string;
+  highlight?: boolean;
+  icon: "sim" | "billing" | "network" | "roaming" | "orders" | "account";
+  keywords: string;
 }
 
-function Section({ title, subtitle, cards }: { title: string; subtitle: string; cards: Card[] }) {
-  return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 sm:p-8 dark:bg-gray-800 dark:ring-gray-700">
-      <h2 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h2>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((c) => (
-          <LinkCard key={c.title} {...c} />
-        ))}
-      </div>
-    </section>
-  );
+interface QuickActionItem {
+  title: string;
+  description: string;
+  href: string;
+  variant: "pink" | "teal";
+  icon: "sim" | "esim" | "topup" | "track";
+  keywords: string;
 }
 
-// ─── PAGE ─────────────────────────────────────────────────────────────────────
+interface SearchItem {
+  title: string;
+  description: string;
+  category: string;
+  href: string;
+  keywords: string;
+}
 
-function SupportHub() {
+const POPULAR_SEARCHES = [
+  { label: "Activate my SIM", href: "/activate-your-sim" },
+  { label: "eSIM set-up", href: "/esim-setup-guidance" },
+  { label: "Check coverage", href: "/coverage-checker" },
+  { label: "Switch to Zoiko", href: "/switch-and-save" },
+];
+
+const SUPPORT_TOPICS: SupportTopicItem[] = [
+  {
+    title: "SIM & eSIM",
+    description: "Activate, set up, replace or fix your SIM.",
+    href: "/esim-setup-guidance",
+    highlight: true,
+    icon: "sim",
+    keywords: "sim esim qr code activate replace lost stolen",
+  },
+  {
+    title: "Billing & payments",
+    description: "Bills, charges, payments and refunds.",
+    href: "/dashboard/bills-and-payments",
+    icon: "billing",
+    keywords: "bill billing invoice payment card direct debit refund charge",
+  },
+  {
+    title: "Network & coverage",
+    description: "Signal, coverage, outages and service updates.",
+    href: "/coverage-checker",
+    icon: "network",
+    keywords: "signal 5g 4g coverage outage network status data not working",
+  },
+  {
+    title: "Roaming & calls",
+    description: "Use your plan in the UK and abroad.",
+    href: "/roaming-and-coverage",
+    icon: "roaming",
+    keywords: "roaming abroad eu travel international calls data pass",
+  },
+  {
+    title: "Orders & switching",
+    description: "Track orders, delivery, PAC code and switching.",
+    href: "/switch-and-save",
+    icon: "orders",
+    keywords: "pac stac switch keep number order delivery tracking",
+  },
+  {
+    title: "Account & plans",
+    description: "Update your details, manage your plan and extras.",
+    href: "/dashboard",
+    icon: "account",
+    keywords: "account profile password change plan upgrade allowance booster",
+  },
+];
+
+const QUICK_ACTIONS: QuickActionItem[] = [
+  {
+    title: "Activate your SIM",
+    description: "Get set up and start using your plan.",
+    href: "/activate-your-sim",
+    variant: "pink",
+    icon: "sim",
+    keywords: "activate my sim iccid start plan",
+  },
+  {
+    title: "eSIM set-up",
+    description: "A step-by-step guide to install and activate eSIM.",
+    href: "/esim-setup-guidance",
+    variant: "pink",
+    icon: "esim",
+    keywords: "esim setup iphone samsung android qr code",
+  },
+  {
+    title: "Top up your plan",
+    description: "Add credit or a data bundle to your account.",
+    href: "/recharge",
+    variant: "teal",
+    icon: "topup",
+    keywords: "top up recharge credit data booster bundle",
+  },
+  {
+    title: "Track an order",
+    description: "Check the status of your device or SIM order.",
+    href: "/dashboard/orders",
+    variant: "pink",
+    icon: "track",
+    keywords: "track order delivery dispatch sim device",
+  },
+];
+
+const EXTRA_SEARCH_ITEMS: SearchItem[] = [
+  {
+    title: "Change or upgrade your plan",
+    description: "Compare eligible monthly plans for your Zoiko line.",
+    category: "Account & plans",
+    href: "/dashboard/compare-plans",
+    keywords: "change plan upgrade downgrade compare tariff",
+  },
+  {
+    title: "Check data not working / troubleshooting",
+    description: "Fix common eSIM download, APN, and mobile signal issues.",
+    category: "Help & guides",
+    href: "/esim-setup-guidance",
+    keywords: "data not working no signal apn troubleshoot fix",
+  },
+  {
+    title: "Lost or stolen SIM replacement",
+    description: "Secure your number and order a replacement SIM or eSIM.",
+    category: "Urgent help",
+    href: "/dashboard/sim-and-esim/replace",
+    keywords: "lost stolen sim lock block replace",
+  },
+  {
+    title: "Plan FAQs & general help",
+    description: "Answers to common questions on plans, SIMs, and roaming.",
+    category: "FAQs",
+    href: "/faqs",
+    keywords: "faq questions help answers",
+  },
+];
+
+function TopicIcon({ kind }: { kind: SupportTopicItem["icon"] }) {
+  switch (kind) {
+    case "sim":
+      return <Smartphone className="w-5 h-5" aria-hidden="true" />;
+    case "billing":
+      return <CreditCard className="w-5 h-5" aria-hidden="true" />;
+    case "network":
+      return <Radio className="w-5 h-5" aria-hidden="true" />;
+    case "roaming":
+      return <Globe className="w-5 h-5" aria-hidden="true" />;
+    case "orders":
+      return <RefreshCw className="w-5 h-5" aria-hidden="true" />;
+    case "account":
+      return <User className="w-5 h-5" aria-hidden="true" />;
+  }
+}
+
+function ActionIcon({ kind }: { kind: QuickActionItem["icon"] }) {
+  switch (kind) {
+    case "sim":
+      return <Smartphone className="w-5 h-5" aria-hidden="true" />;
+    case "esim":
+      return <Cpu className="w-5 h-5" aria-hidden="true" />;
+    case "topup":
+      return <Layers className="w-5 h-5" aria-hidden="true" />;
+    case "track":
+      return <Package className="w-5 h-5" aria-hidden="true" />;
+  }
+}
+
+export function SupportHub() {
+  const [searchInput, setSearchInput] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setLoggedIn(checkIsLoggedIn());
+  }, []);
+
+  const activeQuery = (submittedQuery || searchInput).trim();
+
+  const searchIndex = useMemo<SearchItem[]>(() => {
+    return [
+      ...SUPPORT_TOPICS.map((t) => ({
+        title: t.title,
+        description: t.description,
+        category: "Support topic",
+        href: t.href,
+        keywords: t.keywords,
+      })),
+      ...QUICK_ACTIONS.map((a) => ({
+        title: a.title,
+        description: a.description,
+        category: "Quick action",
+        href: a.href,
+        keywords: a.keywords,
+      })),
+      ...EXTRA_SEARCH_ITEMS,
+    ];
+  }, []);
+
+  const searchResults = useMemo(() => {
+    if (!activeQuery) return [];
+    const terms = activeQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    return searchIndex.filter((item) => {
+      const haystack =
+        `${item.title} ${item.description} ${item.category} ${item.keywords}`.toLowerCase();
+      return terms.every((t) => haystack.includes(t));
+    });
+  }, [activeQuery, searchIndex]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittedQuery(searchInput.trim());
+  };
+
+  const clearSearch = () => {
+    setSearchInput("");
+    setSubmittedQuery("");
+  };
+
+  const focusSearch = () => {
+    searchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => searchInputRef.current?.focus(), 250);
+  };
+
   return (
-    <main className="bg-gray-50 font-sans dark:bg-gray-900">
-      {/* ─── Hero ─── */}
-      <section className="bg-gradient-to-r from-[#17a06a] to-[#0e8f74] px-4 py-14 text-center text-white sm:px-6 md:px-8">
-        <h1 className="font-extrabold text-[clamp(1.9rem,5vw,2.75rem)]">Support Hub</h1>
-        <p className="mt-3 font-semibold">Everything You Need to Get Started &amp; Stay Connected</p>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-white/85">
-          Find answers, get help, and discover all the amazing features of your Zoiko Mobile service
-        </p>
+    <div className="bg-slate-100 text-slate-900">
+      {/* ── Section 1: Hero Banner ── */}
+      <section className="relative min-h-[320px] flex items-center overflow-hidden bg-[#5A002B]">
+        <Image
+          src="/images/Section (1).png"
+          alt="Zoiko Mobile UK Support Hub"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[72%_center] lg:object-center"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-[#4A0022]/85 via-[#4A0022]/45 to-transparent lg:from-[#4A0022]/30 lg:via-transparent"
+        />
 
-        <div className="mx-auto mt-7 flex max-w-xl items-center gap-2 rounded-full bg-white px-4 py-3 shadow-md dark:bg-gray-800">
-          <span className="text-gray-400 dark:text-gray-500"><SearchIcon /></span>
-          <input
-            type="text"
-            placeholder="Search for help articles, guides, or FAQs..."
-            className="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
-          />
+        <div className="relative z-10 w-full max-w-[1280px] mx-auto px-5 sm:px-7 py-8 sm:py-10">
+          <p className="text-white/90 text-base font-bold leading-5">
+            Zoiko Mobile UK
+          </p>
+          <h1 className="mt-1 text-4xl sm:text-5xl font-extrabold text-white leading-[1.08] tracking-tight">
+            Support Hub
+          </h1>
+          <p className="mt-3 max-w-[520px] text-base font-medium text-white/95 leading-6">
+            Find answers, fix issues, manage your service and get the help you
+            need — quickly and easily.
+          </p>
+
+          {/* Search Bar */}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="mt-5 max-w-[660px]"
+            role="search"
+            aria-label="Search Support Hub"
+          >
+            <div className="min-h-12 pl-4 pr-1.5 py-[5px] bg-white rounded-full shadow-[0px_10px_28px_0px_rgba(0,0,0,0.22)] flex items-center gap-2.5">
+              <Search
+                className="w-5 h-5 text-slate-500 shrink-0"
+                aria-hidden="true"
+              />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  if (!e.target.value.trim()) setSubmittedQuery("");
+                }}
+                placeholder='Search for help, e.g. "activate my SIM", "data not working" or "change plan"'
+                className="flex-1 min-w-0 h-10 bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-500 focus:outline-none"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={clearSearch}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                className="min-h-10 px-6 py-2 bg-[#C8104E] hover:bg-[#a80c41] text-white text-sm font-bold rounded-full transition cursor-pointer shrink-0"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          {/* Popular Searches */}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <span className="text-white text-sm font-bold leading-5">
+              Popular searches:
+            </span>
+            {POPULAR_SEARCHES.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="min-h-8 px-3.5 py-1.5 bg-cyan-950/40 hover:bg-cyan-950/60 rounded-full ring-1 ring-white/70 backdrop-blur-[6px] inline-flex items-center gap-1.5 text-white text-xs font-semibold transition"
+              >
+                <span>{item.label}</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ─── Sections ─── */}
-      <div className="mx-auto max-w-6xl space-y-8 px-4 py-12 sm:px-6 md:px-8">
-        <Section title="Customer Support" subtitle="Get help when you need it most" cards={customerSupport} />
-
-        <Section title="Get Started" subtitle="Everything you need to begin your journey" cards={getStarted} />
-
-        {/* Customer Dashboard */}
-        <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 sm:p-8 dark:bg-gray-800 dark:ring-gray-700">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-white">Customer Dashboard</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage your account and services</p>
-          <Link
-            href="/login"
-            className="group mt-6 flex items-center justify-between gap-4 rounded-xl bg-gradient-to-r from-[#1ba36b] to-[#0e8f74] p-5 text-white transition-opacity hover:opacity-95"
-          >
-            <div>
-             <p className="font-bold">Login</p>
-              <p className="mt-1 text-sm text-white/90">Access your MyZoiko account to manage your services and billing</p>
+      {/* ── Section 2: 4-Item Trust Strip ── */}
+      <section className="bg-white border-b border-slate-200 py-3.5">
+        <div className="max-w-[1280px] mx-auto px-5 sm:px-7">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 lg:divide-x divide-slate-200">
+            <div className="px-2.5 py-2 flex items-center justify-start lg:justify-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-slate-900 text-sm font-extrabold leading-4">
+                  Get help fast
+                </div>
+                <div className="text-slate-600 text-xs leading-4 mt-0.5">
+                  Answers and guided fixes
+                </div>
+              </div>
             </div>
-            <svg className="h-5 w-5 flex-shrink-0 transition-transform group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-          </Link>
-        </section>
 
-        <Section title="Tariffs & Prices" subtitle="Transparent pricing for all our services" cards={tariffs} />
+            <div className="px-2.5 py-2 flex items-center justify-start lg:justify-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+                <Zap className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-slate-900 text-sm font-extrabold leading-4">
+                  Self-service 24/7
+                </div>
+                <div className="text-slate-600 text-xs leading-4 mt-0.5">
+                  Manage your service online
+                </div>
+              </div>
+            </div>
 
-        <Section title="What's Included" subtitle="Discover all the features and benefits" cards={whatsIncluded} />
+            <div className="px-2.5 py-2 flex items-center justify-start lg:justify-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-slate-900 text-sm font-extrabold leading-4">
+                  Talk to our team
+                </div>
+                <div className="text-slate-600 text-xs leading-4 mt-0.5">
+                  When you need extra help
+                </div>
+              </div>
+            </div>
 
-        {/* ─── Still Need Help? ─── */}
-        <section className="rounded-2xl bg-gradient-to-br from-[#f4845f] via-[#ee5f86] to-[#e6007e] p-6 text-center text-white sm:p-10">
-          <h2 className="font-extrabold text-[clamp(1.4rem,4vw,2rem)]">Still Need Help?</h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-white/90">
-            Our friendly support team is here to help you with any questions or issues.
-          </p>
+            <div className="px-2.5 py-2 flex items-center justify-start lg:justify-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-slate-900 text-sm font-extrabold leading-4">
+                  Trusted UK support
+                </div>
+                <div className="text-slate-600 text-xs leading-4 mt-0.5">
+                  Real people, here for you
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
-            {contactCards.map((c) => {
-              const inner = (
-                <>
-                  <p className="font-bold text-white">{c.title}</p>
-                  {c.lines.map((line) => (
-                    <p key={line} className="mt-1 text-sm text-white/90">{line}</p>
-                  ))}
-                  <span className="mt-3 inline-block rounded-full bg-white/25 px-3 py-1 text-xs font-semibold text-white">
-                    {c.badge}
-                  </span>
-                </>
-              );
+      {/* ── Main Content Container ── */}
+      <div className="max-w-[1280px] mx-auto px-5 sm:px-7 pt-6 pb-12 space-y-5">
+        {/* Search Results Panel (shown when user searches) */}
+        {activeQuery && (
+          <section
+            aria-live="polite"
+            className="bg-white rounded-2xl border border-[#C8104E]/25 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] p-5"
+          >
+            <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900">
+                  Search results for &ldquo;{activeQuery}&rdquo;
+                </h2>
+                <p className="text-xs text-slate-600">
+                  {searchResults.length}{" "}
+                  {searchResults.length === 1 ? "match" : "matches"} found
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="text-xs font-bold text-[#C8104E] hover:underline cursor-pointer"
+              >
+                Clear search
+              </button>
+            </div>
 
-              return "action" in c && c.action === "chat" ? (
+            {searchResults.length === 0 ? (
+              <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  No exact help topics matched &ldquo;{activeQuery}&rdquo;. Try
+                  asking Zovie for instant answers or browse topics below.
+                </p>
                 <button
-                  key={c.title}
                   type="button"
                   onClick={openChat}
-                  className="text-left rounded-xl bg-white/15 p-5 transition-colors hover:bg-white/20"
+                  className="px-4 py-2 rounded-full bg-[#C8104E] text-white text-xs font-bold hover:bg-[#a80c41] cursor-pointer shrink-0"
                 >
-                  {inner}
+                  Ask Zovie ›
                 </button>
-              ) : (
-                <a
-                  key={c.title}
-                  href={"href" in c ? c.href : "#"}
-                  className="rounded-xl bg-white/15 p-5 transition-colors hover:bg-white/20"
+              </div>
+            ) : (
+              <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {searchResults.map((res) => (
+                  <Link
+                    key={`${res.category}-${res.title}`}
+                    href={res.href}
+                    className="p-3.5 rounded-xl bg-slate-50 hover:bg-[#FDF2F6]/60 border border-slate-200 hover:border-[#C8104E]/40 flex items-center justify-between gap-3 transition"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8104E]">
+                        {res.category}
+                      </span>
+                      <div className="text-sm font-extrabold text-slate-900">
+                        {res.title}
+                      </div>
+                      <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">
+                        {res.description}
+                      </p>
+                    </div>
+                    <ChevronRight
+                      className="w-4 h-4 text-[#C8104E] shrink-0"
+                      aria-hidden="true"
+                    />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Section 3: 2-Column Main Hub (MyZoiko Sidebar + Topics & Actions) ── */}
+        <section className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* Left Column: MyZoiko Account Card */}
+          <aside className="w-full lg:w-[300px] xl:w-[316px] shrink-0 bg-white rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] overflow-hidden">
+            <div className="px-5 py-4 bg-cyan-950 flex items-center gap-3 text-white">
+              <div className="w-10 h-10 rounded-full ring-[1.5px] ring-white/75 flex items-center justify-center shrink-0">
+                <User className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <h2 className="text-base font-extrabold leading-5">
+                Your Zoiko account
+                <br />
+                (MyZoiko)
+              </h2>
+            </div>
+
+            <div className="px-5 pt-4 pb-5">
+              <p className="text-slate-700 text-sm leading-5">
+                Sign in to manage your plan, usage, bills, orders and support
+                requests.
+              </p>
+
+              <div className="mt-4">
+                <Link
+                  href={loggedIn ? "/dashboard" : "/login"}
+                  className="w-full min-h-11 px-4 py-2.5 bg-[#C8104E] hover:bg-[#a80c41] text-white text-sm font-bold rounded-full inline-flex items-center justify-center gap-2 transition"
                 >
-                  {inner}
-                </a>
-              );
-            })}
+                  <span>
+                    {loggedIn ? "Go to MyZoiko" : "Sign in to MyZoiko"}
+                  </span>
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </div>
+
+              <ul className="mt-5 pt-4 border-t border-slate-200 space-y-3">
+                {[
+                  {
+                    label: "Check your usage & allowances",
+                    href: "/dashboard/usage-and-allowances",
+                  },
+                  {
+                    label: "View and pay your bills",
+                    href: "/dashboard/bills-and-payments",
+                  },
+                  {
+                    label: "Manage or change your plan",
+                    href: "/dashboard/compare-plans",
+                  },
+                  {
+                    label: "Track orders and deliveries",
+                    href: "/dashboard/orders",
+                  },
+                  {
+                    label: "See your support requests",
+                    href: "/dashboard/support",
+                  },
+                ].map((item) => (
+                  <li key={item.label}>
+                    <Link
+                      href={item.href}
+                      className="group flex items-center gap-2.5 text-slate-900 hover:text-[#C8104E] text-sm font-bold leading-5 transition"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-cyan-900 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3 stroke-[3]" aria-hidden="true" />
+                      </span>
+                      <span>{item.label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+
+          {/* Right Column: Support by Topic + Popular Help & Quick Actions */}
+          <div className="flex-1 min-w-0 w-full">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-slate-900 text-2xl font-extrabold leading-9">
+                Get support by topic
+              </h2>
+              <Link
+                href="/faqs"
+                className="text-[#C8104E] hover:underline text-sm font-bold inline-flex items-center gap-1"
+              >
+                <span>View all help topics</span>
+                <span aria-hidden="true">›</span>
+              </Link>
+            </div>
+
+            <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {SUPPORT_TOPICS.map((topic) => (
+                <Link
+                  key={topic.title}
+                  href={topic.href}
+                  className="p-4 bg-white hover:border-[#C8104E]/40 rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] flex items-center justify-between gap-3 transition"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                        topic.highlight
+                          ? "bg-[#FDF2F6] text-[#C8104E]"
+                          : "bg-teal-50 text-cyan-900"
+                      }`}
+                    >
+                      <TopicIcon kind={topic.icon} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-slate-900 text-base font-extrabold leading-5">
+                        {topic.title}
+                      </h3>
+                      <p className="text-slate-600 text-xs leading-4 mt-0.5">
+                        {topic.description}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className="w-4 h-4 text-[#C8104E] shrink-0"
+                    aria-hidden="true"
+                  />
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <h2 className="text-slate-900 text-xl font-extrabold leading-8">
+                Popular help &amp; quick actions
+              </h2>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+                {QUICK_ACTIONS.map((action) => (
+                  <Link
+                    key={action.title}
+                    href={action.href}
+                    className="p-3.5 bg-white hover:border-[#C8104E]/40 rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] flex items-center justify-between gap-2.5 transition"
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          action.variant === "pink"
+                            ? "bg-[#FDF2F6] text-[#C8104E]"
+                            : "bg-teal-50 text-cyan-900"
+                        }`}
+                      >
+                        <ActionIcon kind={action.icon} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-slate-900 text-sm font-extrabold leading-5">
+                          {action.title}
+                        </h3>
+                        <p className="text-slate-600 text-xs leading-4 mt-0.5">
+                          {action.description}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight
+                      className="w-4 h-4 text-[#C8104E] shrink-0"
+                      aria-hidden="true"
+                    />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 4: Need Urgent Help? Banner ── */}
+        <section className="px-5 py-4 bg-gradient-to-r from-rose-100 to-rose-50 rounded-2xl border border-rose-200 flex flex-col xl:flex-row xl:items-center gap-4">
+          <div className="flex items-center gap-3.5 xl:w-[300px] shrink-0">
+            <div className="w-11 h-11 bg-white rounded-xl shadow-[0px_3px_10px_0px_rgba(200,16,78,0.12)] flex items-center justify-center text-[#C8104E] shrink-0">
+              <AlertTriangle className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-[#C8104E] text-lg font-extrabold leading-6">
+                Need urgent help?
+              </h2>
+              <p className="text-slate-900 text-xs leading-4 mt-0.5">
+                If your phone, SIM or account may be at risk, get help right
+                away.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Link
+              href="/dashboard/sim-and-esim/replace"
+              className="px-4 py-3 bg-white hover:border-[#C8104E]/50 rounded-xl shadow-[0px_2px_8px_0px_rgba(200,16,78,0.06)] border border-rose-200 flex items-center justify-between gap-2.5 transition"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 bg-[#FDF2F6] text-[#C8104E] rounded-xl flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-slate-900 text-sm font-extrabold">
+                    Lost or stolen SIM
+                  </div>
+                  <div className="text-slate-600 text-xs">
+                    Secure your number
+                  </div>
+                </div>
+              </div>
+              <ChevronRight
+                className="w-4 h-4 text-[#C8104E] shrink-0"
+                aria-hidden="true"
+              />
+            </Link>
+
+            <Link
+              href="/contact-us"
+              className="px-4 py-3 bg-white hover:border-[#C8104E]/50 rounded-xl shadow-[0px_2px_8px_0px_rgba(200,16,78,0.06)] border border-rose-200 flex items-center justify-between gap-2.5 transition"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 bg-[#FDF2F6] text-[#C8104E] rounded-xl flex items-center justify-center shrink-0">
+                  <FileWarning className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-slate-900 text-sm font-extrabold">
+                    Report suspected fraud
+                  </div>
+                  <div className="text-slate-600 text-xs">
+                    Tell us about a potential scam
+                  </div>
+                </div>
+              </div>
+              <ChevronRight
+                className="w-4 h-4 text-[#C8104E] shrink-0"
+                aria-hidden="true"
+              />
+            </Link>
+
+            <Link
+              href="/coverage-checker"
+              className="px-4 py-3 bg-white hover:border-[#C8104E]/50 rounded-xl shadow-[0px_2px_8px_0px_rgba(200,16,78,0.06)] border border-rose-200 flex items-center justify-between gap-2.5 transition"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 bg-[#FDF2F6] text-[#C8104E] rounded-xl flex items-center justify-center shrink-0">
+                  <Radio className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-slate-900 text-sm font-extrabold">
+                    Check network status
+                  </div>
+                  <div className="text-slate-600 text-xs">
+                    See live updates and outages
+                  </div>
+                </div>
+              </div>
+              <ChevronRight
+                className="w-4 h-4 text-[#C8104E] shrink-0"
+                aria-hidden="true"
+              />
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Section 5: How to get the help you need ── */}
+        <section className="px-5 py-5 bg-white rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)]">
+          <div className="flex flex-col xl:flex-row xl:items-center gap-6">
+            <div className="xl:w-[270px] shrink-0">
+              <h2 className="text-slate-900 text-lg font-extrabold leading-6">
+                How to get the help you need
+              </h2>
+              <p className="text-slate-600 text-xs leading-5 mt-1">
+                A simple way to find an answer or get support.
+              </p>
+            </div>
+
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {/* Step 1 */}
+              <div className="relative flex items-start gap-2.5">
+                <span className="mt-2 w-6 h-6 rounded-full bg-[#C8104E] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                  1
+                </span>
+                <button
+                  type="button"
+                  onClick={focusSearch}
+                  className="flex-1 text-center flex flex-col items-center hover:opacity-80 transition cursor-pointer"
+                >
+                  <Search
+                    className="w-5 h-5 text-slate-900 mb-1"
+                    aria-hidden="true"
+                  />
+                  <span className="text-slate-900 text-sm font-extrabold leading-5">
+                    Find an answer
+                  </span>
+                  <span className="text-slate-600 text-xs leading-4 mt-0.5">
+                    Search our help articles and guides.
+                  </span>
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="hidden lg:block absolute -right-3 top-5 text-[#C8104E] text-lg font-extrabold"
+                >
+                  ›
+                </span>
+              </div>
+
+              {/* Step 2 */}
+              <div className="relative flex items-start gap-2.5">
+                <span className="mt-2 w-6 h-6 rounded-full bg-[#C8104E] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                  2
+                </span>
+                <Link
+                  href="/esim-setup-guidance"
+                  className="flex-1 text-center flex flex-col items-center hover:opacity-80 transition"
+                >
+                  <Wrench
+                    className="w-5 h-5 text-slate-900 mb-1"
+                    aria-hidden="true"
+                  />
+                  <span className="text-slate-900 text-sm font-extrabold leading-5">
+                    Try a quick fix
+                  </span>
+                  <span className="text-slate-600 text-xs leading-4 mt-0.5">
+                    Follow step-by-step troubleshooting.
+                  </span>
+                </Link>
+                <span
+                  aria-hidden="true"
+                  className="hidden lg:block absolute -right-3 top-5 text-[#C8104E] text-lg font-extrabold"
+                >
+                  ›
+                </span>
+              </div>
+
+              {/* Step 3 */}
+              <div className="relative flex items-start gap-2.5">
+                <span className="mt-2 w-6 h-6 rounded-full bg-[#C8104E] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                  3
+                </span>
+                <button
+                  type="button"
+                  onClick={openChat}
+                  className="flex-1 text-center flex flex-col items-center hover:opacity-80 transition cursor-pointer"
+                >
+                  <MessageSquare
+                    className="w-5 h-5 text-slate-900 mb-1"
+                    aria-hidden="true"
+                  />
+                  <span className="text-slate-900 text-sm font-extrabold leading-5">
+                    Ask Zovie
+                  </span>
+                  <span className="text-slate-600 text-xs leading-4 mt-0.5">
+                    Get instant help from our virtual assistant.
+                  </span>
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="hidden lg:block absolute -right-3 top-5 text-[#C8104E] text-lg font-extrabold"
+                >
+                  ›
+                </span>
+              </div>
+
+              {/* Step 4 */}
+              <div className="flex items-start gap-2.5">
+                <span className="mt-2 w-6 h-6 rounded-full bg-[#C8104E] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                  4
+                </span>
+                <Link
+                  href="/contact-us"
+                  className="flex-1 text-center flex flex-col items-center hover:opacity-80 transition"
+                >
+                  <Headphones
+                    className="w-5 h-5 text-slate-900 mb-1"
+                    aria-hidden="true"
+                  />
+                  <span className="text-slate-900 text-sm font-extrabold leading-5">
+                    Talk to our team
+                  </span>
+                  <span className="text-slate-600 text-xs leading-4 mt-0.5">
+                    Get expert support from our UK team.
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 6: 3 Contact Channel Cards ── */}
+        <section
+          aria-label="Contact options"
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+        >
+          {/* Card 1: Chat with Zovie */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+              <MessageSquare className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-slate-900 text-base font-extrabold leading-6">
+                  Chat with Zovie
+                </h3>
+                <span className="px-2.5 py-[3px] bg-cyan-900 text-white text-xs font-bold rounded-full leading-4">
+                  Available 24/7
+                </span>
+              </div>
+              <p className="mt-1 text-slate-700 text-xs leading-5">
+                Get quick answers and guided support from our virtual assistant.
+              </p>
+              <button
+                type="button"
+                onClick={openChat}
+                className="mt-3 w-full min-h-10 bg-white hover:bg-[#FDF2F6] rounded-full ring-[1.5px] ring-[#C8104E] text-[#C8104E] text-sm font-bold inline-flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <span>Start chat</span>
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Call us */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+              <Phone className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-slate-900 text-base font-extrabold leading-6">
+                Call us
+              </h3>
+              <p className="mt-1 text-slate-700 text-xs leading-5">
+                Mon–Fri, 8am–8pm &nbsp;|&nbsp; Sat–Sun, 9am–6pm
+              </p>
+              <a
+                href="tel:03330040333"
+                className="mt-1 inline-block text-[#C8104E] hover:underline text-xl font-extrabold leading-7"
+              >
+                0333 004 0333
+              </a>
+            </div>
+          </div>
+
+          {/* Card 3: Email us */}
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-[0px_3px_14px_0px_rgba(7,56,66,0.05)] flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-[#FDF2F6] text-[#C8104E] flex items-center justify-center shrink-0">
+              <Mail className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-slate-900 text-base font-extrabold leading-6">
+                Email us
+              </h3>
+              <a
+                href="mailto:help@zoikomobile.co.uk"
+                className="mt-1 inline-block text-[#C8104E] hover:underline text-base font-extrabold leading-5 break-all"
+              >
+                help@zoikomobile.co.uk
+              </a>
+              <p className="mt-1 text-slate-600 text-xs leading-5">
+                We&apos;ll usually reply within 24 hours.
+              </p>
+            </div>
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 
-// Exported both ways so either default or named import works.
 export default SupportHub;
-export { SupportHub };
