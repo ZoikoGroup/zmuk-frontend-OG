@@ -600,8 +600,7 @@ export default function Aboutus() {
                   {/* 2025 */}
                   <div className="relative flex items-start gap-5">
                     <span className="relative z-10 inline-flex h-8 w-14 shrink-0 items-center justify-center rounded-full bg-[#0A382D] text-sm font-extrabold text-white">
-                      2025
-                    </span>
+                      2023                    </span>
                     <div>
                       <h3 className="text-lg font-extrabold text-[#0A382D]">
                         Zoiko Mobile UK

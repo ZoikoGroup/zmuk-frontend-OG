@@ -8,6 +8,7 @@ import { isLoggedIn as checkIsLoggedIn, getUser, getToken } from "../utils/auth"
 import { useCart } from "../context/CartContext";
 import { getActivePromotion, type Promotion } from "../config/promotions";
 import { ShieldCheck } from "lucide-react";
+import { listSavedCards, cardBrandLabel, cardExpiryLabel, type SavedCardsList } from "../utils/savedCardsApi";
 
 
 // Initialize Stripe ONCE outside the component — calling loadStripe()
@@ -330,6 +331,14 @@ export default function CheckoutPage() {
   const [showLoginPopup, setShowLoginPopup] = useState(false);
   const [loginPromptReason, setLoginPromptReason] = useState<"coupon" | "order">("order");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Saved cards (backend). null = not loaded yet. Guests and "feature off" both give enabled:false.
+  const [savedList, setSavedList] = useState<SavedCardsList | null>(null);
+  /** a saved card id, or "new" for a new card */
+  const [payChoice, setPayChoice] = useState<string>("new");
+  const [saveCardTick, setSaveCardTick] = useState(false);
+  /** bump to ask for a fresh payment intent (after a declined saved card) */
+  const [intentNonce, setIntentNonce] = useState(0);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showTermsPopup, setShowTermsPopup] = useState(false);
 
@@ -616,6 +625,34 @@ export default function CheckoutPage() {
 
   const total = Math.max(subtotal - (discountAmount || 0), 0);
 
+  // ── Saved cards ───────────────────────────────────────────────────────────
+  const applySavedList = (l: SavedCardsList) => {
+    setSavedList(l);
+    const d = l.payment_methods.find((c) => c.is_default && !c.expired) || l.payment_methods.find((c) => !c.expired);
+    setPayChoice((cur) =>
+      cur !== "new" && l.payment_methods.some((c) => c.id === cur && !c.expired) ? cur : d ? d.id : "new"
+    );
+    if (!l.can_add) setSaveCardTick(false);
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    listSavedCards().then((l) => {
+      if (!cancelled) applySavedList(l);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  const savedEnabled = isLoggedIn && !!savedList?.enabled;
+  const usingSavedId = savedEnabled && payChoice !== "new" ? payChoice : "";
+  const saveForLater = savedEnabled && !usingSavedId && saveCardTick && !!savedList?.can_add && !!savedList?.consent;
+  // Wait for the card list before creating the intent, so we don't create one for the wrong choice.
+  const savedReady = !isLoggedIn || savedList !== null;
+
   // ── Create Stripe payment intent ──────────────────────────────────────────
 
   // The server prices the cart itself and refuses a total that differs from the one
@@ -624,6 +661,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!(total > 0 && cart.length > 0)) return;
+    if (!savedReady) return;
     let cancelled = false;
     const token = getToken();
 
@@ -641,6 +679,9 @@ export default function CheckoutPage() {
         cart,
         billingAddress,
         shippingAddress,
+        // Saved cards: pay with a saved card, or save the new card after paying (never both)
+        ...(usingSavedId ? { paymentMethodId: usingSavedId } : {}),
+        ...(saveForLater ? { saveCard: true, saveCardConsentVersion: savedList?.consent?.version } : {}),
       }),
     })
       .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }))
@@ -663,7 +704,20 @@ export default function CheckoutPage() {
         const message: string =
           body.message || body.error || "We couldn't prepare your payment. Please try again.";
 
-        if (code === "LOGIN_REQUIRED" || status === 401) {
+        if (
+          code === "PAYMENT_METHOD_NOT_FOUND" ||
+          code === "CONSENT_OUTDATED" ||
+          code === "LIMIT_REACHED" ||
+          code === "SAVED_CARDS_UNAVAILABLE"
+        ) {
+          // The saved-card list changed: reload it and let the customer choose again
+          setSaveCardTick(false);
+          setPayChoice("new");
+          listSavedCards().then((l) => {
+            if (!cancelled) applySavedList(l);
+          });
+          setCheckoutIssue({ code, message });
+        } else if (code === "LOGIN_REQUIRED" || status === 401) {
           setLoginPromptReason("order");
           setShowLoginPopup(true);
           setCheckoutIssue({ code: "LOGIN_REQUIRED", message: "Please log in to continue with this order." });
@@ -697,7 +751,7 @@ export default function CheckoutPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [total, subtotal, discountAmount, cart, appliedCoupon, isLoggedIn]);
+  }, [total, subtotal, discountAmount, cart, appliedCoupon, isLoggedIn, savedReady, usingSavedId, saveForLater, intentNonce]);
 
   /** The customer confirms the server's prices; the next create-intent call then succeeds. */
   const acceptServerPrices = () => {
@@ -818,7 +872,25 @@ export default function CheckoutPage() {
       setLoading(true);
 
       // 1️⃣ Stripe payment
-      if (stripeFormRef.current) {
+      if (usingSavedId) {
+        // Saved card: no form. The backend attached the card, so the browser only confirms it
+        // (the bank's 3-D Secure pop-up may appear).
+        const stripe = await stripePromise;
+        if (!stripe || !clientSecret) {
+          setOrderError("Payment is not ready yet. Please try again.");
+          setShowOrderErrorPopup(true);
+          return;
+        }
+        const { error: cardError } = await stripe.confirmCardPayment(clientSecret);
+        if (cardError) {
+          // Declined or 3-D Secure abandoned: the old intent is tied to this card, so ask for a new one.
+          setOrderError(cardError.message || "Your payment didn't go through. Please choose another card.");
+          setShowOrderErrorPopup(true);
+          setClientSecret("");
+          setIntentNonce((n) => n + 1);
+          return;
+        }
+      } else if (stripeFormRef.current) {
         const result = await stripeFormRef.current.submitPayment();
         console.log("✅ Stripe result:", result);
         if (!result.success) {
@@ -1291,7 +1363,68 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {clientSecret ? (
+              {savedEnabled && savedList && savedList.payment_methods.length > 0 && (
+                <div className="mb-4 flex flex-col gap-2" role="radiogroup" aria-label="Choose how to pay">
+                  {savedList.payment_methods.map((c) => (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm ${
+                        c.expired ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        payChoice === c.id
+                          ? "border-[#10446c] bg-[#10446c]/5"
+                          : "border-gray-200 dark:border-gray-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pay-choice"
+                        checked={payChoice === c.id}
+                        disabled={c.expired || loading}
+                        onChange={() => {
+                          setClientSecret("");
+                          setPayChoice(c.id);
+                        }}
+                        className="accent-[#10446c]"
+                      />
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {cardBrandLabel(c.brand)} •••• {c.last4}
+                      </span>
+                      <span className="text-xs text-gray-500">Expires {cardExpiryLabel(c)}</span>
+                      {c.is_default && <span className="ml-auto text-[11px] font-semibold text-emerald-600">Default</span>}
+                      {c.expired && <span className="ml-auto text-[11px] font-semibold text-red-500">Expired</span>}
+                    </label>
+                  ))}
+                  <label
+                    className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm cursor-pointer ${
+                      payChoice === "new" ? "border-[#10446c] bg-[#10446c]/5" : "border-gray-200 dark:border-gray-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pay-choice"
+                      checked={payChoice === "new"}
+                      disabled={loading}
+                      onChange={() => {
+                        setClientSecret("");
+                        setPayChoice("new");
+                      }}
+                      className="accent-[#10446c]"
+                    />
+                    <span className="font-semibold text-gray-900 dark:text-white">Use a new card</span>
+                  </label>
+                </div>
+              )}
+
+              {usingSavedId ? (
+                clientSecret ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Your saved card will be charged £{total.toFixed(2)} when you press Pay. Your bank may ask you to confirm.
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-center py-6 gap-2 text-sm text-gray-400">Preparing your payment…</div>
+                )
+              ) : clientSecret ? (
                 <Elements
                   key={`${clientSecret}-${isDark ? "dark" : "light"}`}
                   stripe={stripePromise}
@@ -1307,6 +1440,22 @@ export default function CheckoutPage() {
                   </svg>
                   Loading payment form…
                 </div>
+              )}
+
+              {savedEnabled && !usingSavedId && savedList?.can_add && savedList.consent && (
+                <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={saveCardTick}
+                    onChange={(e) => {
+                      setClientSecret("");
+                      setSaveCardTick(e.target.checked);
+                    }}
+                    disabled={loading}
+                    className="w-4 h-4 mt-0.5 accent-red-500"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{savedList.consent.text}</span>
+                </label>
               )}
 
               <label className="flex items-start gap-2.5 mt-5 cursor-pointer">

@@ -114,6 +114,11 @@ export interface CheckoutRequest {
     accepted: true;
     immediate_service_requested: boolean;
   };
+  /** Pay with a saved card (id from /api/v1/payment-methods/) */
+  payment_method_id?: string;
+  /** Save the new card once the payment succeeds */
+  save_card?: boolean;
+  save_card_consent_version?: string;
 }
 
 export interface CheckoutResponse {
