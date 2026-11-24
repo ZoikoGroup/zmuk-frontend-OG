@@ -20,6 +20,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
   description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",
+  verification: {
+    google: "9m2TWbQDHstWmpR7D5f9LWcq-t_AF7vB7XeZ7DsXPJY",
+  },
   openGraph: {
     title: "Zoiko Mobile UK | Fast, Reliable Mobile Network",
     description: "Unlimited data, unlimited calls, and roaming free in 30+ countries.",

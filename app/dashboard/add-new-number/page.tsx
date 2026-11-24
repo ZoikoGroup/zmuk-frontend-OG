@@ -60,6 +60,8 @@ import {
   AddLineOrder,
 } from "./addLineApi";
 
+import { listSavedCards, cardBrandLabel, cardExpiryLabel, type SavedCardsList } from "@/app/utils/savedCardsApi";
+
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "");
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -206,6 +208,36 @@ function AddNewNumberContent() {
   const [paymentAmount, setPaymentAmount] = useState<string>("0.00");
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
   const formRef = useRef<StripePaymentFormRef>(null);
+
+  // Saved cards (backend). null = not loaded. "new" = pay with a new card.
+  const [savedList, setSavedList] = useState<SavedCardsList | null>(null);
+  const [payChoice, setPayChoice] = useState<string>("new");
+  const [saveCardTick, setSaveCardTick] = useState<boolean>(false);
+  /** which choice the current order/intent was created with, so a changed choice starts a new checkout */
+  const [createdWith, setCreatedWith] = useState<string>("");
+
+  const applySavedList = (l: SavedCardsList) => {
+    setSavedList(l);
+    const d = l.payment_methods.find((c) => c.is_default && !c.expired) || l.payment_methods.find((c) => !c.expired);
+    setPayChoice((cur) =>
+      cur !== "new" && l.payment_methods.some((c) => c.id === cur && !c.expired) ? cur : d ? d.id : "new"
+    );
+    if (!l.can_add) setSaveCardTick(false);
+  };
+  useEffect(() => {
+    let cancelled = false;
+    listSavedCards().then((l) => {
+      if (!cancelled) applySavedList(l);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const savedEnabled = !!savedList?.enabled;
+  const usingSavedId = savedEnabled && payChoice !== "new" ? payChoice : "";
+  const saveForLater = savedEnabled && !usingSavedId && saveCardTick && !!savedList?.can_add && !!savedList?.consent;
+  const choiceKey = `${usingSavedId || "new"}|${saveForLater ? "save" : "nosave"}`;
 
   // ── Step 7 & 8: Activation & Polling ──
   const [order, setOrder] = useState<AddLineOrder | null>(null);
@@ -586,7 +618,7 @@ function AddNewNumberContent() {
 
     // v1.1: A declined card does not cancel the order; line slot stays held for 30 minutes.
     // If clientSecret and orderReference already exist, reuse them without calling checkout again.
-    if (clientSecret && orderReference) {
+    if (clientSecret && orderReference && createdWith === choiceKey) {
       setStep(6);
       return;
     }
@@ -612,8 +644,12 @@ function AddNewNumberContent() {
           accepted: true,
           immediate_service_requested: immediateService,
         },
+        // Saved cards: pay with a saved card, or save the new card once paid (never both)
+        ...(usingSavedId ? { payment_method_id: usingSavedId } : {}),
+        ...(saveForLater ? { save_card: true, save_card_consent_version: savedList?.consent?.version } : {}),
       });
 
+      setCreatedWith(choiceKey);
       setOrderReference(resp.order_reference);
       setPaymentAmount(resp.amount);
 
@@ -632,6 +668,17 @@ function AddNewNumberContent() {
       if (err.code === "QUOTE_CHANGED" || err.code === "QUOTE_EXPIRED") {
         setCheckoutError("The plan quote was updated. We have refreshed your prices.");
         fetchQuote();
+      } else if (
+        err.code === "PAYMENT_METHOD_NOT_FOUND" ||
+        err.code === "CONSENT_OUTDATED" ||
+        err.code === "LIMIT_REACHED" ||
+        err.code === "SAVED_CARDS_UNAVAILABLE"
+      ) {
+        // The saved-card list changed: reload it and let the customer choose again
+        setSaveCardTick(false);
+        setPayChoice("new");
+        listSavedCards().then(applySavedList);
+        setCheckoutError(err.message || "Your saved cards changed. Please choose how to pay again.");
       } else if (err.code === "REAUTH_REQUIRED") {
         router.push(`/login?next=${encodeURIComponent("/dashboard/add-new-number")}`);
       } else if (err.code === "OUT_OF_STOCK") {
@@ -655,7 +702,30 @@ function AddNewNumberContent() {
     setCheckoutError(null);
 
     try {
-      const res = await formRef.current?.submitPayment();
+      let res: { success: boolean; error?: string } | undefined;
+      if (usingSavedId) {
+        // Saved card: no form. The backend attached the card, the browser only confirms it (3-D Secure may open).
+        const stripe = await stripePromise;
+        if (!stripe || !clientSecret) {
+          res = { success: false, error: "Payment is not ready yet. Please try again." };
+        } else {
+          const { error: cardError } = await stripe.confirmCardPayment(clientSecret);
+          res = cardError
+            ? { success: false, error: cardError.message || "Your payment didn't go through." }
+            : { success: true };
+          if (cardError) {
+            // The intent is tied to this card: go back and start a new checkout with another card.
+            setPaymentNotice(cardError.message || "Your payment didn't go through. Please choose another card.");
+            setClientSecret(null);
+            setCreatedWith("");
+            setCheckoutLoading(false);
+            setStep(5);
+            return;
+          }
+        }
+      } else {
+        res = await formRef.current?.submitPayment();
+      }
       if (!res?.success) {
         setCheckoutLoading(false);
         // v1.1: If declined, fetch order to get backend payment_error if recorded
@@ -1912,6 +1982,65 @@ function AddNewNumberContent() {
                 </div>
               ) : null}
 
+              {savedEnabled && savedList && (
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3">
+                  <h3 className="text-sm font-bold text-[#0D1935]">How would you like to pay?</h3>
+                  {paymentNotice && step === 5 && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">{paymentNotice}</p>
+                  )}
+                  <div className="flex flex-col gap-2" role="radiogroup" aria-label="Choose how to pay">
+                    {savedList.payment_methods.map((c) => (
+                      <label
+                        key={c.id}
+                        className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm ${
+                          c.expired ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                        } ${payChoice === c.id ? "border-[#E01C5B] bg-[#E01C5B]/5" : "border-slate-200"}`}
+                      >
+                        <input
+                          type="radio"
+                          name="pay-choice"
+                          checked={payChoice === c.id}
+                          disabled={c.expired}
+                          onChange={() => setPayChoice(c.id)}
+                          className="accent-[#E01C5B]"
+                        />
+                        <span className="font-semibold text-[#0D1935]">
+                          {cardBrandLabel(c.brand)} •••• {c.last4}
+                        </span>
+                        <span className="text-xs text-slate-500">Expires {cardExpiryLabel(c)}</span>
+                        {c.is_default && <span className="ml-auto text-[11px] font-semibold text-emerald-600">Default</span>}
+                        {c.expired && <span className="ml-auto text-[11px] font-semibold text-red-500">Expired</span>}
+                      </label>
+                    ))}
+                    <label
+                      className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm cursor-pointer ${
+                        payChoice === "new" ? "border-[#E01C5B] bg-[#E01C5B]/5" : "border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pay-choice"
+                        checked={payChoice === "new"}
+                        onChange={() => setPayChoice("new")}
+                        className="accent-[#E01C5B]"
+                      />
+                      <span className="font-semibold text-[#0D1935]">Use a new card</span>
+                    </label>
+                  </div>
+                  {!usingSavedId && savedList.can_add && savedList.consent && (
+                    <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={saveCardTick}
+                        onChange={(e) => setSaveCardTick(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded border-slate-300 text-[#E01C5B] focus:ring-[#E01C5B]"
+                      />
+                      <span>{savedList.consent.text}</span>
+                    </label>
+                  )}
+                </div>
+              )}
+
               {checkoutError && (
                 <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
                   {checkoutError}
@@ -1980,16 +2109,22 @@ function AddNewNumberContent() {
 
               {/* Stripe Payment Element Mount */}
               <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200">
-                <Elements
-                  stripe={stripePromise}
-                  options={{ clientSecret }}
-                  key={clientSecret}
-                >
-                  <StripePaymentForm
-                    ref={formRef}
-                    returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/dashboard/add-new-number?order=${orderReference}`}
-                  />
-                </Elements>
+                {usingSavedId ? (
+                  <p className="text-sm text-slate-600">
+                    Your saved card will be charged £{paymentAmount} when you press Pay. Your bank may ask you to confirm.
+                  </p>
+                ) : (
+                  <Elements
+                    stripe={stripePromise}
+                    options={{ clientSecret }}
+                    key={clientSecret}
+                  >
+                    <StripePaymentForm
+                      ref={formRef}
+                      returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/dashboard/add-new-number?order=${orderReference}`}
+                    />
+                  </Elements>
+                )}
               </div>
 
               {checkoutError && (

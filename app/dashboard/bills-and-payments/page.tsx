@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import SavedCardsPanel from "./SavedCardsPanel";
+import type { SavedCardsList } from "../../utils/savedCardsApi";
 import {
   RefreshCw,
   Clock,
@@ -91,6 +93,10 @@ export interface IssuedBillItem {
   isLatest?: boolean;
   isEstimate?: boolean;
 }
+
+// The old local "saved card" (typed into our own inputs, kept only in this browser) is switched off.
+// Saved cards now come from the backend and are added through Stripe (see SavedCardsPanel).
+const SHOW_OLD_LOCAL_CARD = false;
 
 export interface SavedCardMethod {
   id: string;
@@ -635,7 +641,7 @@ export default function BillsAndPaymentsPage() {
 
         // Check local storage for user-managed payment methods
         if (typeof window !== "undefined") {
-          const storedCard = localStorage.getItem("zoiko_saved_card");
+          const storedCard = SHOW_OLD_LOCAL_CARD ? localStorage.getItem("zoiko_saved_card") : null;
           if (storedCard) {
             try {
               setSavedCard(JSON.parse(storedCard));
@@ -1270,6 +1276,22 @@ export default function BillsAndPaymentsPage() {
     setCardModalOpen(false);
     showToast(`Saved card (${newCard.brand} ••••${last4}) added successfully`, "success");
   };
+
+  // Saved cards from the backend: the default card feeds the "Make a payment" box
+  const handleCardsLoaded = useCallback((l: SavedCardsList) => {
+    if (!l.enabled) return;
+    const d = l.payment_methods.find((c) => c.is_default && !c.expired) || l.payment_methods.find((c) => !c.expired);
+    setSavedCard(
+      d
+        ? {
+            id: d.id,
+            brand: d.brand ? d.brand.charAt(0).toUpperCase() + d.brand.slice(1) : "Card",
+            last4: d.last4,
+            expiry: `${String(d.exp_month).padStart(2, "0")}/${String(d.exp_year).slice(-2)}`,
+          }
+        : null
+    );
+  }, []);
 
   const handleRemoveCard = () => {
     setSavedCard(null);
@@ -2272,6 +2294,17 @@ export default function BillsAndPaymentsPage() {
                   </button>
                 </div>
 
+                {/* Saved cards from the backend (Stripe). Hidden when the feature is off. */}
+                <SavedCardsPanel
+                  addOpen={cardModalOpen}
+                  setAddOpen={setCardModalOpen}
+                  onLoaded={handleCardsLoaded}
+                  onToast={showToast}
+                />
+
+                {/* Old local card box, kept for reference (switched off with SHOW_OLD_LOCAL_CARD) */}
+                {SHOW_OLD_LOCAL_CARD && (
+                <>
                 {/* Method 2: Saved Card Box */}
                 <div className="p-3.5 rounded-2xl border border-[#121E3E]/10 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -2344,6 +2377,8 @@ export default function BillsAndPaymentsPage() {
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add or replace a card</span>
                 </button>
+                </>
+                )}
               </div>
 
               {/* Security Note */}
@@ -3253,7 +3288,7 @@ export default function BillsAndPaymentsPage() {
       )}
 
       {/* 3. Add or Replace Saved Card Modal */}
-      {cardModalOpen && (
+      {SHOW_OLD_LOCAL_CARD && cardModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
