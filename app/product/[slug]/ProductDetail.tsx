@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import DeviceRecommendations, { rememberViewedDevice } from "./DeviceRecommendations";
+import ProductSpecs from "./ProductSpecs";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -504,16 +505,20 @@ function ProductDetail({ slug }: { slug: string }) {
               ))}
             </div>
 
-            {/* Description */}
-            {product.description?.trim() && (
-              <div className="mt-8 border-t border-gray-100 pt-6">
-                <h2 className="text-lg font-black text-gray-900">About this device</h2>
-                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-600">{product.description}</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
+
+      {/* Description + specifications */}
+      <ProductSpecs
+        key={product.slug}
+        name={product.name}
+        brand={product.brand}
+        description={product.description}
+        attributeOptions={product.attribute_options}
+        selected={selected}
+        sku={matched?.sku ?? null}
+      />
 
       {/* SIM offers, similar devices, recently viewed */}
       <DeviceRecommendations
