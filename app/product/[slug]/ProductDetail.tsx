@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
+import DeviceRecommendations, { rememberViewedDevice } from "./DeviceRecommendations";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -84,6 +85,8 @@ function ProductDetail({ slug }: { slug: string }) {
         const res = await fetch(`${API_BASE}/api/products/${slug}/`);
         if (!res.ok) throw new Error("Product not found");
         setProduct(await res.json());
+        setActiveImg(0); // reset gallery when moving to another device
+        setQty(1);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Product not found");
       } finally {
@@ -109,6 +112,19 @@ function ProductDetail({ slug }: { slug: string }) {
     }
     setSelected(init);
   }, [product, activeVariants]);
+
+  // Remember this device for the "Recently viewed" row
+  useEffect(() => {
+    if (!product) return;
+    const primary = product.images?.find((i) => i.is_primary) ?? product.images?.[0];
+    rememberViewedDevice({
+      slug: product.slug,
+      name: product.name,
+      brand: product.brand,
+      image: primary ? absUrl(primary.image) : "",
+      priceFrom: product.price_min != null ? Number(product.price_min) : null,
+    });
+  }, [product]);
 
   // Hide the "added" confirmation after a few seconds
   useEffect(() => {
@@ -498,6 +514,13 @@ function ProductDetail({ slug }: { slug: string }) {
           </div>
         </div>
       </div>
+
+      {/* SIM offers, similar devices, recently viewed */}
+      <DeviceRecommendations
+        currentSlug={product.slug}
+        brand={product.brand}
+        price={price ?? (product.price_min != null ? Number(product.price_min) : null)}
+      />
 
       {/* Mobile sticky buy bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-100 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] backdrop-blur lg:hidden">
