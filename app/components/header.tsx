@@ -735,7 +735,7 @@ export default function Header() {
 
                   <div className="mt-6 space-y-5">
                     <Link
-                      href="/devices"
+                      href="/refurbished"
                       className="group flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-4">
@@ -827,7 +827,7 @@ export default function Header() {
                     </Link>
 
                     <Link
-                      href="/support"
+                      href="/returns-refunds-repairs"
                       className="group flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-4">
@@ -948,7 +948,7 @@ export default function Header() {
                     </Link>
 
                     <Link
-                      href="/dashboard/roaming-and-travel"
+                      href="/roaming-included-in-plans"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
@@ -1999,7 +1999,7 @@ export default function Header() {
               </summary>
               <div className="mt-3 space-y-2 border-t border-gray-200/60 dark:border-gray-700 pt-2 text-sm">
                 <Link
-                  href="/devices"
+                  href="/refurbished"
                   onClick={() => setMobileOpen(false)}
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >
@@ -2020,7 +2020,7 @@ export default function Header() {
                   Delivery Information
                 </Link>
                 <Link
-                  href="/support"
+                  href="/returns-refunds-repairs"
                   onClick={() => setMobileOpen(false)}
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >
@@ -2037,11 +2037,18 @@ export default function Header() {
               </summary>
               <div className="mt-3 space-y-2 border-t border-gray-200/60 dark:border-gray-700 pt-2 text-sm">
                 <Link
-                  href="/dashboard/roaming-and-travel"
+                  href="/roaming-and-coverage"
                   onClick={() => setMobileOpen(false)}
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >
                   Roaming &amp; Overage Rates
+                </Link>
+                <Link
+                  href="/roaming-included-in-plans"
+                  onClick={() => setMobileOpen(false)}
+                  className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
+                >
+                  Roaming Included in Plans
                 </Link>
                 <Link
                   href="/international-calling"
