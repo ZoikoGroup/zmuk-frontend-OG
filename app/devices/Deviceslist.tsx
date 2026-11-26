@@ -771,7 +771,7 @@ function DevicesList({ variant = "all" }: { variant?: "all" | "refurbished" }) {
                     setVisible(PAGE_SIZE);
                   }}
                   aria-label="Sort devices"
-                  className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-xs font-semibold text-[#0D1935] dark:text-white"
+                  className="rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-xs font-semibold text-[#0D1935] dark:text-white"
                 >
                   {SORTS.map((s) => (
                     <option key={s.value} value={s.value}>

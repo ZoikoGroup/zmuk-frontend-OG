@@ -22,6 +22,27 @@ export interface LineOption {
   isPrimary?: boolean;
 }
 
+// Small coloured label for a line's status (Active, Waiting for activation, Paused ...).
+function statusPillClass(status: string): string {
+  const v = (status || "").toLowerCase();
+  if (v === "active") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (v.startsWith("waiting") || v === "setting up") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (v === "order in progress") return "bg-sky-50 text-sky-700 border-sky-200";
+  if (v === "paused") return "bg-slate-100 text-slate-600 border-slate-200";
+  return "bg-rose-50 text-rose-700 border-rose-200";
+}
+
+function StatusPill({ status }: { status: string }) {
+  if (!status) return null;
+  return (
+    <span
+      className={`px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${statusPillClass(status)}`}
+    >
+      {status}
+    </span>
+  );
+}
+
 interface QuickStatusStripProps {
   lines: LineOption[];
   activeLineId: string;
@@ -83,6 +104,7 @@ export default function QuickStatusStrip({
                   <span className="text-slate-500 font-normal">Showing </span>
                   <span className="text-[#0D1935] font-bold">{activeLine.number}</span>
                 </div>
+                <StatusPill status={activeLine.status} />
                 <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-0.5" />
               </button>
 
@@ -117,6 +139,9 @@ export default function QuickStatusStrip({
                             <span className="text-[11px] text-slate-500">
                               {line.planName} · {line.simType}
                             </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <StatusPill status={line.status} />
                           </div>
                           {isSelected && (
                             <div className="w-5 h-5 rounded-full bg-[#E01C5B] text-white flex items-center justify-center flex-shrink-0">

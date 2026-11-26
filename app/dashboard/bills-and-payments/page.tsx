@@ -68,7 +68,8 @@ import {
   validateUkAccountNumber,
   validateName,
 } from "../../utils/validators";
-import { fetchZoikoNexBills } from "../../utils/zoikoNexApi";
+import { fetchZoikoNexBills, ZOIKONEX_CONFIG } from "../../utils/zoikoNexApi";
+import { StatusPill } from "../components/LineStatusPill";
 
 export interface BillingLineItem {
   id: string;
@@ -97,6 +98,8 @@ export interface IssuedBillItem {
 // The old local "saved card" (typed into our own inputs, kept only in this browser) is switched off.
 // Saved cards now come from the backend and are added through Stripe (see SavedCardsPanel).
 const SHOW_OLD_LOCAL_CARD = false;
+// Direct Debit box is not in the Figma payment-methods card; flip to true to bring it back.
+const SHOW_DD_BOX = false;
 
 export interface SavedCardMethod {
   id: string;
@@ -160,11 +163,13 @@ export default function BillsAndPaymentsPage() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // ── Dynamic Bills & Payment Methods State ──
-  const [billsHistory, setBillsHistory] = useState<IssuedBillItem[]>([]);
+  const [billsHistoryRaw, setBillsHistory] = useState<IssuedBillItem[]>([]);
   const [accountCredit, setAccountCredit] = useState<number>(0);
   const [bankLast2, setBankLast2] = useState<string>("—");
   const [mandateStatusLabel, setMandateStatusLabel] = useState<string>("Not set up");
   const [mandateRefSuffix, setMandateRefSuffix] = useState<string>("—");
+  // Bills, balance, charges and spend need the billing system (ZoikoNex). Until it is connected they are shown as "Upcoming".
+  const showBillingUpcoming = !ZOIKONEX_CONFIG.IS_CONNECTED;
   const [savedCard, setSavedCard] = useState<SavedCardMethod | null>(null);
 
   // ── Interactive Section Controls ──
@@ -180,7 +185,7 @@ export default function BillsAndPaymentsPage() {
   const [itemisedBillsPref, setItemisedBillsPref] = useState<string>("By category");
 
   // ── Extra Out-of-Plan Spend State ──
-  const [extraSpend, setExtraSpend] = useState<{
+  const [extraSpendRaw, setExtraSpend] = useState<{
     boosters: number;
     roaming: number;
     international: number;
@@ -191,6 +196,18 @@ export default function BillsAndPaymentsPage() {
     international: 0,
     premium: 0,
   });
+  // Orders were being shown as bills and boosters as spend. Until billing is connected both stay empty.
+  const billsHistory = useMemo(
+    () => (showBillingUpcoming ? [] : billsHistoryRaw),
+    [showBillingUpcoming, billsHistoryRaw]
+  );
+  const extraSpend = useMemo(
+    () =>
+      showBillingUpcoming
+        ? { boosters: 0, roaming: 0, international: 0, premium: 0 }
+        : extraSpendRaw,
+    [showBillingUpcoming, extraSpendRaw]
+  );
 
   // ── Modals State ──
   const [boosterOpen, setBoosterOpen] = useState<boolean>(false);
@@ -282,9 +299,11 @@ export default function BillsAndPaymentsPage() {
     const params = new URLSearchParams(window.location.search);
     const action = params.get("action");
     if (action === "bill-limit") {
-      setBillLimitModalOpen(true);
+      // was: setBillLimitModalOpen(true); (the limit was only saved in this browser)
+      showToast("Setting a bill limit is upcoming — available soon.", "info");
     } else if (action === "payment-method" || action === "direct-debit") {
-      setDdModalOpen(true);
+      // was: setDdModalOpen(true); (opened the local-only Direct Debit form)
+      setTimeout(() => paymentMethodsSectionRef.current?.scrollIntoView({ behavior: "smooth" }), 300);
     } else if (action === "card") {
       setCardModalOpen(true);
     }
@@ -647,6 +666,7 @@ export default function BillsAndPaymentsPage() {
               setSavedCard(JSON.parse(storedCard));
             } catch {}
           }
+          /* Direct Debit is no longer read from browser storage (it was never a real mandate), kept for reference:
           const storedBank = localStorage.getItem("zoiko_saved_bank");
           if (storedBank) {
             try {
@@ -657,6 +677,7 @@ export default function BillsAndPaymentsPage() {
               }
             } catch {}
           }
+          */
         }
 
         // 3c. Live User Lines from BeQuick
@@ -943,9 +964,10 @@ export default function BillsAndPaymentsPage() {
   }, [lines, selectedAccountScope]);
 
   const totalPlanPrices = useMemo(() => {
+    if (showBillingUpcoming) return 0; // was: the plan prices were used as an invented bill / estimate
     const sum = visibleLines.reduce((acc, l) => acc + l.monthlyPrice, 0);
     return Number(sum.toFixed(2));
-  }, [visibleLines]);
+  }, [visibleLines, showBillingUpcoming]);
 
   const planBreakdownText = useMemo(() => {
     if (visibleLines.length === 0) return "No active plans";
@@ -1043,6 +1065,10 @@ export default function BillsAndPaymentsPage() {
 
   // Download generated invoice statement
   const handleDownloadBillPdf = (bill: IssuedBillItem) => {
+    // Needs backend support — shown as upcoming until then (nothing is saved or charged here).
+    showToast("Downloading bills is upcoming — available soon.", "info");
+
+    /* Old fake/local-only version, kept for reference:
     if (bill.id === "none") {
       showToast("No issued bill available to download yet", "info");
       return;
@@ -1093,6 +1119,7 @@ export default function BillsAndPaymentsPage() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast(`Downloaded statement ${bill.reference}`, "success");
+    */
   };
 
   // Cycle preferences on click
@@ -1122,6 +1149,11 @@ export default function BillsAndPaymentsPage() {
 
   const handleSaveBillLimit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is saved or charged here).
+    showToast("Setting a bill limit is upcoming — available soon.", "info");
+
+    /* Old fake/local-only version, kept for reference:
+    e.preventDefault();
     const check = validateSpendLimit(tempBillLimit);
     if (!check.isValid) {
       setBillLimitError(check.error || "Please enter a valid limit.");
@@ -1134,9 +1166,15 @@ export default function BillsAndPaymentsPage() {
     persistBillingSetting({ billLimit: val });
     setBillLimitModalOpen(false);
     showToast(`Monthly mobile bill limit set to £${val.toFixed(2)}`, "success");
+    */
   };
 
   const handleSaveDirectDebit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is saved or charged here).
+    showToast("Setting up Direct Debit online is upcoming — available soon.", "info");
+
+    /* Old fake/local-only version, kept for reference:
     e.preventDefault();
     const errors: {
       name?: string;
@@ -1197,9 +1235,14 @@ export default function BillsAndPaymentsPage() {
     }
     showToast(`Direct Debit mandate confirmed for ${nameCheck.cleaned} (••${val})`, "success");
     setDdModalOpen(false);
+    */
   };
 
   const handleRemoveDirectDebit = () => {
+    // Needs backend support — shown as upcoming until then (nothing is saved or charged here).
+    showToast("Removing a Direct Debit online is upcoming — available soon.", "info");
+
+    /* Old fake/local-only version, kept for reference:
     setBankLast2("—");
     setMandateStatusLabel("Not set up");
     setDdAccountName("");
@@ -1213,6 +1256,7 @@ export default function BillsAndPaymentsPage() {
     }
     setDdModalOpen(false);
     showToast("Direct Debit mandate removed.", "info");
+    */
   };
 
   const handleSaveCard = (e: React.FormEvent) => {
@@ -1341,6 +1385,51 @@ export default function BillsAndPaymentsPage() {
     setQueryChargeErrors({});
     setIsSubmittingQuery(true);
 
+    const billRefLabel = queryChargeBillRef || latestBill.reference || "Current billing cycle";
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") : null;
+      if (!token) {
+        showToast("Please sign in again to send a billing query.", "info");
+        return;
+      }
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${apiBase}/api/support/tickets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({
+          category: "billing",
+          subject: `Billing Query: ${billRefLabel} · ${queryChargeCategory}`,
+            message: `Statement: ${billRefLabel}\nCategory: ${queryChargeCategory}\nDisputed Amount: ${queryChargeAmount ? `£${queryChargeAmount}` : "Full line item"}\n\nExplanation:\n${trimmedReason}`,
+        }),
+      });
+      if (!res.ok) {
+        showToast("We couldn't send your query. Please try again or contact support.", "info");
+        return;
+      }
+      const ticket = await res.json().catch(() => ({}));
+      const caseRef = ticket?.id ? `#${ticket.id}` : "";
+      setQueryChargeModalOpen(false);
+      setQueryChargeReason("");
+      setQueryChargeAmount("");
+      showToast(
+        caseRef
+          ? `Query submitted for ${billRefLabel}. Case reference: ${caseRef}`
+          : `Query submitted for ${billRefLabel}.`,
+        "success"
+      );
+    } catch {
+      showToast("We couldn't send your query. Please check your connection and try again.", "info");
+    } finally {
+      setIsSubmittingQuery(false);
+    }
+  };
+
+  /* Old version (sent 'Bearer' auth so it was rejected, never checked the result, showed a made-up
+     case reference and always said it worked), kept for reference:
     const caseRef = `ZM-${Math.floor(100000 + Math.random() * 900000)}`;
     const billRefLabel = queryChargeBillRef || latestBill.reference || "Current billing cycle";
 
@@ -1370,8 +1459,14 @@ export default function BillsAndPaymentsPage() {
       showToast(`Query submitted for ${billRefLabel}. Case reference: ${caseRef}`, "success");
     }
   };
+  */
 
   const handleMakeOneOffPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is saved or charged here).
+    showToast("Making a payment here is upcoming — available soon.", "info");
+
+    /* Old fake/local-only version, kept for reference:
     e.preventDefault();
     const amt = parseFloat(paymentAmount);
     if (isNaN(amt) || amt < 1.0) {
@@ -1402,6 +1497,7 @@ export default function BillsAndPaymentsPage() {
     } finally {
       setIsProcessingPayment(false);
     }
+    */
   };
 
   // Spend Donut Gauge calculation
@@ -1461,7 +1557,8 @@ export default function BillsAndPaymentsPage() {
             <div className="flex items-center gap-2.5 flex-wrap">
               <div className="inline-flex items-center gap-1.5 text-xs text-[#54617E]">
                 <Clock className="w-3.5 h-3.5 text-[#54617E]" />
-                <span>Balance checked {freshnessTime}</span>
+                {/* was: <span>Balance checked {freshnessTime}</span> (no balance is read yet, so it claimed a check that did not happen) */}
+                <span>{showBillingUpcoming ? "Balance and bills: upcoming" : `Balance checked ${freshnessTime}`}</span>
               </div>
               <button
                 type="button"
@@ -1488,11 +1585,20 @@ export default function BillsAndPaymentsPage() {
                   <CreditCard className="w-4 h-4 text-[#E01C5B]" />
                 </div>
                 <div className="flex flex-col items-start pr-2">
-                  <span className="text-[#54617E] text-[10px] font-medium leading-3">
+                  <span className="text-[#54617E] text-[10px] font-medium leading-3 inline-flex items-center gap-1.5">
                     Billing account
+                    {showBillingUpcoming && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold uppercase tracking-wide">
+                        Upcoming
+                      </span>
+                    )}
                   </span>
+                  {/* was: Account ••{mandateRefSuffix} · N lines (the suffix came from a bank mandate, not a billing account number) */}
                   <span className="text-[#0D1935] text-sm font-bold leading-5">
-                    Account ••{mandateRefSuffix} · {visibleLines.length}{" "}
+                    {userName && !/^(account\s*holder|account\s*member|member|customer)$/i.test(userName.trim())
+                      ? `${userName.trim()}’s account`
+                      : "Your account"}{" "}
+                    · {visibleLines.length}{" "}
                     {visibleLines.length === 1 ? "line" : "lines"}
                   </span>
                   <span className="text-[#54617E] text-[11px] font-normal leading-3">
@@ -1557,7 +1663,7 @@ export default function BillsAndPaymentsPage() {
                               {line.number}
                             </div>
                             <div className="text-[11px] text-[#54617E]">
-                              {line.planName} · £{line.monthlyPrice.toFixed(2)}/mo
+                              {line.planName} · £{line.monthlyPrice.toFixed(2)}/mo <StatusPill status={line.status} />
                             </div>
                           </div>
                           {selectedAccountScope === line.id && (
@@ -1576,6 +1682,11 @@ export default function BillsAndPaymentsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
             {/* Card 1: Next payment (Solid Pink Card, lg:col-span-5) */}
             <div className="lg:col-span-5 p-6 relative bg-[#E01C5B] rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-4 overflow-hidden text-white">
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               {/* Top-right 6x3 decorative dot matrix */}
               <div className="w-24 h-12 right-[18px] top-[16px] absolute opacity-15 inline-flex flex-col justify-start items-start gap-2.5 pointer-events-none">
                 {[0, 1, 2].map((row) => (
@@ -1715,8 +1826,8 @@ export default function BillsAndPaymentsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setTempBankLast2(bankLast2 === "—" ? "" : bankLast2);
-                    setDdModalOpen(true);
+                    // was: setTempBankLast2(...); setDdModalOpen(true); (local-only Direct Debit form)
+                    showToast("Setting up Direct Debit online is upcoming — available soon.", "info");
                   }}
                   className="px-3.5 py-2 rounded-xl border border-white/40 hover:bg-white/10 text-white text-xs font-semibold leading-4 transition cursor-pointer"
                 >
@@ -1726,7 +1837,12 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             {/* Card 2: Account balance (White Card, lg:col-span-3) */}
-            <div className="lg:col-span-3 p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+            <div className="relative lg:col-span-3 p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -1832,7 +1948,12 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             {/* Card 3: Latest issued bill (White Card, lg:col-span-4) */}
-            <div className="lg:col-span-4 p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+            <div className="relative lg:col-span-4 p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -1974,8 +2095,13 @@ export default function BillsAndPaymentsPage() {
             {/* Card 4: Billing history */}
             <div
               ref={historySectionRef}
-              className="p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5"
+              className="relative p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5"
             >
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -2240,7 +2366,8 @@ export default function BillsAndPaymentsPage() {
                   </div>
                 </div>
 
-                {/* Method 1: Direct Debit Box */}
+                {/* Method 1: Direct Debit Box (removed per Figma; switched off with SHOW_DD_BOX) */}
+                {SHOW_DD_BOX && (
                 <div className="p-3.5 rounded-2xl border border-[#121E3E]/10 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-12 h-8 bg-[#0D1935] rounded-lg flex items-center justify-center shrink-0">
@@ -2285,14 +2412,15 @@ export default function BillsAndPaymentsPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setTempBankLast2(bankLast2 === "—" ? "" : bankLast2);
-                      setDdModalOpen(true);
+                      // was: setTempBankLast2(...); setDdModalOpen(true); (local-only Direct Debit form)
+                      showToast("Setting up Direct Debit online is upcoming — available soon.", "info");
                     }}
                     className="text-[#E01C5B] text-xs font-semibold hover:underline shrink-0 cursor-pointer"
                   >
                     {bankLast2 !== "—" && bankLast2 !== "" ? "Manage" : "Set up"}
                   </button>
                 </div>
+                )}
 
                 {/* Saved cards from the backend (Stripe). Hidden when the feature is off. */}
                 <SavedCardsPanel
@@ -2392,7 +2520,12 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             {/* Card 6: Billing settings */}
-            <div className="p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+            <div className="relative p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -2416,7 +2549,7 @@ export default function BillsAndPaymentsPage() {
                     type="button"
                     onClick={() => {
                       setTempBillLimit(billLimit.toFixed(2));
-                      setBillLimitModalOpen(true);
+                      showToast("Setting a bill limit is upcoming — available soon.", "info"); // was: setBillLimitModalOpen(true)
                     }}
                     className="py-3 flex items-center justify-between gap-2.5 text-left hover:bg-slate-50/70 rounded-xl px-1 transition cursor-pointer"
                   >
@@ -2540,8 +2673,13 @@ export default function BillsAndPaymentsPage() {
             {/* Card 7: Charges */}
             <div
               ref={chargesSectionRef}
-              className="p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5"
+              className="relative p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5"
             >
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -2604,7 +2742,7 @@ export default function BillsAndPaymentsPage() {
                           </span>
                         </div>
                         <span className="text-[#0D1935] text-xs font-semibold shrink-0">
-                          £{line.monthlyPrice.toFixed(2)}
+                          {showBillingUpcoming ? "—" : `£${line.monthlyPrice.toFixed(2)}`}
                         </span>
                       </div>
                     ))
@@ -2709,7 +2847,12 @@ export default function BillsAndPaymentsPage() {
             </div>
 
             {/* Card 8: Spend toward your bill limit */}
-            <div className="p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+            <div className="relative p-6 bg-white rounded-3xl shadow-[0px_2px_8px_0px_rgba(18,27,52,0.03),0px_1px_2px_0px_rgba(18,27,52,0.04)] flex flex-col justify-between gap-3.5">
+              {showBillingUpcoming && (
+                <span className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold shadow-sm">
+                  Upcoming
+                </span>
+              )}
               <div className="flex flex-col gap-3.5">
                 {/* Header */}
                 <div className="inline-flex items-center gap-2.5">
@@ -2844,7 +2987,7 @@ export default function BillsAndPaymentsPage() {
                   type="button"
                   onClick={() => {
                     setTempBillLimit(billLimit.toFixed(2));
-                    setBillLimitModalOpen(true);
+                    showToast("Setting a bill limit is upcoming — available soon.", "info"); // was: setBillLimitModalOpen(true)
                   }}
                   className="inline-flex items-center gap-1.5 text-[#E01C5B] text-xs font-semibold hover:underline cursor-pointer"
                 >
@@ -2866,7 +3009,8 @@ export default function BillsAndPaymentsPage() {
                     Quick actions
                   </h2>
                   <span className="text-[#54617E] text-xs font-normal leading-4">
-                    For billing account ••{mandateRefSuffix}
+                    {/* was: For billing account ••{mandateRefSuffix} */}
+                    For your billing account
                   </span>
                 </div>
               </div>
@@ -2877,9 +3021,8 @@ export default function BillsAndPaymentsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setPaymentAmount(activeChargesTotal > 0 ? activeChargesTotal.toFixed(2) : "10.00");
-                    setPaymentError("");
-                    setMakePaymentModalOpen(true);
+                    // was: opened the payment popup (which only faked a payment)
+                    showToast("Making a payment here is upcoming — available soon.", "info");
                   }}
                   className="py-2.5 flex items-center justify-between gap-2.5 text-left hover:bg-slate-50/70 rounded-xl px-1 transition cursor-pointer"
                 >
@@ -2965,7 +3108,7 @@ export default function BillsAndPaymentsPage() {
                   type="button"
                   onClick={() => {
                     setTempBillLimit(billLimit.toFixed(2));
-                    setBillLimitModalOpen(true);
+                    showToast("Setting a bill limit is upcoming — available soon.", "info"); // was: setBillLimitModalOpen(true)
                   }}
                   className="py-2.5 border-t border-[#121E3E]/10 flex items-center justify-between gap-2.5 text-left hover:bg-slate-50/70 rounded-xl px-1 transition cursor-pointer"
                 >

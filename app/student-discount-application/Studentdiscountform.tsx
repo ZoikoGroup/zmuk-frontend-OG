@@ -647,7 +647,7 @@ export default function StudentDiscountApplication() {
                                         onBlur={handleBlur}
                                         aria-invalid={!!errors.enrolmentStatus}
                                         aria-describedby="err-enrolmentStatus"
-                                        className={inputClass("enrolmentStatus")}
+                                        className={`${inputClass("enrolmentStatus")} rounded-xl!`}
                                     >
                                         <option value="">Select enrolment status</option>
                                         <option value="Full-time">Full-time</option>
@@ -702,7 +702,7 @@ export default function StudentDiscountApplication() {
                                                 onBlur={handleBlur}
                                                 aria-invalid={!!errors.plan}
                                                 aria-describedby="err-plan"
-                                                className={inputClass("plan")}
+                                                className={`${inputClass("plan")} rounded-xl!`}
                                             >
                                                 <option value="">
                                                     {plansLoading ? "Loading plans…" : plans.length ? "Select Plan" : "No plans available right now"}
@@ -767,7 +767,7 @@ export default function StudentDiscountApplication() {
                                                 onBlur={handleBlur}
                                                 aria-invalid={!!errors.contractDuration}
                                                 aria-describedby="err-contractDuration"
-                                                className={inputClass("contractDuration")}
+                                                className={`${inputClass("contractDuration")} rounded-xl!`}
                                             >
                                                 <option value="">Select Contract Duration</option>
                                                 <option value="12">12 Months</option>

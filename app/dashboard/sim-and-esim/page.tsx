@@ -63,6 +63,7 @@ import {
 } from "../../utils/dashboardSync";
 
 import { validateUkPostcode, validateName, validateImeiOrEid } from "../../utils/validators";
+import { StatusPill } from "../components/LineStatusPill";
 
 export interface SimHistoryEvent {
   id: string;
@@ -542,7 +543,7 @@ export default function SimAndEsimPage() {
                     simType === "eSIM"
                       ? maskEid(rawEid, lineId)
                       : "Not applicable (Physical SIM)",
-                  networkLabel: "5G eligible on your plan",
+                  networkLabel: "—", // was "5G eligible on your plan" (written by the page, not from the backend)
                   activatedAtLabel,
                   isPrimary: isPrimaryLine(line) || idx === 0,
                   deviceModel: detectedDevice,
@@ -573,6 +574,8 @@ export default function SimAndEsimPage() {
         }
       }
 
+      // There is no made-up fallback line any more: with no real lines the page shows "No active SIM".
+      /* Old fallback (invented an active eSIM with a fake ICCID and activation date from the saved phone number), kept for reference:
       // If no BeQuick telecom lines were returned, check fallback
       setLines((current) => {
         if (current.length === 0) {
@@ -624,6 +627,7 @@ export default function SimAndEsimPage() {
         }
         return current;
       });
+      */
     } finally {
       setIsLoading(false);
     }
@@ -667,7 +671,7 @@ export default function SimAndEsimPage() {
       renewDate: "—",
       iccidMasked: "•••• •••• •••• —",
       eidMasked: "•••• —",
-      networkLabel: "5G eligible on your plan",
+      networkLabel: "—", // was "5G eligible on your plan"
       activatedAtLabel: "—",
       isPrimary: false,
       deviceModel: null,
@@ -730,6 +734,11 @@ export default function SimAndEsimPage() {
   // ── Action Handlers ──
   const handleTransferEsim = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is sent or changed here).
+    showToast("Moving your eSIM to a new phone online is upcoming — available soon.", "info");
+
+    /* Old version (only created a support ticket or changed this browser, but told the customer it was done), kept for reference:
+    e.preventDefault();
     if (!transferNewEid.trim()) {
       setTransferError("Please enter your new phone's 32-digit EID or IMEI.");
       return;
@@ -770,9 +779,15 @@ export default function SimAndEsimPage() {
     } finally {
       setIsTransferring(false);
     }
+    */
   };
 
   const handleOrderPsim = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is sent or changed here).
+    showToast("Switching to a physical SIM online is upcoming — available soon.", "info");
+
+    /* Old version (only created a support ticket or changed this browser, but told the customer it was done), kept for reference:
     e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -830,9 +845,15 @@ export default function SimAndEsimPage() {
     } finally {
       setIsOrderingPsim(false);
     }
+    */
   };
 
   const handlePauseLine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Needs backend support — shown as upcoming until then (nothing is sent or changed here).
+    showToast("Pausing a line online is upcoming — available soon.", "info");
+
+    /* Old version (only created a support ticket or changed this browser, but told the customer it was done), kept for reference:
     e.preventDefault();
     setIsPausingLine(true);
     try {
@@ -847,6 +868,7 @@ export default function SimAndEsimPage() {
     } finally {
       setIsPausingLine(false);
     }
+    */
   };
 
   const currentDeviceNickname = currentLine.id
@@ -969,7 +991,8 @@ export default function SimAndEsimPage() {
                     SIM for
                   </div>
                   <div className="text-sm sm:text-base font-bold text-[#0D1935] leading-5">
-                    {currentLine.number} · {currentLine.simType}
+                    {currentLine.number} · {currentLine.simType}{" "}
+                    {currentLine.id && <StatusPill status={currentLine.status} />}
                   </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-[#5E6E8C] shrink-0 ml-auto" />
@@ -1007,7 +1030,7 @@ export default function SimAndEsimPage() {
                               {ln.number} · {ln.simType}
                             </div>
                             <div className="text-[11px] text-[#5E6E8C] truncate">
-                              {ln.planName} · {ln.simStatusLabel}
+                              {ln.planName} · {ln.simStatusLabel} <StatusPill status={ln.status} />
                             </div>
                           </div>
                         </div>
@@ -1360,7 +1383,8 @@ export default function SimAndEsimPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            showToast("Activation email resent with your eSIM profile QR code.", "success");
+                            // was: showToast("Activation email resent with your eSIM profile QR code.", "success"); (nothing was sent)
+                            showToast("Resending the activation email is upcoming — available soon.", "info");
                           }}
                           className="mt-2 text-xs font-semibold text-[#B8144A] hover:underline cursor-pointer"
                         >
@@ -1381,11 +1405,13 @@ export default function SimAndEsimPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (currentLine.simType === "Physical SIM") {
-                              setSwitchToPsimModalOpen(true);
-                            } else {
-                              setTransferEsimModalOpen(true);
-                            }
+                            // was: opened the transfer / physical SIM forms (they only created a support ticket)
+                            showToast(
+                              currentLine.simType === "Physical SIM"
+                                ? "Switching to a different SIM online is upcoming — available soon."
+                                : "Moving your eSIM to a new phone online is upcoming — available soon.",
+                              "info"
+                            );
                           }}
                           className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#B8144A] hover:underline cursor-pointer"
                         >
@@ -1843,7 +1869,8 @@ export default function SimAndEsimPage() {
                     {/* Setting 4: Calls to other countries */}
                     <button
                       type="button"
-                      onClick={() => router.push("/dashboard/sim-and-esim/change-type")}
+                      // was: router.push("/dashboard/sim-and-esim/change-type") (that is the eSIM/SIM format change, not calls abroad)
+                      onClick={() => router.push("/international-calling")}
                       className="w-full py-2.5 flex items-center gap-3 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">
@@ -1858,7 +1885,7 @@ export default function SimAndEsimPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 text-xs font-semibold text-[#0D1935] shrink-0">
-                        <span>Ask us</span>
+                        <span>View rates</span>
                         <ChevronRight className="w-3.5 h-3.5 text-[#0D1935]" />
                       </div>
                     </button>
@@ -1866,7 +1893,8 @@ export default function SimAndEsimPage() {
                     {/* Setting 5: Leave Zoiko (PAC or STAC) */}
                     <button
                       type="button"
-                      onClick={() => setPacModalOpen(true)}
+                      // was: setPacModalOpen(true) (popup whose "Request via SMS" only showed a toast)
+                      onClick={() => router.push("/switch-and-save")}
                       className="w-full py-2.5 flex items-center gap-3 text-left hover:bg-slate-50/70 transition cursor-pointer"
                     >
                       <div className="w-8 h-8 bg-[#F6F7FA] rounded-lg flex items-center justify-center shrink-0">

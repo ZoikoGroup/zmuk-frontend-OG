@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { StatusPill } from "../components/LineStatusPill";
 import {
   CheckCircle2,
   AlertCircle,
@@ -364,7 +365,7 @@ export default function MyMobileNumbersPage() {
                       })
                     : "Pending",
                   contractType: l.term ? `${l.term} Plan` : "Monthly Rolling",
-                  networkTechnology: "5G",
+                  networkTechnology: "—", // was "5G" (made up, not from the backend)
                   price: l.plan?.price != null ? Number(l.plan.price) : 0,
                   isPrimary: idx === 0,
                   callsLabel: "Unlimited",
@@ -532,7 +533,7 @@ export default function MyMobileNumbersPage() {
                   renewDate: "Monthly",
                   activationDate,
                   contractType: "Monthly rolling",
-                  networkTechnology: "5G & 4G LTE",
+                  networkTechnology: "—", // was "5G & 4G LTE" (made up, not from the backend)
                   price,
                   isPrimary: false,
                   isUnlimited: isUnlim,
@@ -607,7 +608,7 @@ export default function MyMobileNumbersPage() {
                       )
                     : "Confirmed by network";
                 let contractType = "Monthly rolling";
-                const networkTechnology = "5G eligible";
+                const networkTechnology = "—"; // was "5G eligible" (made up, not from the backend)
                 let price = Number(line.price || 0);
                 let isUnlim = false;
                 let roamingIncluded = true;
@@ -1038,6 +1039,10 @@ export default function MyMobileNumbersPage() {
   };
 
   const handleApplyBooster = (addedGb: number, cost: number) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Buying data boosters here is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     if (!currentLine.id) return;
     if (currentLine.status === "Suspended" || currentLine.status === "Paused") {
       showToast("Cannot add booster to a paused or suspended line.", "error");
@@ -1064,6 +1069,7 @@ export default function MyMobileNumbersPage() {
     });
     setNextCollectionAmount((prev) => Number((prev + cost).toFixed(2)));
     showToast(`Added +${addedGb} GB data booster (£${cost.toFixed(2)}) to ${currentLine.number}!`, "success");
+    */
   };
 
   const handleAddNewNumber = (data: AddNumberData) => {
@@ -1130,6 +1136,10 @@ export default function MyMobileNumbersPage() {
   };
 
   const handleSelectPlan = (planName: string, planGb: number, price: number) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Changing plan from here is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     if (!currentLine.id) {
       router.push("/plans");
       return;
@@ -1155,6 +1165,7 @@ export default function MyMobileNumbersPage() {
       };
     });
     showToast(`Switched ${currentLine.number} to ${planName} (£${price.toFixed(2)}/mo)!`, "success");
+    */
   };
 
   const handleSetPrimary = (id: string) => {
@@ -1164,6 +1175,32 @@ export default function MyMobileNumbersPage() {
     showToast(`Set ${target?.number || "number"} as your primary number.`);
   };
 
+  const handleReportActivity = async (note: string) => {
+    try {
+      const token = localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || "";
+      if (!token) {
+        showToast("Please sign in again to report a concern.", "error");
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/security/report/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) {
+        showToast("We couldn't send your report. Please try again or contact support.", "error");
+        return;
+      }
+      showToast("Security concern reported. Our UK team will respond urgently.");
+    } catch {
+      showToast("We couldn't send your report. Please check your connection and try again.", "error");
+    }
+  };
+
+  /* Old version (used a base URL that can be empty, ignored errors and always said it worked), kept for reference:
   const handleReportActivity = async (note: string) => {
     try {
       const token = localStorage.getItem("zoiko_token") || "";
@@ -1181,6 +1218,7 @@ export default function MyMobileNumbersPage() {
     } catch {}
     showToast("Security concern reported. Our UK team will respond urgently.");
   };
+  */
 
   // SVG Ring calculation for Usage this month card
   const ringRadius = 35;
@@ -1290,6 +1328,7 @@ export default function MyMobileNumbersPage() {
 
             {/* Right CTA: + Add a new number */}
             <div className="flex items-center gap-2">
+              {/* "Link SIM" button removed on request (kept for reference):
               <button
                 type="button"
                 onClick={() => {
@@ -1302,6 +1341,7 @@ export default function MyMobileNumbersPage() {
                 <Cpu className="w-4 h-4 text-slate-500" />
                 <span>Link SIM</span>
               </button>
+              */}
               <button
                 type="button"
                 onClick={() => router.push("/dashboard/add-new-number")}
@@ -1572,9 +1612,9 @@ export default function MyMobileNumbersPage() {
                                 : "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                             }`}
                           >
-                            <Check className="w-3 h-3 stroke-[3]" />
-                            <span>{line.status}</span>
+                            <StatusPill status={line.status} />
                           </span>
+                          {/* Old badge (green tick for every status): <Check className="w-3 h-3 stroke-[3]" /><span>{line.status}</span> */}
 
                           {line.isPrimary ? (
                             <span
@@ -1880,7 +1920,7 @@ export default function MyMobileNumbersPage() {
                       {currentLine.activationDate}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5">
-                      {hasLines ? "Confirmed by the network" : "Awaiting activation"}
+                      {hasLines && currentLine.status === "Active" && currentLine.activationDate !== "Pending" ? "Confirmed by the network" : "Awaiting activation"}
                     </div>
                   </div>
                 </div>
@@ -1913,14 +1953,14 @@ export default function MyMobileNumbersPage() {
                       PAC to keep this number, or STAC if you don&apos;t
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPacModalOpen(true)}
+                  {/* Was a button opening the PAC/STAC popup (its "Request via SMS" only showed a toast). Now goes to Switch & Save. */}
+                  <Link
+                    href="/switch-and-save"
                     className="text-xs font-semibold text-[#E01C5B] hover:underline flex items-center gap-1 flex-shrink-0 cursor-pointer"
                   >
                     <span>Get PAC or STAC</span>
                     <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -1970,19 +2010,37 @@ export default function MyMobileNumbersPage() {
                     <Info className="w-3 h-3 text-slate-400 flex-shrink-0" />
                     <span>Not available online yet</span>
                   </div>
-                  <Link
-                    href="/dashboard/support"
-                    className="inline-block text-xs font-bold text-[#E01C5B] hover:underline mt-1"
-                  >
-                    Ask support to move it
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                    <Link
+                      href={
+                        currentLine.id
+                          ? `/dashboard/sim-and-esim?lineId=${encodeURIComponent(currentLine.id)}`
+                          : "/dashboard/sim-and-esim"
+                      }
+                      className="inline-block text-xs font-bold text-[#E01C5B] hover:underline"
+                    >
+                      Open SIM &amp; eSIM
+                    </Link>
+                    <Link
+                      href="/dashboard/support"
+                      className="inline-block text-xs font-bold text-[#E01C5B] hover:underline"
+                    >
+                      Ask support to move it
+                    </Link>
+                  </div>
                 </div>
               </div>
 
               {/* Action 3: Replace lost or damaged SIM */}
               <button
                 type="button"
-                onClick={() => router.push("/dashboard/sim-and-esim/replace")}
+                onClick={() =>
+                  router.push(
+                    currentLine.id
+                      ? `/dashboard/sim-and-esim/replace?line=${encodeURIComponent(currentLine.id)}`
+                      : "/dashboard/sim-and-esim/replace"
+                  )
+                }
                 className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -2004,7 +2062,8 @@ export default function MyMobileNumbersPage() {
               {/* Action 4: Report a security concern */}
               <button
                 type="button"
-                onClick={() => router.push("/contact-us")}
+                // was: router.push("/contact-us") (public page). Now the account's own security page.
+                onClick={() => router.push("/dashboard/security")}
                 className="w-full p-3 rounded-xl bg-white hover:bg-pink-50/40 border border-pink-100/80 flex items-center justify-between gap-3 transition cursor-pointer text-left shadow-2xs"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -2546,6 +2605,28 @@ export default function MyMobileNumbersPage() {
                   const codeType = isPac.isValid ? "PAC" : "STAC";
 
                   try {
+                    // Real port request for this line (POST /api/v1/lines/<line_id>/port/).
+                    const isBackendLine =
+                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentLine.id);
+                    if (!isBackendLine) {
+                      showToast(
+                        "Please choose a line from your Zoiko account to transfer a number to it.",
+                        "error"
+                      );
+                      return;
+                    }
+                    const port = await submitPort(currentLine.id, {
+                      code_type: codeType,
+                      code: portCode.trim().toUpperCase(),
+                      msisdn: formattedNum.replace(/\s+/g, ""),
+                    });
+                    showToast(port.message || `Transfer request received for ${formattedNum}.`, "success");
+                    loadDynamicNumbers();
+                  } catch (err) {
+                    showToast((err as Error)?.message || "We couldn't submit the transfer. Please check the details and try again.", "error");
+                    return;
+                  /* Old version (older /api/switch-requests/ call with no login token; it showed 'Transfer submitted!' even when it failed), kept for reference:
+                  try {
                     const res = await fetch(`${API_BASE}/api/switch-requests/`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -2576,6 +2657,7 @@ export default function MyMobileNumbersPage() {
                       `Transfer submitted! Switching ${formattedNum} to Zoiko using ${codeType} code.`,
                       "success"
                     );
+                  */
                   } finally {
                     setPortSubmitting(false);
                     setPacModalOpen(false);

@@ -38,6 +38,7 @@ import DashboardTopNav from "../components/DashboardTopNav";
 import beQuick from "../../utils/dasdbeQuickApi";
 import { getLines } from "../add-new-number/addLineApi";
 import ChangePlanFlow, { type FlowLine, type FlowPlan, type FlowTerm } from "./ChangePlanFlow";
+import { StatusPill } from "../components/LineStatusPill";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -1007,7 +1008,7 @@ export default function ComparePlansPage() {
                         >
                           <div className="min-w-0">
                             <div className="text-xs font-bold truncate">{line.number}</div>
-                            <div className="text-[11px] text-slate-500 truncate">{line.planName} · {line.simType}</div>
+                            <div className="text-[11px] text-slate-500 truncate">{line.planName} · {line.simType} <StatusPill status={line.status} /></div>
                           </div>
                           {isSelected && <Check className="w-4 h-4 text-[#E01C5B] shrink-0" />}
                         </button>

@@ -970,7 +970,7 @@ export default function Header() {
                     <div className="h-px w-full bg-gray-200 dark:bg-gray-800" />
 
                     <Link
-                      href="/support"
+                      href="/roaming-help"
                       className="group flex items-center justify-between rounded-xl p-2.5 transition-colors hover:bg-rose-50/50 dark:hover:bg-gray-800/60"
                     >
                       <div className="flex items-center gap-3">
@@ -2058,7 +2058,7 @@ export default function Header() {
                   International Calling
                 </Link>
                 <Link
-                  href="/support"
+                  href="/roaming-help"
                   onClick={() => setMobileOpen(false)}
                   className="block py-1 text-gray-700 dark:text-gray-300 hover:text-rose-600 dark:hover:text-rose-400"
                 >

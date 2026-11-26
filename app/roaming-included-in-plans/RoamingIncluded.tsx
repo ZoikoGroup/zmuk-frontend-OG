@@ -762,7 +762,7 @@ export default function RoamingIncluded() {
                 id="inclusions-line-select"
                 value={selectedLineId}
                 onChange={(e) => setSelectedLineId(e.target.value)}
-                className="h-[38px] cursor-pointer rounded-[10px] border-[1.5px] border-[#cbd5e1] bg-white px-3 text-[13px] font-bold text-[#0f172a] outline-none focus:border-[#c90058]"
+                className="h-[38px] cursor-pointer rounded-xl border-[1.5px] border-[#cbd5e1] bg-white px-3 text-[13px] font-bold text-[#0f172a] outline-none focus:border-[#c90058]"
               >
                 <option value="">Use a published example plan</option>
                 {lines.map((l) => (

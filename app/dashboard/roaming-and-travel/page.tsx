@@ -52,6 +52,7 @@ import {
   formatTimestamp,
   isLineQuote,
 } from "../../services/roamingApi";
+import { StatusPill } from "../components/LineStatusPill";
 
 function formatUkNumber(msisdn?: string | null): string {
   if (!msisdn) return "Pending number";
@@ -441,7 +442,7 @@ export default function RoamingAndTravelPage() {
                                 {formatUkNumber(ln.msisdn)}
                               </div>
                               <div className="text-[11px] text-[#54617E]">
-                                {ln.plan?.name || "Unverified plan"} · {niceLineStatus(ln.status)}
+                                {ln.plan?.name || "Unverified plan"} · <StatusPill status={ln.status} />
                               </div>
                             </div>
                             {isSel && <Check className="w-4 h-4 text-[#E01C5B]" />}

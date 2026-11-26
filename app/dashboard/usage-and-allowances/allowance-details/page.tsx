@@ -32,6 +32,7 @@ import {
   fetchAllowanceDetails,
   AllowanceDetailsResponse,
 } from "../../../services/dashboardRatesApi";
+import { StatusPill } from "../../components/LineStatusPill";
 
 interface ActiveLine {
   id: string;
@@ -368,7 +369,7 @@ function AllowanceDetailsContent() {
                               {ln.number} · {ln.planName}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {ln.status} · Renews {ln.renews}
+                              <StatusPill status={ln.status} /> · Renews {ln.renews}
                             </div>
                           </div>
                           {isSel && (

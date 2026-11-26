@@ -815,7 +815,7 @@ export default function PublicSectorWorkersForm() {
                                     onBlur={() => touchField("agreeTerms")}
                                     aria-invalid={!!err("agreeTerms")}
                                     aria-describedby={err("agreeTerms") ? "agreeTerms-error" : undefined}
-                                    className={`${inputBase} ${err("agreeTerms") ? inputBad : inputOk}`}
+                                    className={`${inputBase} rounded-xl! ${err("agreeTerms") ? inputBad : inputOk}`}
                                 >
                                     <option value="">Select...</option>
                                     <option value="yes">Yes</option>
@@ -837,7 +837,7 @@ export default function PublicSectorWorkersForm() {
                                     onBlur={() => touchField("confirmPublicSector")}
                                     aria-invalid={!!err("confirmPublicSector")}
                                     aria-describedby={err("confirmPublicSector") ? "confirmPublicSector-error" : undefined}
-                                    className={`${inputBase} ${err("confirmPublicSector") ? inputBad : inputOk}`}
+                                    className={`${inputBase} rounded-xl! ${err("confirmPublicSector") ? inputBad : inputOk}`}
                                 >
                                     <option value="">Select...</option>
                                     <option value="yes">Yes</option>
