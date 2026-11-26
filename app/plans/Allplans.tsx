@@ -21,6 +21,10 @@ import {
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import ChooseSimTypeModal from "../components/ChooseSimTypeModal";
+import ComparePlansModal from "./ComparePlansModal";
+
+// Max plans in the side-by-side comparison popup
+const MAX_COMPARE = 3;
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -113,6 +117,7 @@ export function Allplans() {
 
   // Compare selection
   const [selectedForCompare, setSelectedForCompare] = useState<number[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
 
   // ─── FETCH PLANS DIRECTLY FROM BACKEND APIS ───
   useEffect(() => {
@@ -263,8 +268,25 @@ export function Allplans() {
 
   const toggleCompare = (id: number) => {
     setSelectedForCompare((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : prev.length >= MAX_COMPARE
+          ? prev
+          : [...prev, id]
     );
+  };
+
+  // Selected plans can come from any category tab, so look them up across all lists
+  const comparedPlans = useMemo(() => {
+    const byId = new Map<number, Plan>();
+    for (const p of [...personalPlans, ...businessPlans, ...dataOnlyPlans]) byId.set(p.id, p);
+    return selectedForCompare.map((id) => byId.get(id)).filter((p): p is Plan => !!p);
+  }, [selectedForCompare, personalPlans, businessPlans, dataOnlyPlans]);
+
+  // Buy from the compare popup -> same eSIM/pSIM -> cart -> checkout flow as the plan cards
+  const buyFromCompare = (plan: Plan) => {
+    setShowCompare(false);
+    handleBuyNow(plan);
   };
 
   return (
@@ -275,6 +297,25 @@ export function Allplans() {
           planName={simTypePlan.name}
           onConfirm={confirmSimType}
           onClose={() => setSimTypePlan(null)}
+        />
+      )}
+
+      {/* Compare Plans popup */}
+      {showCompare && comparedPlans.length > 0 && (
+        <ComparePlansModal
+          plans={comparedPlans}
+          durationTab={durationTab}
+          onDurationChange={setDurationTab}
+          getPrice={getPlanPrice}
+          getBullets={getPlanBullets}
+          noticeText={getNoticeText()}
+          onRemove={toggleCompare}
+          onBuy={buyFromCompare}
+          onAddMore={() => {
+            setShowCompare(false);
+            document.getElementById("plans-grid-section")?.scrollIntoView({ behavior: "smooth" });
+          }}
+          onClose={() => setShowCompare(false)}
         />
       )}
 
@@ -679,12 +720,18 @@ export function Allplans() {
 
                     {/* Compare & Full plan details Row */}
                     <div className="flex items-center justify-between pt-1 text-base font-semibold text-[#0D1935]">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <label
+                        className={`flex items-center gap-2 select-none ${
+                          !isChecked && selectedForCompare.length >= MAX_COMPARE ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                        }`}
+                        title={!isChecked && selectedForCompare.length >= MAX_COMPARE ? `You can compare up to ${MAX_COMPARE} plans` : undefined}
+                      >
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          disabled={!isChecked && selectedForCompare.length >= MAX_COMPARE}
                           onChange={() => toggleCompare(plan.id)}
-                          className="w-5 h-5 rounded border-slate-300 text-[#E01C5B] focus:ring-[#E01C5B] cursor-pointer"
+                          className="w-5 h-5 rounded border-slate-300 text-[#E01C5B] accent-[#E01C5B] focus:ring-[#E01C5B] cursor-pointer disabled:cursor-not-allowed"
                         />
                         <span className="text-sm font-semibold text-[#0D1935]">Compare</span>
                       </label>
@@ -858,13 +905,14 @@ export function Allplans() {
             >
               Clear
             </button>
-            <Link
-              href={`/dashboard/compare-plans?plans=${selectedForCompare.join(",")}`}
-              className="bg-[#E01C5B] hover:bg-[#c9144e] text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm"
+            <button
+              type="button"
+              onClick={() => setShowCompare(true)}
+              className="bg-[#E01C5B] hover:bg-[#c9144e] text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm cursor-pointer"
             >
               <span>Compare Plans</span>
               <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
+            </button>
           </div>
         </div>
       )}
