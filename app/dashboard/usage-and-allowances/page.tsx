@@ -54,6 +54,7 @@ import {
   ZoikoNexCycleUsage,
   ZOIKONEX_CONFIG,
 } from "../../utils/zoikoNexApi";
+import { StatusPill } from "../components/LineStatusPill";
 
 export interface UsageLineItem {
   id: string;
@@ -1385,7 +1386,7 @@ export default function UsageAndAllowancesPage() {
                               {ln.number} · {ln.planName}
                             </div>
                             <div className="text-[11px] text-[#5E6E8C] truncate">
-                              {ln.status} · Renews {ln.renewDate}
+                              <StatusPill status={ln.status} /> · Renews {ln.renewDate}
                             </div>
                           </div>
                         </div>

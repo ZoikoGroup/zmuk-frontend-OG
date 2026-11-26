@@ -940,7 +940,7 @@ export default function BlackFridayPage() {
 
                     {/* Action Buttons: View Details + Buy this plan */}
                     <div className="mt-8 flex flex-col gap-2.5">
-                      <Link
+                      {/* <Link
                         href={plan.slug ? `/plans/${plan.slug}` : "/plans"}
                         className={`w-full rounded-full border bg-transparent py-2.5 text-center text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                           isDark
@@ -949,7 +949,7 @@ export default function BlackFridayPage() {
                         }`}
                       >
                         View Details
-                      </Link>
+                      </Link> */}
                       <button
                         type="button"
                         onClick={() => handleBuyNow(plan)}

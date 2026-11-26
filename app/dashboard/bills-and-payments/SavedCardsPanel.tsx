@@ -3,7 +3,7 @@
 // Saved payment methods panel for Bills & payments.
 // Card details are typed into Stripe's Payment Element, never into our own inputs.
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { CreditCard, Loader2, Plus, X } from "lucide-react";
@@ -76,12 +76,14 @@ export default function SavedCardsPanel({
   onToast?: (message: string, type: "success" | "info") => void;
 }) {
   const [list, setList] = useState<SavedCardsList | null>(null);
+  const cardListRef = useRef<HTMLDivElement>(null);
   const [consent, setConsent] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [addError, setAddError] = useState("");
 
   // remove / set default confirmation
+  const [manage, setManage] = useState<SavedCard | null>(null);
   const [action, setAction] = useState<null | { kind: "remove" | "default"; card: SavedCard }>(null);
   const [password, setPassword] = useState("");
   const [actionError, setActionError] = useState("");
@@ -182,11 +184,29 @@ export default function SavedCardsPanel({
   };
 
   // Feature off or not logged in: show nothing saved-card related.
-  if (!list || !list.enabled) return null;
+  if (!list) return null;
+  if (!list.enabled) {
+    // Guide says hide saved-card UI here. We show a quiet placeholder so the card is never an empty box.
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="p-3.5 rounded-2xl border border-[#121E3E]/10 text-xs text-[#54617E]">
+          Saved cards aren&apos;t available right now. Please log in, or try again later.
+        </div>
+        <button
+          type="button"
+          disabled
+          className="w-full px-3.5 py-2 rounded-xl border border-[#E01C5B]/25 inline-flex items-center justify-center gap-1.5 text-[#E01C5B] text-xs font-semibold opacity-50 cursor-not-allowed"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add or replace a card</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5" ref={cardListRef}>
         {list.payment_methods.length === 0 ? (
           <div className="p-3.5 rounded-2xl border border-[#121E3E]/10 text-xs text-[#54617E]">
             No saved cards. Add a card to pay faster next time.
@@ -196,15 +216,20 @@ export default function SavedCardsPanel({
             <div key={c.id} className="p-3.5 rounded-2xl border border-[#121E3E]/10 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-8 bg-[#1D3A70] rounded-lg flex items-center justify-center shrink-0">
-                  <CreditCard className="w-4 h-4 text-white" />
+                  <span className="text-white text-[10px] font-extrabold tracking-wider uppercase italic">{c.brand || "card"}</span>
                 </div>
                 <div className="flex flex-col gap-0.5 min-w-0">
                   <span className="text-[#0D1935] text-sm font-bold leading-5">
-                    {cardBrandLabel(c.brand)} •••• {c.last4}
+                    {cardBrandLabel(c.brand)} ••••{c.last4}
                   </span>
-                  <span className="text-[#54617E] text-xs leading-4">Expires {cardExpiryLabel(c)}</span>
+                  <span className="text-[#54617E] text-xs leading-4">
+                    Expires {String(c.exp_month).padStart(2, "0")}/{c.exp_year} · held by our payment provider
+                  </span>
                   <div className="pt-1 flex flex-wrap items-center gap-1.5">
-                    {c.is_default && (
+                    <span className="px-2 py-0.5 bg-[#F4F5F8] rounded-full text-[#54617E] text-[11px] font-semibold">
+                      One-off payments &amp; add-ons
+                    </span>
+                    {list.payment_methods.length > 1 && c.is_default && (
                       <span className="px-2 py-0.5 bg-[#1E8E5A]/10 rounded-full text-[#1E8E5A] text-[11px] font-semibold">Default</span>
                     )}
                     {c.expired && (
@@ -213,32 +238,13 @@ export default function SavedCardsPanel({
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                {!c.is_default && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAction({ kind: "default", card: c });
-                      setPassword("");
-                      setActionError("");
-                    }}
-                    className="text-[#E01C5B] text-xs font-semibold hover:underline cursor-pointer"
-                  >
-                    Set as default
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAction({ kind: "remove", card: c });
-                    setPassword("");
-                    setActionError("");
-                  }}
-                  className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
-                >
-                  Remove
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setManage(c)}
+                className="text-[#E01C5B] text-xs font-semibold hover:underline shrink-0 cursor-pointer"
+              >
+                Manage
+              </button>
             </div>
           ))
         )}
@@ -250,12 +256,23 @@ export default function SavedCardsPanel({
             className="w-full px-3.5 py-2 rounded-xl border border-[#E01C5B]/25 hover:bg-[#E01C5B]/5 inline-flex items-center justify-center gap-1.5 text-[#E01C5B] text-xs font-semibold transition cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add a card</span>
+            <span>Add or replace a card</span>
           </button>
         ) : (
-          <p className="text-[11px] text-[#54617E]">
-            You have {list.limit} saved cards, the maximum. Remove one to add another.
-          </p>
+          <>
+            {/* Guide 4.1: when the maximum is reached, show "Manage payment methods" instead of "Add a card". */}
+            <button
+              type="button"
+              onClick={() => cardListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="w-full px-3.5 py-2 rounded-xl border border-[#E01C5B]/25 hover:bg-[#E01C5B]/5 inline-flex items-center justify-center gap-1.5 text-[#E01C5B] text-xs font-semibold cursor-pointer"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Manage payment methods</span>
+            </button>
+            <p className="text-[11px] text-[#54617E]">
+              You have {list.limit} saved cards, the maximum. Remove one to add another.
+            </p>
+          </>
         )}
       </div>
 
@@ -309,6 +326,50 @@ export default function SavedCardsPanel({
               )}
 
               {addError && <p className="text-xs text-rose-500 font-medium">{addError}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage a card: choose set as default / remove */}
+      {manage && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100">
+            <div className="flex items-start justify-between">
+              <h3 className="text-base font-bold text-[#0D1935]">
+                {cardBrandLabel(manage.brand)} ••••{manage.last4}
+              </h3>
+              <button type="button" onClick={() => setManage(null)} aria-label="Close" className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              {!manage.is_default && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAction({ kind: "default", card: manage });
+                    setManage(null);
+                    setPassword("");
+                    setActionError("");
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#E01C5B]/25 hover:bg-[#E01C5B]/5 text-[#E01C5B] text-sm font-semibold cursor-pointer"
+                >
+                  Set as default
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setAction({ kind: "remove", card: manage });
+                  setManage(null);
+                  setPassword("");
+                  setActionError("");
+                }}
+                className="w-full px-4 py-2.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-500 text-sm font-semibold cursor-pointer"
+              >
+                Remove card
+              </button>
             </div>
           </div>
         </div>

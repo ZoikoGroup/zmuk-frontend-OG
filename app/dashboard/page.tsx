@@ -30,6 +30,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import beQuick from "../utils/dasdbeQuickApi";
 import { getLines } from "./add-new-number/addLineApi";
+import { listSavedCards } from "../utils/savedCardsApi";
 import {
   getFallbackUserLine,
   getBoosterSummary,
@@ -520,8 +521,10 @@ export default function DashboardPage() {
         }
       }
 
-      // If BeQuick returned no lines, use the customer's real lines from our own backend (GET /api/v1/lines/).
-      // Only real lines are shown. There is no made-up fallback line or usage any more.
+      // The number selector now uses OUR backend lines (GET /api/v1/lines/) as the main source, so
+      // every line shows its real status. BeQuick lines above are only used when the backend has
+      // none yet (older SIMs). There is no made-up line or usage.
+      /* Previous version (BeQuick first, backend lines only if BeQuick had none), kept for reference:
       if (token) {
         try {
           const ld = await getLines();
@@ -555,6 +558,55 @@ export default function DashboardPage() {
           }
         } catch {
           // no lines from the backend
+        }
+      }
+
+      */
+      if (token) {
+        try {
+          const ld = await getLines();
+          const mapped: LineOption[] = (ld?.lines || []).map((l, idx) => {
+            const raw = l.msisdn || "";
+            const local = raw.startsWith("44") ? "0" + raw.slice(2) : raw;
+            return {
+              id: l.id,
+              number: raw
+                ? local.length === 11 && local.startsWith("0")
+                  ? `${local.slice(0, 5)} ${local.slice(5)}`
+                  : local
+                : "Number pending",
+              planName: l.plan?.name || "Zoiko SIM Plan",
+              status:
+                l.status === "active"
+                  ? "Active"
+                  : l.status === "pending_activation"
+                    ? l.port_request
+                      ? "Waiting for porting"
+                      : "Waiting for activation"
+                    : l.status === "suspended"
+                      ? "Paused"
+                      : "Ended",
+              simType: l.sim?.type === "esim" ? "eSIM" : "Physical SIM",
+              renewDate: l.term ? `${l.term} plan` : "—",
+              isPrimary: idx === 0,
+            };
+          });
+          // Orders that are paid or pending but not a line yet.
+          const pendingOrders: LineOption[] = (ld?.pending_orders || []).map((o) => ({
+            id: `order-${o.order_reference}`,
+            number: "Number pending",
+            planName: "Zoiko SIM Plan",
+            status: "Order in progress",
+            simType: o.sim_type === "esim" ? "eSIM" : "Physical SIM",
+            renewDate: "—",
+          }));
+          const all = [...mapped, ...pendingOrders];
+          if (all.length > 0) {
+            setLines(all);
+            setActiveLineId((prev) => (all.some((l) => l.id === prev) ? prev : all[0].id));
+          }
+        } catch {
+          // no lines from the backend: keep whatever BeQuick returned
         }
       }
 
@@ -615,9 +667,22 @@ export default function DashboardPage() {
       */
 
       // Dynamically resolve payment method without any hardcoded card or bank numbers
+      // Saved payment method now comes from the backend (/api/v1/payment-methods/),
+      // not browser storage. Guests / feature-off / errors fall back to "none".
       let pmType = "No payment method";
       let pmNote = "linked yet";
-      let mandateActive = false;
+      const mandateActive = false;
+      try {
+        const saved = await listSavedCards();
+        const card = saved.payment_methods.find((c) => c.is_default) || saved.payment_methods[0];
+        if (saved.enabled && card) {
+          const brand = card.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : "Card";
+          pmType = brand;
+          pmNote = `ending ••${card.last4}${card.expired ? " (expired)" : ""}`;
+        }
+      } catch {}
+
+      /* Old browser-storage version (zoiko_saved_bank / zoiko_saved_card), kept for reference:
 
       if (typeof window !== "undefined") {
         const storedBank = localStorage.getItem("zoiko_saved_bank");
@@ -643,6 +708,8 @@ export default function DashboardPage() {
           } catch {}
         }
       }
+
+      */
 
       setPaymentMethodInfo({
         method: pmType,
@@ -712,6 +779,10 @@ export default function DashboardPage() {
 
   // ── Booster purchase handler ──
   const handleApplyBooster = (addedGb: number, cost: number) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Buying data boosters here is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     const targetId = currentLine.id || "primary-line-1";
     recordBoosterPurchase({
       addedGb,
@@ -733,6 +804,7 @@ export default function DashboardPage() {
     });
     setNextCollectionAmount((prev) => Number((prev + cost).toFixed(2)));
     showToast(`Successfully added +${addedGb} GB booster to ${currentLine.number}!`);
+    */
   };
 
   // ── Add new number handler ──
@@ -780,6 +852,10 @@ export default function DashboardPage() {
 
   // ── Switch / upgrade plan handler ──
   const handleSelectPlan = (planName: string, planGb: number, price: number) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Changing plan from here is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     if (!currentLine.id) {
       router.push("/plans");
       return;
@@ -802,10 +878,15 @@ export default function DashboardPage() {
     setMonthlyPlanCharges(price);
     setNextCollectionAmount(price);
     showToast(`Switched ${currentLine.number} to ${planName} (£${price.toFixed(2)}/mo)!`);
+    */
   };
 
   // ── Toggle pause / resume line ──
   const handleTogglePauseLine = (id: string) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Pausing or resuming a line is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     setLines((prev) => {
       const updated = prev.map((l) => {
         if (l.id === id) {
@@ -822,20 +903,30 @@ export default function DashboardPage() {
       );
       return updated;
     });
+    */
   };
 
   // ── Set primary line ──
   const handleSetPrimaryLine = (id: string) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Setting a primary line is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     setLines((prev) => {
       const updated = prev.map((l) => ({ ...l, isPrimary: l.id === id }));
       const target = updated.find((l) => l.id === id);
       showToast(`Set ${target?.number} as primary account line.`);
       return updated;
     });
+    */
   };
 
   // ── Delete / unlink line ──
   const handleDeleteLine = (id: string) => {
+    // Needs backend support — shown as upcoming until then (nothing is changed locally).
+    showToast("Removing a line is upcoming — available soon.", "info");
+
+    /* Old local-only version (changed browser state only, no backend), kept for reference:
     setLines((prev) => {
       const target = prev.find((l) => l.id === id);
       const updated = prev.filter((l) => l.id !== id);
@@ -845,6 +936,7 @@ export default function DashboardPage() {
       showToast(`Unlinked ${target?.number || "line"} from account.`, "info");
       return updated;
     });
+    */
   };
 
   // ── 2FA Toggle ──
@@ -968,7 +1060,7 @@ export default function DashboardPage() {
             onClearNotifications={() => setUnreadNotifications(0)}
             subscriberId={subscriberId}
             activeLineId={currentLine.id}
-            onAddNewNumber={() => router.push("/dashboard/add-device")}
+            onAddNewNumber={() => router.push("/dashboard/add-new-number")}
             onManageNumbers={() => router.push("/dashboard/my-mobile-numbers")}
             onOpenBoosterModal={() => setBoosterOpen(true)}
           />
@@ -1070,6 +1162,7 @@ export default function DashboardPage() {
               <RoamingTravelCard
                 hasActivePlan={displayLines.length > 0}
                 roamingAllowanceGb={currentRoaming.total}
+                activeLineId={currentLine.id}
               />
             </div>
           </div>
@@ -1171,7 +1264,7 @@ export default function DashboardPage() {
         onSetPrimaryLine={handleSetPrimaryLine}
         onTogglePauseLine={handleTogglePauseLine}
         onDeleteLine={handleDeleteLine}
-        onAddNewNumber={() => router.push("/dashboard/add-device")}
+        onAddNewNumber={() => router.push("/dashboard/add-new-number")}
       />
 
       <ReportActivityModal

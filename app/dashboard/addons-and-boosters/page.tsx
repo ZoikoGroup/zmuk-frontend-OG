@@ -33,6 +33,7 @@ import {
   X,
   Receipt,
 } from "lucide-react";
+import { normalizeLineStatus } from "../components/LineStatusPill";
 
 interface LineAddonItem {
   id: string;
@@ -990,6 +991,7 @@ export default function AddonsAndBoostersPage() {
                             className="text-[#0D1935] bg-white"
                           >
                             {line.number}
+                            {normalizeLineStatus(line.status) ? ` · ${normalizeLineStatus(line.status)}` : ""}
                           </option>
                         ))}
                       </select>

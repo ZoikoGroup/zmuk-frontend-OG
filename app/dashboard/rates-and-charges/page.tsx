@@ -33,6 +33,7 @@ import {
   RateServiceType,
   RateContext,
 } from "../../services/dashboardRatesApi";
+import { StatusPill } from "../components/LineStatusPill";
 
 function niceStatus(status?: string): string {
   switch ((status || "").toLowerCase()) {
@@ -417,7 +418,7 @@ function RatesAndChargesContent() {
                               {formatUkPhone(ln.msisdn || "")} · {ln.plan?.name || "Unverified plan"}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {niceStatus(ln.status)} {ln.term ? `· ${ln.term}` : ""}
+                              <StatusPill status={ln.status} /> {ln.term ? `· ${ln.term}` : ""}
                             </div>
                           </div>
                           {isSel && (

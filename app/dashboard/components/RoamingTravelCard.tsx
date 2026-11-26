@@ -1,7 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Search, MapPin, ChevronRight, Info, Check } from "lucide-react";
+import {
+  classifyQuoteView,
+  getLineQuote,
+  searchDestinations,
+  type Destination,
+} from "../../services/roamingApi";
 
 interface CountryItem {
   id: string;
@@ -14,14 +20,66 @@ interface CountryItem {
 interface RoamingTravelCardProps {
   hasActivePlan?: boolean;
   roamingAllowanceGb?: number;
+  /** Selected line (backend line id). Used to check what is included for that line. */
+  activeLineId?: string;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Popular destinations shown first when nothing is typed (only those the backend returns are shown).
+const POPULAR_CODES = ["FR", "ES", "IE", "US", "IT", "DE", "PT", "CA", "AU"];
+
+type Badge = "included" | "charged" | "unsupported" | "info";
+
+function flagEmoji(code: string): string {
+  if (!/^[A-Za-z]{2}$/.test(code)) return "\u{1F310}";
+  return String.fromCodePoint(
+    ...code
+      .toUpperCase()
+      .split("")
+      .map((c) => 0x1f1a5 + c.charCodeAt(0))
+  );
 }
 
 export default function RoamingTravelCard({
   hasActivePlan = false,
   roamingAllowanceGb = 0,
+  activeLineId = "",
 }: RoamingTravelCardProps = {}) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  // Badges are tied to the line they were fetched for, so switching line never shows stale ones.
+  const [badgeState, setBadgeState] = useState<{ lineId: string; map: Record<string, Badge> }>({
+    lineId: "",
+    map: {},
+  });
+  const badges: Record<string, Badge> = badgeState.lineId === activeLineId ? badgeState.map : {};
 
+  // Real destinations from the roaming API (search is debounced).
+  useEffect(() => {
+    const controller = new AbortController();
+    const t = setTimeout(
+      () => {
+        searchDestinations(searchTerm, controller.signal)
+          .then((list) => {
+            setDestinations(list);
+            setLoadState("ready");
+          })
+          .catch(() => {
+            if (controller.signal.aborted) return;
+            setDestinations([]);
+            setLoadState("error");
+          });
+      },
+      searchTerm ? 300 : 0
+    );
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [searchTerm]);
+
+  /* Old made-up list ("Illustrative entitlements for design review"), kept for reference:
   const allCountries: CountryItem[] = [
     { id: "fr", name: "France", included: true, flagType: "france" },
     { id: "es", name: "Spain", included: true, flagType: "spain" },
@@ -37,6 +95,47 @@ export default function RoamingTravelCard({
   const filtered = allCountries.filter((c) =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
   );
+  */
+
+  const visible: Destination[] = (() => {
+    if (searchTerm.trim()) return destinations.slice(0, 4);
+    const popular = POPULAR_CODES.map((c) => destinations.find((d) => d.code === c)).filter(
+      (d): d is Destination => Boolean(d)
+    );
+    return (popular.length ? popular : destinations).slice(0, 4);
+  })();
+  const visibleKey = visible.map((d) => d.code).join(",");
+
+  // For the selected line, check what is included in each shown destination.
+  useEffect(() => {
+    if (!activeLineId || !UUID_RE.test(activeLineId) || !visibleKey) return;
+    let token = "";
+    try {
+      token = localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || "";
+    } catch {}
+    if (!token) return;
+    const controller = new AbortController();
+    visibleKey.split(",").forEach((code) => {
+      getLineQuote(token, activeLineId, code, undefined, controller.signal)
+        .then((q) => {
+          const kind = classifyQuoteView(q);
+          const badge: Badge =
+            kind === "included"
+              ? "included"
+              : kind === "charged"
+                ? "charged"
+                : kind === "unsupported"
+                  ? "unsupported"
+                  : "info";
+          setBadgeState((prev) => ({
+            lineId: activeLineId,
+            map: { ...(prev.lineId === activeLineId ? prev.map : {}), [code]: badge },
+          }));
+        })
+        .catch(() => {});
+    });
+    return () => controller.abort();
+  }, [activeLineId, visibleKey]);
 
   // SVG Flags matching the snippet
   const renderFlag = (type: CountryItem["flagType"]) => {
@@ -133,37 +232,61 @@ export default function RoamingTravelCard({
 
       {/* Country List */}
       <div className="flex flex-col divide-y divide-slate-100 my-2">
-        {filtered.slice(0, 4).map((country) => (
-          <div
-            key={country.id}
-            className="py-2.5 px-1 flex items-center justify-between hover:bg-slate-50/80 rounded-xl transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              {renderFlag(country.flagType)}
-              <span className="text-xs sm:text-sm font-medium text-[#0D1935]">
-                {country.name}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {country.included ? (
-                <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 font-semibold text-[11px] flex items-center gap-1">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                  <span>Included</span>
+        {visible.map((dest) => {
+          const badge = badges[dest.code];
+          return (
+            <a
+              key={dest.code}
+              href={`/roaming-and-coverage?country=${encodeURIComponent(dest.code)}`}
+              className="py-2.5 px-1 flex items-center justify-between hover:bg-slate-50/80 rounded-xl transition cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-7 text-center text-lg leading-none" aria-hidden="true">
+                  {flagEmoji(dest.code)}
                 </span>
-              ) : (
-                <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-600 font-semibold text-[11px]">
-                  Not included
-                </span>
-              )}
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            </div>
-          </div>
-        ))}
+                <span className="text-xs sm:text-sm font-medium text-[#0D1935]">{dest.name}</span>
+              </div>
 
-        {filtered.length === 0 && (
+              <div className="flex items-center gap-2">
+                {badge === "included" ? (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 font-semibold text-[11px] flex items-center gap-1">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    <span>Included</span>
+                  </span>
+                ) : badge === "charged" ? (
+                  <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-semibold text-[11px]">
+                    Pay as you go
+                  </span>
+                ) : badge === "unsupported" ? (
+                  <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-600 font-semibold text-[11px]">
+                    Not available
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-[11px]">
+                    See rates
+                  </span>
+                )}
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </a>
+          );
+        })}
+
+        {loadState === "loading" && visible.length === 0 && (
+          <div className="py-6 text-center text-xs text-slate-400">Loading destinations&hellip;</div>
+        )}
+        {loadState === "error" && (
           <div className="py-6 text-center text-xs text-slate-400">
-            No country matched &ldquo;{searchTerm}&rdquo;
+            Destinations are unavailable right now. Please try again shortly.
+          </div>
+        )}
+        {loadState === "ready" && visible.length === 0 && (
+          <div className="py-6 text-center text-xs text-slate-400">
+            {searchTerm.trim() ? (
+              <>No destination matched &ldquo;{searchTerm}&rdquo;</>
+            ) : (
+              "No destinations to show yet."
+            )}
           </div>
         )}
       </div>
@@ -172,7 +295,9 @@ export default function RoamingTravelCard({
       <div className="pt-2 flex items-start gap-2 text-[11px] text-slate-500 border-t border-slate-100">
         <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
         <p className="leading-tight">
-          Illustrative entitlements for design review. Live rates come from verified tariffs.
+          {activeLineId && UUID_RE.test(activeLineId)
+            ? "Shown for your selected line. Open a destination for full rates and charges."
+            : "Open a destination to see rates. Choose a line to see what is included for you."}
         </p>
       </div>
     </div>

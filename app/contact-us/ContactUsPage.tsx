@@ -433,7 +433,7 @@ export default function ContactUsPage() {
             <form onSubmit={onSubmit} noValidate className="mt-6 space-y-5">
               <div>
                 <Label htmlFor="enquiry" required>Enquiry type</Label>
-                <select id="enquiry" value={typeId} onChange={(e) => chooseType(e.target.value)} className={`${field} border-gray-200 dark:border-gray-600`}>
+                <select id="enquiry" value={typeId} onChange={(e) => chooseType(e.target.value)} className={`${field} rounded-xl! border-gray-200 dark:border-gray-600`}>
                   {ENQUIRY_TYPES.map((t) => (
                     <option key={t.id} value={t.id}>{t.label}</option>
                   ))}
@@ -466,7 +466,7 @@ export default function ContactUsPage() {
                     <div key={f.name}>
                       <Label htmlFor={`x-${f.name}`} required={f.required} optional={!f.required}>{f.label}</Label>
                       {f.type === "select" ? (
-                        <select id={`x-${f.name}`} value={values[f.name] ?? ""} onChange={(e) => set(f.name, e.target.value)} onBlur={() => blur(f.name)} className={cls(f.name)}>
+                        <select id={`x-${f.name}`} value={values[f.name] ?? ""} onChange={(e) => set(f.name, e.target.value)} onBlur={() => blur(f.name)} className={`${cls(f.name)} rounded-xl!`}>
                           <option value="">Select…</option>
                           {f.options?.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>

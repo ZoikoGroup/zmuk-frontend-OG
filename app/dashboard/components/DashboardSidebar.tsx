@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { getLines } from "../add-new-number/addLineApi";
 import {
   LayoutGrid,
   Smartphone,
@@ -42,14 +43,40 @@ interface SidebarProps {
 export default function DashboardSidebar({
   activeTab,
   setActiveTab,
-  numbersCount = 0,
+  numbersCount,
   collapsed = false,
   setCollapsed,
   onOpenComparePlans,
-  planName = "",
-  renewDate = "",
+  planName,
+  renewDate,
 }: SidebarProps) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  // Some pages (add a number, orders, order history) do not pass the plan or the number of lines.
+  // For those the sidebar reads the customer's lines itself, so the badge and the plan card still work.
+  const [own, setOwn] = useState<{ count: number; plan: string; renews: string } | null>(null);
+  useEffect(() => {
+    if (planName !== undefined && numbersCount !== undefined) return;
+    let cancelled = false;
+    getLines()
+      .then((r) => {
+        if (cancelled) return;
+        const lines = r?.lines || [];
+        const first = lines.find((l) => l.status === "active") || lines[0];
+        setOwn({
+          count: lines.length,
+          plan: first?.plan?.name || "",
+          renews: first?.term ? `${first.term} plan` : "",
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [planName, numbersCount]);
+  const rawPlan = (planName !== undefined ? planName : own?.plan) || "";
+  const shownPlanName = rawPlan && rawPlan !== "No active plan" ? rawPlan : "";
+  const shownCount = numbersCount !== undefined ? numbersCount : own?.count || 0;
 
   // Close mobile drawer on route/tab change or Escape key
   useEffect(() => {
@@ -70,7 +97,7 @@ export default function DashboardSidebar({
       id: "numbers",
       label: "My mobile numbers",
       icon: Smartphone,
-      badge: numbersCount > 0 ? numbersCount : undefined,
+      badge: shownCount > 0 ? shownCount : undefined,
       href: "/dashboard/my-mobile-numbers",
     },
     {
@@ -84,6 +111,7 @@ export default function DashboardSidebar({
       id: "bills",
       label: "Bills & payments",
       icon: Receipt,
+      badge: "Upcoming",
       href: "/dashboard/bills-and-payments",
     },
     { id: "sim", label: "SIM & eSIM", icon: Cpu, href: "/dashboard/sim-and-esim" },
@@ -207,7 +235,7 @@ export default function DashboardSidebar({
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5 text-[#E01C5B]" />
-              <span>{planName}</span>
+              <span>{shownPlanName || "Zoiko Mobile"}</span>
             </span>
 
             <button
@@ -267,7 +295,7 @@ export default function DashboardSidebar({
                 >
                   <div className="relative w-28 h-8">
                     <Image
-                      src="/images/logo.png"
+                      src="/images/zmuk-logo.png" /* was /images/logo.png (file does not exist) */
                       alt="Zoiko Mobile"
                       fill
                       sizes="112px"
@@ -420,10 +448,12 @@ export default function DashboardSidebar({
                 <div className="flex items-start justify-between relative z-10 mb-2">
                   <div className="pr-2">
                     <h4 className="text-sm font-bold leading-tight text-white">
-                      {planName}
+                      {shownPlanName ? shownPlanName : "Zoiko Mobile Plans"}
                     </h4>
                     <p className="text-xs text-white/70 mt-0.5">
-                      Your plan · renews {renewDate}
+                      {shownPlanName
+                        ? `Your plan · renews ${renewDate || own?.renews || "Monthly"}`
+                        : "Explore 30-day SIM and eSIM deals"}
                     </p>
                   </div>
                   <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
@@ -464,7 +494,7 @@ export default function DashboardSidebar({
             >
               <div className={`relative ${collapsed ? "w-8 h-8" : "w-28 h-9"}`}>
                 <Image
-                  src="/images/logo.png"
+                  src="/images/zmuk-logo.png" /* was /images/logo.png (file does not exist) */
                   alt="Zoiko Mobile"
                   fill
                   priority
@@ -644,12 +674,10 @@ export default function DashboardSidebar({
               <div className="flex items-start justify-between relative z-10 mb-2">
                 <div className="pr-2">
                   <h4 className="text-base font-bold leading-tight text-white">
-                    {planName && planName !== "No active plan"
-                      ? planName
-                      : "Zoiko Mobile Plans"}
+                    {shownPlanName ? shownPlanName : "Zoiko Mobile Plans"}
                   </h4>
                   <p className="text-xs text-white/70 mt-0.5">
-                    {planName && planName !== "No active plan"
+                    {shownPlanName
                       ? `Your plan · renews ${renewDate || "Monthly"}`
                       : "Explore 30-day SIM and eSIM deals"}
                   </p>

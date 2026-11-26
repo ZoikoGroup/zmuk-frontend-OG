@@ -554,7 +554,7 @@ export default function ContactUs() {
               <select
                 id="subject" name="subject"
                 value={form.subject} onChange={handleChange} onBlur={handleBlur}
-                className={getFieldClass("subject")}
+                className={`${getFieldClass("subject")} rounded-xl!`}
                 aria-invalid={!!(touched.subject && errors.subject)}
                 aria-describedby={errors.subject ? "subject-error" : undefined}
               >

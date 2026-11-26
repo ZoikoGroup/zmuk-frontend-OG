@@ -44,3 +44,65 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* ─── Rounded dropdown lists ───────────────────────────────────────────
+   The open list of a native <select> is drawn by the browser and normally
+   can't be styled. Chromium 135+ supports `appearance: base-select`, which
+   lets us round the list and its options. Browsers without support
+   (Firefox/Safari) ignore this block and keep the native list. */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+
+  select::picker(select) {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 6px;
+    margin-top: 6px;
+    background: #fff;
+    color: #141a45;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  }
+
+  select option {
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 600;
+  }
+
+  select option:hover,
+  select option:focus {
+    background: #fdf2f6;
+    color: #c8104e;
+  }
+
+  select option:checked {
+    background: #fce7ef;
+    color: #c8104e;
+  }
+
+  select option::checkmark {
+    display: none;
+  }
+
+  /* Selects that already draw their own chevron keep a single arrow. */
+  select.appearance-none::picker-icon {
+    display: none;
+  }
+}
+
+@supports (appearance: base-select) {
+  .dark select::picker(select) {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f3f4f6;
+}
+.dark select option:hover,
+.dark select option:focus,
+.dark select option:checked {
+  background: #374151;
+  color: #fff;
+}
+}

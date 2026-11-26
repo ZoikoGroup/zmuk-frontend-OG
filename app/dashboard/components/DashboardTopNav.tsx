@@ -114,6 +114,22 @@ export default function DashboardTopNav({
 
   // Universal logout fallback
   const handleLogoutAction = () => {
+    // Tell the server to end this login first. The token must be read before
+    // onLogout / the cleanup below clears it. Fire-and-forget: logging out in
+    // the browser must still work if the request fails.
+    try {
+      const apiBase =
+        process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+      const activeToken =
+        localStorage.getItem("zoiko_token") || localStorage.getItem("driverx_token") || "";
+      if (activeToken) {
+        fetch(`${apiBase}/api/accounts/logout/`, {
+          method: "POST",
+          headers: { Authorization: `Token ${activeToken}` },
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {}
     if (onLogout) {
       try {
         onLogout();
@@ -200,8 +216,10 @@ export default function DashboardTopNav({
       desc: "Quickly link or register a new UK mobile line",
       keywords: "add number new line family sim esim phone",
       icon: Plus,
-      action: onAddNewNumber,
-      href: "#my-numbers",
+      // Always open the real add-a-line flow. (Pages used to pass an
+      // onAddNewNumber that pointed at the IMEI checker or the numbers list.)
+      action: () => router.push("/dashboard/add-new-number"),
+      href: "/dashboard/add-new-number",
     },
     {
       title: "Manage my mobile numbers",
@@ -211,13 +229,14 @@ export default function DashboardTopNav({
       action: onManageNumbers,
       href: "/dashboard/my-mobile-numbers",
     },
-    {
-      title: "Add device & IMEI compatibility checker",
-      desc: "Check 15-digit IMEI or 32-digit EID compatibility",
-      keywords: "add device imei eid compatibility check smartphone tablet",
-      icon: Smartphone,
-      href: "/dashboard/my-mobile-numbers",
-    },
+    // Removed from search on request (kept for reference):
+    // {
+    //   title: "Add device & IMEI compatibility checker",
+    //   desc: "Check 15-digit IMEI or 32-digit EID compatibility",
+    //   keywords: "add device imei eid compatibility check smartphone tablet",
+    //   icon: Smartphone,
+    //   href: "/dashboard/my-mobile-numbers",
+    // },
     {
       title: "Activate a SIM or eSIM",
       desc: "Enter your Zoiko SIM activation code",
