@@ -896,7 +896,9 @@ export default function BlackFridayPage() {
                             isDark ? "text-white" : "text-[#C41E3A]"
                           }`}
                         >
-                          £{discountPrice}
+                          {/* PREVIOUS: £{discountPrice} (30% off worked out on this page).
+                              The discount now applies at checkout with the code, so the card shows the real plan price. */}
+                          £{basePrice}
                         </span>
                         <span
                           className={`text-xs font-medium ml-1 ${
@@ -916,7 +918,8 @@ export default function BlackFridayPage() {
                               : "bg-[#F3F4F6] text-[#374151]"
                           }`}
                         >
-                          Then £{basePrice} per month · {duration.toLowerCase()}
+                          {/* PREVIOUS: Then £{basePrice} per month · {duration.toLowerCase()} */}
+                          Apply code BLACKFRIDAY at checkout · {duration.toLowerCase()}
                         </span>
                       </div>
 
