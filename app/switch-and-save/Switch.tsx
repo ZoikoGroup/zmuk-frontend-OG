@@ -4012,7 +4012,7 @@ function Switch() {
                   <div className="mt-8 grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
                     <div>
                       <label htmlFor="provider" className={labelCx}>Current Provider</label>
-                      <select id="provider" name="provider" value={form.provider} onChange={update} className={`${inputCx} bg-white dark:bg-gray-900`}>
+                      <select id="provider" name="provider" value={form.provider} onChange={update} className={`${inputCx} rounded-xl! bg-white dark:bg-gray-900`}>
                         <option value="">Select</option>
                         {providers.map((p) => (
                           <option key={p} value={p}>{p}</option>
