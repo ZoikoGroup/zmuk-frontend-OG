@@ -29,6 +29,7 @@ import {
   Check,
   MessageSquare,
   Link2,
+  Plus,
   X,
 } from "lucide-react";
 
@@ -622,85 +623,91 @@ export default function RoamingAndTravelPage() {
                   </div>
                   <div className="flex flex-col">
                     <h3 className="text-[#0D1935] text-lg font-bold leading-6">
-                      Roaming balance
+                      Your roaming balance
                     </h3>
                     <span className="text-[#54617E] text-xs font-normal leading-4">
-                      {activeQuote?.destination?.name
+                      {activeQuote &&
+                      isLineQuote(activeQuote) &&
+                      activeQuote.entitlement?.remaining?.as_of
+                        ? `Network records to ${formatTimestamp(activeQuote.entitlement.remaining.as_of)}`
+                        : activeQuote?.destination?.name
                         ? `For ${activeQuote.destination.name}`
                         : "Select a destination"}
                     </span>
                   </div>
                 </div>
 
+                <p className="text-[#54617E] text-xs leading-4">
+                  No active travel pass on this number.
+                </p>
+
                 {activeQuote &&
                 isLineQuote(activeQuote) &&
                 activeQuote.outcome === "INCLUDED_WITH_LIMIT" &&
                 activeQuote.entitlement ? (
-                  <div className="p-3.5 bg-[#F6F7FA] rounded-2xl border border-[#ECEFF5] flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[#0D1935] text-xs font-bold">
-                        Plan entitlement
-                      </span>
-                      {activeQuote.entitlement.remaining.status === "coming_soon" ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          Coming soon
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Live
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-[#54617E]">Data limit</span>
-                        <span className="font-bold text-[#0D1935]">
-                          {formatAllowanceMb(activeQuote.entitlement.data_mb)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#54617E]">Voice minutes</span>
-                        <span className="font-bold text-[#0D1935]">
-                          {activeQuote.entitlement.voice_unlimited
-                            ? "Unlimited minutes"
-                            : activeQuote.entitlement.voice_minutes !== null
-                            ? `${activeQuote.entitlement.voice_minutes}`
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#54617E]">Texts</span>
-                        <span className="font-bold text-[#0D1935]">
-                          {activeQuote.entitlement.sms_unlimited
-                            ? "Unlimited texts"
-                            : activeQuote.entitlement.sms !== null
-                            ? `${activeQuote.entitlement.sms}`
-                            : "—"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-200 text-xs">
-                      {activeQuote.entitlement.remaining.status === "coming_soon" ? (
-                        <p className="font-semibold text-amber-800">
-                          Remaining balance: coming soon
-                        </p>
-                      ) : (
-                        <div className="space-y-1">
-                          <p className="font-bold text-[#1E8E5A]">
-                            Remaining:{" "}
-                            {formatAllowanceMb(activeQuote.entitlement.remaining.data_mb)}
-                          </p>
-                          {activeQuote.entitlement.remaining.as_of && (
-                            <p className="text-[11px] text-[#54617E]">
-                              Updated at {formatTimestamp(activeQuote.entitlement.remaining.as_of)}
-                            </p>
-                          )}
+                  (() => {
+                    const ent = activeQuote.entitlement;
+                    const isUpcoming = ent.remaining.status === "coming_soon";
+                    const totalMb = ent.data_mb;
+                    const leftMb = ent.remaining.data_mb;
+                    const hasNums =
+                      !isUpcoming &&
+                      typeof totalMb === "number" &&
+                      totalMb > 0 &&
+                      typeof leftMb === "number";
+                    const pctLeft = hasNums
+                      ? Math.max(0, Math.min(100, ((leftMb as number) / (totalMb as number)) * 100))
+                      : 0;
+                    return (
+                      <div className="p-3.5 bg-[#F6F7FA] rounded-2xl border border-[#ECEFF5] flex flex-col gap-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span className="text-[#0D1935] text-xs font-bold leading-4">
+                              {activeQuote.destination?.name
+                                ? `${activeQuote.destination.name} roaming in your plan`
+                                : "Roaming in your plan"}
+                            </span>
+                            {isUpcoming && (
+                              <span className="self-start px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Coming soon
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[#0D1935] text-2xl font-extrabold leading-7">
+                              {hasNums
+                                ? formatAllowanceMb(leftMb as number)
+                                : formatAllowanceMb(totalMb)}
+                            </div>
+                            <div className="text-[#54617E] text-[11px] leading-4">
+                              {hasNums
+                                ? `left of ${formatAllowanceMb(totalMb)}`
+                                : "plan allowance"}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
+
+                        {hasNums && (
+                          <div className="h-1.5 w-full rounded-full bg-[#DDE2EC] overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[#1E8E5A]"
+                              style={{ width: `${pctLeft}%` }}
+                            />
+                          </div>
+                        )}
+
+                        <p className="text-[#54617E] text-[11px] leading-4">
+                          {isUpcoming
+                            ? "Remaining balance: coming soon"
+                            : `${formatAllowanceMb(totalMb)} fair use${
+                                ent.remaining.as_of
+                                  ? ` · updated ${formatTimestamp(ent.remaining.as_of)}`
+                                  : ""
+                              }`}
+                        </p>
+                      </div>
+                    );
+                  })()
                 ) : (
                   <div className="p-4 bg-[#F6F7FA] rounded-2xl border border-[#ECEFF5] text-xs text-[#54617E] space-y-2">
                     <p className="font-semibold text-[#0D1935]">
@@ -721,13 +728,14 @@ export default function RoamingAndTravelPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Link
-                  href="/dashboard/usage-and-allowances/allowance-details"
-                  className="w-full h-10 px-4 py-2 rounded-xl border border-[#E5E8EF] hover:border-[#E01C5B] text-xs font-semibold text-[#0D1935] hover:text-[#E01C5B] transition inline-flex items-center justify-between"
+                <button
+                  type="button"
+                  onClick={() => showToast("Travel passes are coming soon", "info")}
+                  className="w-full h-10 px-4 py-2 rounded-xl border border-[#F3C1D1] text-[#B9154B] hover:bg-[#FAF1F4] text-xs font-semibold transition inline-flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>View full allowance details</span>
-                  <ChevronRight className="w-4 h-4 text-[#8F9BB3]" />
-                </Link>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add a travel pass</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setQueryRoamingModalOpen(true)}
