@@ -596,9 +596,8 @@ export default function Footer() {
               </a>
             </div>
 
-            {/* App Store / Google Play Buttons */}
+            {/* App Store / Google Play Buttons — commented out (hidden for now)
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Google Play */}
               <a
                 href="#"
                 className="inline-flex items-center gap-2.5 bg-black hover:bg-neutral-900 border border-white/20 px-3.5 py-1.5 rounded-xl transition-colors"
@@ -610,7 +609,6 @@ export default function Footer() {
                 </div>
               </a>
 
-              {/* App Store */}
               <a
                 href="#"
                 className="inline-flex items-center gap-2.5 bg-black hover:bg-neutral-900 border border-white/20 px-3.5 py-1.5 rounded-xl transition-colors"
@@ -622,6 +620,7 @@ export default function Footer() {
                 </div>
               </a>
             </div>
+            */}
 
             {/* Chat with Zovie Pill Button */}
             <button

@@ -32,6 +32,7 @@ import {
   Sparkles,
   Leaf,
 } from "lucide-react";
+import { CopyEmailButton, supportGmailHref } from "../components/EmailSupport";
 
 // .env.local -> NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -918,13 +919,17 @@ function DevicesList({ variant = "all" }: { variant?: "all" | "refurbished" }) {
               <span className="block text-xs text-gray-500">Mon–Fri, 8am–8pm | Sat–Sun, 9am–6pm</span>
             </span>
           </a>
-          <a href="mailto:help@zoikomobile.co.uk" className="flex items-center gap-3">
+          {/* PREVIOUS: <a href="mailto:help@zoikomobile.co.uk"> (does nothing without a mail app) */}
+          <div className="flex items-center gap-3">
             <Mail className="w-5 h-5 text-[#E01C5B]" />
             <span>
-              <span className="block text-sm font-bold text-[#0D1935] dark:text-white">Email us</span>
-              <span className="block text-xs font-semibold text-[#E01C5B] underline">help@zoikomobile.co.uk</span>
+              <a href={supportGmailHref()} target="_blank" rel="noopener noreferrer" className="block">
+                <span className="block text-sm font-bold text-[#0D1935] dark:text-white">Email us</span>
+                <span className="block text-xs font-semibold text-[#E01C5B] underline">help@zoikomobile.co.uk</span>
+              </a>
+              <CopyEmailButton className="mt-1" />
             </span>
-          </a>
+          </div>
         </section>
       </div>
 

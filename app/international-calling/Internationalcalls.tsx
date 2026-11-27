@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { isLoggedIn } from "../utils/auth";
 import { openChat } from "../components/ChatbotWidget";
+import { CopyEmailButton, SUPPORT_EMAIL, supportGmailHref } from "../components/EmailSupport";
 
 type NumberType = "mobile" | "landline" | "special";
 type OriginType = "uk" | "abroad";
@@ -1103,6 +1104,18 @@ function Internationalcalls() {
               <p className="text-xs leading-[18px] text-[#d6e3dd]">
                 Zovie will never ask for passwords or security codes.
               </p>
+              {/* Email support: Gmail compose in a new tab (mailto: fails with no mail app) + copy */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/20 pt-3">
+                <a
+                  href={supportGmailHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-bold text-white underline underline-offset-2 hover:text-[#ffd6e4]"
+                >
+                  Email us: {SUPPORT_EMAIL}
+                </a>
+                <CopyEmailButton className="border-white! text-white! hover:bg-white! hover:text-[#c80f57]!" />
+              </div>
             </div>
           </div>
         </section>

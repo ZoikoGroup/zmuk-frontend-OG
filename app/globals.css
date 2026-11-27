@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Dark mode is switched OFF for the site: the dark: variant now only applies when
+   data-theme="dark" / .dark is set explicitly (nothing sets it), so the OS dark
+   setting no longer changes any page.
+   PREVIOUS (followed the OS setting):
 @custom-variant dark {
   &:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *) {
     @slot;
@@ -10,6 +14,8 @@
     }
   }
 }
+*/
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
 
 :root {
   --background: #ffffff;
@@ -28,11 +34,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* PREVIOUS: page background/text followed the OS dark setting. Disabled (light only).
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+*/
+
+:root {
+  color-scheme: light;
 }
 
 body {

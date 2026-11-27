@@ -30,6 +30,7 @@ import {
   Headphones,
   X,
 } from "lucide-react";
+import { CopyEmailButton, supportGmailHref } from "../components/EmailSupport";
 
 import { openChat } from "../components/ChatbotWidget";
 import { isLoggedIn as checkIsLoggedIn } from "../utils/auth";
@@ -928,8 +929,11 @@ export function SupportHub() {
               <h3 className="text-slate-900 text-base font-extrabold leading-6">
                 Email us
               </h3>
+              {/* PREVIOUS: href="mailto:help@zoikomobile.co.uk" (does nothing without a mail app) */}
               <a
-                href="mailto:help@zoikomobile.co.uk"
+                href={supportGmailHref()}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-1 inline-block text-[#C8104E] hover:underline text-base font-extrabold leading-5 break-all"
               >
                 help@zoikomobile.co.uk
@@ -937,6 +941,7 @@ export function SupportHub() {
               <p className="mt-1 text-slate-600 text-xs leading-5">
                 We&apos;ll usually reply within 24 hours.
               </p>
+              <CopyEmailButton className="mt-2" />
             </div>
           </div>
         </section>

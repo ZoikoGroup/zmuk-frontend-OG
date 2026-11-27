@@ -377,8 +377,10 @@ function ThirtyDayPlans() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <span className="inline-flex items-center gap-2 text-sm font-bold"><IconCalendar />Choose your contract length</span>
             <div className="inline-flex rounded-full border border-[#e6e8f0] bg-white p-1 shadow-sm">
+              {/* 24 / 12 month options hidden (commented out)
               <Link href="/plans" className="rounded-full px-5 py-2 text-sm font-bold text-[#5b6078] hover:text-[#14194a]">24 months</Link>
               <Link href="/plans" className="rounded-full px-5 py-2 text-sm font-bold text-[#5b6078] hover:text-[#14194a]">12 months</Link>
+              */}
               <span aria-current="true" className="rounded-full bg-[#d10f5b] px-5 py-2 text-sm font-bold text-white">30 days</span>
             </div>
           </div>
