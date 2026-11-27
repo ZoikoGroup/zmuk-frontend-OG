@@ -1355,7 +1355,7 @@ export default function SimAndEsimPage() {
                         <div className="mt-2.5 flex flex-col gap-2 w-full max-w-[210px]">
                           <button
                             type="button"
-                            onClick={() => router.push("/dashboard/sim-and-esim/replace")}
+                            onClick={() => router.push("/activate-your-sim")}
                             className="h-8.5 px-3 bg-[#E01C5B] hover:bg-[#c8164f] text-white text-xs font-semibold rounded-[9px] transition cursor-pointer"
                           >
                             Activate an eSIM code

@@ -1,6 +1,4 @@
-// Saved payment methods API (guide: Saved_Payment_Methods_Frontend_Guide.md)
-// Card details never touch our code: they go from the browser to Stripe.
-// Never log or store a client_secret.
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
